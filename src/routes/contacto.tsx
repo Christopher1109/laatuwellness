@@ -76,7 +76,7 @@ function Contacto() {
       />
 
       <section>
-        <div className="mx-auto grid max-w-6xl gap-16 px-5 py-24 sm:px-8 md:grid-cols-[1fr_1.1fr]">
+        <div className="mx-auto grid max-w-6xl gap-16 px-5 py-16 sm:px-8 sm:py-24 md:grid-cols-[1fr_1.1fr]">
           <div>
             <p className="eyebrow">Directo</p>
             <ul className="mt-6 space-y-3 text-sm">

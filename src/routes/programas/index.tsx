@@ -57,7 +57,7 @@ function Programas() {
           opacity={0.09}
           className="-right-40 -top-32 h-[30rem] w-[30rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Movimiento</p>
           <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:items-center">
             <div className="space-y-px bg-border">
@@ -66,7 +66,7 @@ function Programas() {
                   key={m.key}
                   to="/programas/$key"
                   params={{ key: m.key }}
-                  className="group flex items-start gap-6 bg-background p-8 transition-colors hover:bg-muted"
+                  className="group flex items-start gap-6 bg-background p-6 transition-colors sm:p-8 hover:bg-muted"
                 >
                   <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} className="mt-1" />
                   <span>
@@ -96,18 +96,18 @@ function Programas() {
           opacity={0.07}
           className="-bottom-32 -left-40 h-[28rem] w-[28rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Recuperación y acompañamiento</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.7rem,4vw,2.6rem)]">
             El proceso no termina en la clase.
           </h2>
-          <div className="mt-12 grid gap-px bg-border sm:grid-cols-2">
+          <div className="mt-10 grid gap-px sm:mt-12 bg-border sm:grid-cols-2">
             {servicios.map((m, i) => (
               <Link
                 key={m.key}
                 to="/programas/$key"
                 params={{ key: m.key }}
-                className="group bg-background p-8 transition-colors hover:bg-muted"
+                className="group bg-background p-6 transition-colors sm:p-8 hover:bg-muted"
               >
                 <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                 <h3 className="mt-6 text-xl">{m.name}</h3>

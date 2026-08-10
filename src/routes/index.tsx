@@ -54,34 +54,34 @@ function Home() {
       {/* ---------- Bienvenida ---------- */}
       <section className="border-b border-border">
         <div className="mx-auto grid max-w-6xl items-stretch gap-0 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr]">
-          <div className="flex flex-col justify-center py-20 pr-0 lg:py-32 lg:pr-16">
+          <div className="flex flex-col justify-center py-14 pr-0 sm:py-20 lg:py-32 lg:pr-16">
             <Coordinates className="rise" />
-            <h1 className="statement rise mt-8 text-[clamp(2.8rem,7.5vw,5.5rem)] leading-[0.95]">
+            <h1 className="statement rise mt-6 text-[clamp(2.6rem,10vw,5.5rem)] leading-[0.95] sm:mt-8">
               Encuentra paz
               <br />
               en el caos.
             </h1>
-            <p className="rise mt-8 max-w-md text-lg text-muted-foreground">
+            <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
               Pilates Reformer, recuperación y acompañamiento en un mismo lugar.
               Máximo diez personas por salón, para que alguien mire tu proceso.
             </p>
-            <div className="rise mt-10 flex flex-wrap gap-3">
+            <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
                 to="/horarios"
-                className="bg-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] text-background transition-opacity hover:opacity-85"
+                className="bg-foreground px-8 py-4 text-center text-[0.72rem] uppercase tracking-[0.2em] text-background transition-opacity hover:opacity-85"
               >
                 Reservar tu clase
               </Link>
               <Link
                 to="/programas"
-                className="border border-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
+                className="border border-foreground px-8 py-4 text-center text-[0.72rem] uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
               >
                 Conocer los programas
               </Link>
             </div>
           </div>
 
-          <div className="relative -mx-5 min-h-[24rem] sm:-mx-8 lg:mx-0 lg:min-h-full">
+          <div className="relative -mx-5 min-h-[19rem] sm:-mx-8 sm:min-h-[24rem] lg:mx-0 lg:min-h-full">
             <img
               src={foto1.url}
               alt="Persona estirando en el estudio Läätu"
@@ -93,9 +93,10 @@ function Home() {
         </div>
       </section>
 
+
       {/* ---------- Horarios ---------- */}
       <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
               <p className="eyebrow">Horarios</p>
@@ -124,7 +125,7 @@ function Home() {
           opacity={0.18}
           className="-left-40 top-1/2 h-[34rem] w-[34rem] -translate-y-1/2"
         />
-        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
+        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Constellation className="mx-auto max-w-xs opacity-60" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.6rem)] leading-[1.15]">
             Date un espacio para respirar.
@@ -141,13 +142,13 @@ function Home() {
           opacity={0.1}
           className="-right-32 -top-24 h-[30rem] w-[30rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <p className="eyebrow">Programas</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.9rem,4.5vw,3rem)]">
             Todo el recorrido, bajo un mismo techo.
           </h2>
 
-          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 lg:grid-cols-6">
             {programas.map((m, i) => {
               const resto = programas.length % 3;
               const enUltimaFila = i >= programas.length - resto && resto !== 0;
@@ -163,7 +164,7 @@ function Home() {
                   to="/programas/$key"
                   params={{ key: m.key }}
                   className={cn(
-                    "group flex flex-col border border-border bg-background p-8 transition-colors hover:bg-muted lg:col-span-2",
+                    "group flex flex-col border border-border bg-background p-6 transition-colors sm:p-8 hover:bg-muted lg:col-span-2",
                     offset,
                   )}
                 >
@@ -185,7 +186,7 @@ function Home() {
 
       {/* ---------- Recovery Bar ---------- */}
       <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 sm:px-8 lg:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
           <img
             src={foto4.url}
             alt="Recuperación después de entrenar en Läätu"
@@ -217,7 +218,7 @@ function Home() {
           opacity={0.08}
           className="-left-48 bottom-0 h-[26rem] w-[26rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="eyebrow">Conócenos</p>
@@ -269,7 +270,7 @@ function Home() {
           opacity={0.16}
           className="-bottom-40 -right-40 h-[38rem] w-[38rem]"
         />
-        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
+        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Wordmark tone="ivory" variant="stack" className="mx-auto h-24" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">
             Abraza tu recorrido.

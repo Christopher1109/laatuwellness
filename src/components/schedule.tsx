@@ -85,13 +85,18 @@ export function RangeTabs({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div
+      className={cn(
+        "-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0",
+        className,
+      )}
+    >
       {RANGOS.map((r) => (
         <button
           key={r.key}
           onClick={() => onChange(r.key)}
           className={cn(
-            "border px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.18em] transition-colors",
+            "shrink-0 border px-4 py-2.5 text-[0.64rem] uppercase tracking-[0.16em] transition-colors sm:px-5 sm:text-[0.68rem] sm:tracking-[0.18em]",
             value === r.key
               ? "border-foreground bg-foreground text-background"
               : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -103,6 +108,7 @@ export function RangeTabs({
     </div>
   );
 }
+
 
 type ClassRow = {
   id: string;
@@ -253,17 +259,17 @@ export function Schedule({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
         {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
         {showTabs && conFiltro ? (
           <span className="hidden h-6 w-px bg-border sm:block" />
         ) : null}
         {conFiltro ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
             <button
               onClick={() => setFiltro(null)}
               className={cn(
-                "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                "shrink-0 rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
                 filtro === null
                   ? "border-secondary bg-secondary/15 text-foreground"
                   : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -276,7 +282,7 @@ export function Schedule({
                 key={k}
                 onClick={() => setFiltro(k)}
                 className={cn(
-                  "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                  "shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
                   filtro === k
                     ? "border-secondary bg-secondary/15 text-foreground"
                     : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -289,6 +295,7 @@ export function Schedule({
         ) : null}
       </div>
 
+
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
       ) : total === 0 ? (
@@ -297,13 +304,13 @@ export function Schedule({
           avisamos en cuanto se abra el horario.
         </p>
       ) : (
-        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-6 lg:grid-cols-2">
           {grupos.map((g) => (
             <section
               key={g.key}
               className="flex flex-col border border-border bg-background"
             >
-              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-5 py-4">
+              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 sm:px-5 sm:py-4">
                 <BirdBadge size="sm" variant={3} />
                 <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
                   {nombre.get(g.key) ?? g.key}
@@ -313,7 +320,7 @@ export function Schedule({
                 </span>
               </header>
 
-              <div className="max-h-[22rem] overflow-y-auto px-5">
+              <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
                 {g.dias.map(([day, items]) => (
                   <div key={day} className="py-4">
                     <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
@@ -327,7 +334,7 @@ export function Schedule({
                         return (
                           <li
                             key={c.id}
-                            className="flex items-center justify-between gap-4 py-3"
+                            className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
                           >
                             <div className="min-w-0">
                               <div className="flex items-baseline gap-3">

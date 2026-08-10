@@ -33,7 +33,7 @@ function Horarios() {
       />
 
       <section>
-        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <Schedule defaultRange="hoy" />
 
           <p className="mt-16 text-sm text-muted-foreground">

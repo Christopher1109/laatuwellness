@@ -71,7 +71,7 @@ export function InstallPrompt() {
       aria-label="Instalar Läätu"
       className="fixed inset-0 z-[80] flex items-end justify-center bg-shadow/60 p-4 backdrop-blur-sm sm:items-center"
     >
-      <div className="relative w-full max-w-md border border-border bg-background p-8 shadow-[0_30px_80px_-30px_rgba(39,40,56,0.6)]">
+      <div className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto border border-border bg-background p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_30px_80px_-30px_rgba(39,40,56,0.6)] sm:p-8">
         <button
           onClick={() => close()}
           aria-label="Cerrar"
@@ -83,11 +83,11 @@ export function InstallPrompt() {
         <img
           src="/icon-192.png"
           alt="Läätu"
-          className="h-16 w-16 border border-border object-contain"
+          className="h-14 w-14 border border-border object-contain sm:h-16 sm:w-16"
         />
 
         <p className="eyebrow mt-6">Läätu en tu bolsillo</p>
-        <h2 className="statement mt-3 text-[1.7rem] leading-tight">
+        <h2 className="statement mt-3 text-[1.4rem] leading-tight sm:text-[1.7rem]">
           Tennos en la comodidad de tu mano.
         </h2>
         <p className="mt-4 text-sm text-muted-foreground">
@@ -115,11 +115,11 @@ export function InstallPrompt() {
           </ol>
         ) : null}
 
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="mt-7 grid grid-cols-1 gap-2 sm:mt-8 sm:flex sm:flex-wrap sm:gap-3">
           {deferred ? (
             <button
               onClick={() => void install()}
-              className="bg-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] text-background transition-opacity hover:opacity-85"
+              className="bg-foreground px-7 py-3.5 text-center text-[0.7rem] uppercase tracking-[0.18em] text-background transition-opacity hover:opacity-85"
             >
               Instalar ahora
             </button>
@@ -127,7 +127,7 @@ export function InstallPrompt() {
           <button
             onClick={() => close()}
             className={cn(
-              "px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors",
+              "px-7 py-3.5 text-center text-[0.7rem] uppercase tracking-[0.18em] transition-colors",
               deferred
                 ? "text-muted-foreground hover:text-foreground"
                 : "border border-foreground hover:bg-foreground hover:text-background",

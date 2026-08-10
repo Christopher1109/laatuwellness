@@ -31,7 +31,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5 sm:h-28 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:h-28 sm:px-8">
         <BrandLink />
 
         <nav className="hidden items-center gap-5 md:flex lg:gap-8">
@@ -101,8 +101,9 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <div className="border-t border-border bg-background md:hidden">
-          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-4">
+        <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background md:hidden">
+          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3 pb-6">
+
             {NAV.map((item) => (
               <Link
                 key={item.to}
@@ -114,12 +115,20 @@ export function SiteHeader() {
               </Link>
             ))}
             <Link
+              to="/horarios"
+              onClick={() => setOpen(false)}
+              className="mt-3 bg-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
+            >
+              Reservar clase
+            </Link>
+            <Link
               to={user ? "/cuenta" : "/auth"}
               onClick={() => setOpen(false)}
-              className="mt-3 bg-foreground px-5 py-3 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
+              className="mt-2 border border-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em]"
             >
               {user ? "Mi cuenta" : "Entrar / Registrarte"}
             </Link>
+
             {user && isAdmin ? (
               <Link
                 to="/admin"
@@ -149,8 +158,8 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="surface-dark constellation grain mt-24">
-      <div className="relative z-[2] mx-auto max-w-6xl px-5 py-16 sm:px-8">
+    <footer className="surface-dark constellation grain mt-16 sm:mt-24">
+      <div className="relative z-[2] mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
             <Wordmark tone="ivory" variant="stack" className="h-20" />
@@ -161,7 +170,7 @@ export function SiteFooter() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-10 text-sm sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 sm:gap-10">
             <div>
               <p className="eyebrow">Estudio</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
@@ -236,9 +245,9 @@ export function PageHeader({
 }) {
   return (
     <section className="border-b border-border">
-      <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+      <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-28">
         <p className="eyebrow rise">{eyebrow}</p>
-        <h1 className="statement rise mt-6 text-[clamp(2.5rem,7vw,5rem)]">{title}</h1>
+        <h1 className="statement rise mt-5 text-[clamp(2.3rem,9vw,5rem)] leading-[1.02] sm:mt-6">{title}</h1>
         {intro ? (
           <p className="rise mt-6 max-w-xl text-base text-muted-foreground">{intro}</p>
         ) : null}

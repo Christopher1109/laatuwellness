@@ -51,7 +51,7 @@ function Nosotros() {
       />
 
       <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl gap-14 px-5 py-24 sm:px-8 md:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl gap-14 px-5 py-16 sm:px-8 sm:py-24 md:grid-cols-2">
           <div>
             <p className="eyebrow">La propuesta</p>
             <p className="mt-6 text-lg leading-relaxed">
@@ -77,7 +77,7 @@ function Nosotros() {
       </section>
 
       <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <Constellation className="mb-14 opacity-50" />
           <div className="grid gap-px bg-border sm:grid-cols-2">
             {VALORES.map((v) => (
