@@ -109,6 +109,30 @@ export function BirdMark({
   );
 }
 
+/**
+ * Isotipo dentro de un disco Stone Blue: da contraste al pájaro en tarjetas
+ * sobre fondo Ivory, donde el trazo fino se perdía.
+ */
+export function BirdBadge({
+  className,
+  size = "md",
+}: {
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-secondary transition-colors group-hover:bg-foreground",
+        size === "sm" ? "h-10 w-10" : "h-14 w-14",
+        className,
+      )}
+    >
+      <BirdMark tone="ivory" className={size === "sm" ? "h-5" : "h-7"} />
+    </span>
+  );
+}
+
 /** Alias histórico. */
 export const ArrowMark = BirdMark;
 
