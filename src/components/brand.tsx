@@ -1,32 +1,38 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import wordmarkDark from "@/assets/laatu-wordmark-dark.png.asset.json";
+import wordmarkLight from "@/assets/laatu-wordmark-light.png.asset.json";
 
 /**
- * PROVISIONAL: wordmark tipográfico mientras se integran los archivos
- * oficiales (logo-laatu-fondo-claro / logo-laatu-fondo-oscuro).
- * Al recibirlos: importar el SVG/PNG y reemplazar el <span> por <img>,
- * sin estirar, rotar ni recolorear.
+ * Logotipo oficial Läätu Wellness. Nunca estirar, rotar ni recolorear:
+ * usar la variante `tone="ink"` sobre fondos claros y `tone="ivory"`
+ * sobre fondos oscuros (Shadow Blue / Stone Blue).
  */
 export function Wordmark({
   className,
-  compact = false,
+  tone = "ink",
 }: {
   className?: string;
-  compact?: boolean;
+  tone?: "ink" | "ivory";
 }) {
+  const asset = tone === "ivory" ? wordmarkLight : wordmarkDark;
+
   return (
-    <span className={cn("wordmark inline-flex items-baseline gap-[0.34em]", className)}>
-      <span>Läätu</span>
-      {!compact ? <span className="opacity-60">Wellness</span> : null}
-    </span>
+    <img
+      src={asset.url}
+      alt="Läätu Wellness"
+      className={cn("h-8 w-auto object-contain", className)}
+      loading="eager"
+      decoding="async"
+    />
   );
 }
 
-export function BrandLink({ className }: { className?: string }) {
+
+export function BrandLink({ className, tone = "ink" }: { className?: string; tone?: "ink" | "ivory" }) {
   return (
-    <Link to="/" aria-label="Läätu Wellness — Inicio" className={cn("group flex items-center gap-3", className)}>
-      <BirdMark className="h-6 w-6 shrink-0" />
-      <Wordmark className="text-[0.8rem] sm:text-[0.9rem]" />
+    <Link to="/" aria-label="Läätu Wellness — Inicio" className={cn("group flex items-center", className)}>
+      <Wordmark tone={tone} className="h-7 sm:h-8" />
     </Link>
   );
 }
