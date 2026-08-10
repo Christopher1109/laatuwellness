@@ -112,7 +112,7 @@ function Home() {
           </div>
 
           <div className="mt-12">
-            <Schedule defaultRange="semana" limit={12} />
+            <Schedule defaultRange="hoy" limit={6} />
           </div>
         </div>
       </section>
