@@ -136,8 +136,12 @@ function Home() {
       </section>
 
       {/* ---------- Programas ---------- */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <section className="relative overflow-hidden border-b border-border">
+        <PatternField
+          opacity={0.1}
+          className="-right-32 -top-24 h-[30rem] w-[30rem]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Programas</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.9rem,4.5vw,3rem)]">
             Todo el recorrido, bajo un mismo techo.
