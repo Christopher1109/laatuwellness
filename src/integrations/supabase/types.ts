@@ -57,6 +57,7 @@ export type Database = {
           duration_min: number
           id: string
           instructor: string
+          module_key: string | null
           room: string
           starts_at: string
           tokens_cost: number
@@ -68,6 +69,7 @@ export type Database = {
           duration_min?: number
           id?: string
           instructor?: string
+          module_key?: string | null
           room?: string
           starts_at: string
           tokens_cost?: number
@@ -79,6 +81,7 @@ export type Database = {
           duration_min?: number
           id?: string
           instructor?: string
+          module_key?: string | null
           room?: string
           starts_at?: string
           tokens_cost?: number
@@ -168,26 +171,32 @@ export type Database = {
       }
       site_modules: {
         Row: {
+          bookable: boolean
           category: string
           description: string
           enabled: boolean
           key: string
+          long_description: string
           name: string
           sort_order: number
         }
         Insert: {
+          bookable?: boolean
           category?: string
           description?: string
           enabled?: boolean
           key: string
+          long_description?: string
           name: string
           sort_order?: number
         }
         Update: {
+          bookable?: boolean
           category?: string
           description?: string
           enabled?: boolean
           key?: string
+          long_description?: string
           name?: string
           sort_order?: number
         }
