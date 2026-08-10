@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as CoachesRouteImport } from './routes/coaches'
+import { Route as ContactoRouteImport } from './routes/contacto'
+import { Route as HorariosRouteImport } from './routes/horarios'
 import { Route as NosotrosRouteImport } from './routes/nosotros'
 import { Route as ProgramasRouteImport } from './routes/programas'
 
@@ -19,9 +22,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CoachesRoute = CoachesRouteImport.update({
   id: '/coaches',
   path: '/coaches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactoRoute = ContactoRouteImport.update({
+  id: '/contacto',
+  path: '/contacto',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HorariosRoute = HorariosRouteImport.update({
+  id: '/horarios',
+  path: '/horarios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NosotrosRoute = NosotrosRouteImport.update({
@@ -37,34 +55,68 @@ const ProgramasRoute = ProgramasRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
   '/coaches': typeof CoachesRoute
+  '/contacto': typeof ContactoRoute
+  '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
   '/programas': typeof ProgramasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
   '/coaches': typeof CoachesRoute
+  '/contacto': typeof ContactoRoute
+  '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
   '/programas': typeof ProgramasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
   '/coaches': typeof CoachesRoute
+  '/contacto': typeof ContactoRoute
+  '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
   '/programas': typeof ProgramasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/coaches' | '/nosotros' | '/programas'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/coaches'
+    | '/contacto'
+    | '/horarios'
+    | '/nosotros'
+    | '/programas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/coaches' | '/nosotros' | '/programas'
-  id: '__root__' | '/' | '/coaches' | '/nosotros' | '/programas'
+  to:
+    | '/'
+    | '/app'
+    | '/coaches'
+    | '/contacto'
+    | '/horarios'
+    | '/nosotros'
+    | '/programas'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/coaches'
+    | '/contacto'
+    | '/horarios'
+    | '/nosotros'
+    | '/programas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRoute
   CoachesRoute: typeof CoachesRoute
+  ContactoRoute: typeof ContactoRoute
+  HorariosRoute: typeof HorariosRoute
   NosotrosRoute: typeof NosotrosRoute
   ProgramasRoute: typeof ProgramasRoute
 }
@@ -78,11 +130,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/coaches': {
       id: '/coaches'
       path: '/coaches'
       fullPath: '/coaches'
       preLoaderRoute: typeof CoachesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contacto': {
+      id: '/contacto'
+      path: '/contacto'
+      fullPath: '/contacto'
+      preLoaderRoute: typeof ContactoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/horarios': {
+      id: '/horarios'
+      path: '/horarios'
+      fullPath: '/horarios'
+      preLoaderRoute: typeof HorariosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nosotros': {
@@ -104,7 +177,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRoute,
   CoachesRoute: CoachesRoute,
+  ContactoRoute: ContactoRoute,
+  HorariosRoute: HorariosRoute,
   NosotrosRoute: NosotrosRoute,
   ProgramasRoute: ProgramasRoute,
 }
