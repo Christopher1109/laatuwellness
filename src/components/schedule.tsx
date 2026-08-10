@@ -259,17 +259,17 @@ export function Schedule({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
         {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
         {showTabs && conFiltro ? (
           <span className="hidden h-6 w-px bg-border sm:block" />
         ) : null}
         {conFiltro ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
             <button
               onClick={() => setFiltro(null)}
               className={cn(
-                "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                "shrink-0 rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
                 filtro === null
                   ? "border-secondary bg-secondary/15 text-foreground"
                   : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -282,7 +282,7 @@ export function Schedule({
                 key={k}
                 onClick={() => setFiltro(k)}
                 className={cn(
-                  "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                  "shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
                   filtro === k
                     ? "border-secondary bg-secondary/15 text-foreground"
                     : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -294,6 +294,7 @@ export function Schedule({
           </div>
         ) : null}
       </div>
+
 
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
