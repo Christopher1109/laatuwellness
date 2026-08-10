@@ -1,12 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import wordmarkDark from "@/assets/laatu-wordmark-dark.png.asset.json";
-import wordmarkLight from "@/assets/laatu-wordmark-light.png.asset.json";
+import wordmarkInk from "@/assets/laatu-wordmark-ink.png";
+import wordmarkIvory from "@/assets/laatu-wordmark-ivory.png";
+import iconInk from "@/assets/laatu-icon-ink.png";
+import iconIvory from "@/assets/laatu-icon-ivory.png";
 
 /**
- * Logotipo oficial Läätu Wellness. Nunca estirar, rotar ni recolorear:
- * usar la variante `tone="ink"` sobre fondos claros y `tone="ivory"`
- * sobre fondos oscuros (Shadow Blue / Stone Blue).
+ * Logotipo oficial Läätu Wellness — extraído directamente del vector del
+ * Manual de Identidad (29.05.2026), NO recreado. Nunca estirar, rotar ni
+ * recolorear: usar la variante `tone="ink"` (Shadow Blue) sobre fondos
+ * claros/Ivory y `tone="ivory"` sobre fondos oscuros (Shadow Blue / Stone
+ * Blue).
  */
 export function Wordmark({
   className,
@@ -15,14 +19,39 @@ export function Wordmark({
   className?: string;
   tone?: "ink" | "ivory";
 }) {
-  const asset = tone === "ivory" ? wordmarkLight : wordmarkDark;
+  const src = tone === "ivory" ? wordmarkIvory : wordmarkInk;
 
   return (
     <img
-      src={asset.url}
+      src={src}
       alt="Läätu Wellness"
       className={cn("h-8 w-auto object-contain", className)}
       loading="eager"
+      decoding="async"
+    />
+  );
+}
+
+/**
+ * Ícono de marca oficial (ave origami/constelación) tal cual el Manual de
+ * Identidad — para usos donde se requiere el arte real en vez del trazo
+ * simplificado de <BirdMark />, por ejemplo portadas o placeholders grandes.
+ */
+export function BrandIcon({
+  className,
+  tone = "ink",
+}: {
+  className?: string;
+  tone?: "ink" | "ivory";
+}) {
+  const src = tone === "ivory" ? iconIvory : iconInk;
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      className={cn("h-auto w-full object-contain", className)}
+      loading="lazy"
       decoding="async"
     />
   );
