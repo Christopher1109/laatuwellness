@@ -304,13 +304,13 @@ export function Schedule({
           avisamos en cuanto se abra el horario.
         </p>
       ) : (
-        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-6 lg:grid-cols-2">
           {grupos.map((g) => (
             <section
               key={g.key}
               className="flex flex-col border border-border bg-background"
             >
-              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-5 py-4">
+              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 sm:px-5 sm:py-4">
                 <BirdBadge size="sm" variant={3} />
                 <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
                   {nombre.get(g.key) ?? g.key}
@@ -320,7 +320,7 @@ export function Schedule({
                 </span>
               </header>
 
-              <div className="max-h-[22rem] overflow-y-auto px-5">
+              <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
                 {g.dias.map(([day, items]) => (
                   <div key={day} className="py-4">
                     <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
@@ -334,7 +334,7 @@ export function Schedule({
                         return (
                           <li
                             key={c.id}
-                            className="flex items-center justify-between gap-4 py-3"
+                            className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
                           >
                             <div className="min-w-0">
                               <div className="flex items-baseline gap-3">
