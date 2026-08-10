@@ -55,37 +55,8 @@ function Horarios() {
 
       <section>
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setModulo(undefined)}
-              className={cn(
-                "border px-5 py-2.5 text-[0.66rem] uppercase tracking-[0.18em] transition-colors",
-                modulo === undefined
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
-              )}
-            >
-              Todos
-            </button>
-            {filtros.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => setModulo(m.key)}
-                className={cn(
-                  "border px-5 py-2.5 text-[0.66rem] uppercase tracking-[0.18em] transition-colors",
-                  modulo === m.key
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
-                )}
-              >
-                {m.name}
-              </button>
-            ))}
-          </div>
+          <Schedule defaultRange="hoy" />
 
-          <div className="mt-10">
-            <Schedule key={modulo ?? "all"} moduleKey={modulo} defaultRange="hoy" />
-          </div>
 
           <p className="mt-16 text-sm text-muted-foreground">
             ¿No encuentras un horario que te acomode?{" "}

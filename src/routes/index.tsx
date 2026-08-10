@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates, ArrowMark, Wordmark } from "@/components/brand";
+import { Constellation, Coordinates, BirdMark, Wordmark } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
