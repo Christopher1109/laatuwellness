@@ -304,7 +304,7 @@ export function Schedule({
               className="flex flex-col border border-border bg-background"
             >
               <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-5 py-4">
-                <BirdMark className="h-5 w-5 shrink-0 text-secondary" />
+                <BirdMark className="h-6 w-8 shrink-0 opacity-70" />
                 <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
                   {nombre.get(g.key) ?? g.key}
                 </h3>

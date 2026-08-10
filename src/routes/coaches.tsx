@@ -59,7 +59,7 @@ function Coaches() {
                       className="h-full w-full object-cover grayscale"
                     />
                   ) : (
-                    <ArrowMark className="h-8 w-8 text-secondary" />
+                    <ArrowMark className="h-9 w-12 opacity-80" />
                   )}
                 </div>
                 <h2 className="mt-6 text-lg">{c.name}</h2>
