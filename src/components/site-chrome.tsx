@@ -32,7 +32,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5 sm:h-28 sm:px-8">
         <BrandLink />
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-5 md:flex lg:gap-8">
           {NAV.map((item) => (
             <Link
               key={item.to}
