@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SiteLayout } from "@/components/site-chrome";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -228,7 +229,7 @@ function ModulesPanel() {
   });
 
   const update = useMutation({
-    mutationFn: async ({ key, patch }: { key: string; patch: Record<string, unknown> }) => {
+    mutationFn: async ({ key, patch }: { key: string; patch: TablesUpdate<"site_modules"> }) => {
       const { error } = await supabase.from("site_modules").update(patch).eq("key", key);
       if (error) throw error;
     },
@@ -281,7 +282,7 @@ function PlansPanel() {
   });
 
   const update = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
+    mutationFn: async ({ id, patch }: { id: string; patch: TablesUpdate<"token_plans"> }) => {
       const { error } = await supabase.from("token_plans").update(patch).eq("id", id);
       if (error) throw error;
     },
