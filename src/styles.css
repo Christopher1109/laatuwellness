@@ -5,20 +5,24 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * LÄÄTU WELLNESS — Sistema de diseño
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
+ * Paleta oficial (no modificar):
+ *   Shadow Blue #272838 · Stone Blue #8095A8 · Ivory #F9F8F2
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * Tipografía oficial: Altone (títulos) + Nitti (cuerpo).
+ * Ambas son de licencia comercial y no están disponibles como webfont aquí,
+ * por lo que se usan alternativas de Google Fonts:
+ *   Altone -> "Space Grotesk"   (reemplazar por Altone al obtener la licencia)
+ *   Nitti  -> "IBM Plex Sans"   (reemplazar por Nitti al obtener la licencia)
+ * Para sustituirlas: cambia --font-display / --font-body y el <link> en
+ * src/routes/__root.tsx por el @font-face de las fuentes con licencia.
  */
 
 @theme inline {
+  --font-display: "Space Grotesk", "Altone", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Nitti", ui-sans-serif, system-ui, sans-serif;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -26,6 +30,7 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -46,6 +51,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+  --color-stone: var(--stone-blue);
+  --color-shadow: var(--shadow-blue);
+  --color-ivory: var(--ivory);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -62,74 +70,71 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --radius: 0.125rem;
+
+  /* Paleta de marca */
+  --shadow-blue: oklch(0.2831 0.0293 281.56);
+  --stone-blue: oklch(0.6599 0.0371 245.71);
+  --ivory: oklch(0.9782 0.008 98.88);
+
+  --background: var(--ivory);
+  --foreground: var(--shadow-blue);
+  --card: oklch(0.9925 0.005 98.88);
+  --card-foreground: var(--shadow-blue);
+  --popover: var(--ivory);
+  --popover-foreground: var(--shadow-blue);
+  --primary: var(--shadow-blue);
+  --primary-foreground: var(--ivory);
+  --secondary: var(--stone-blue);
+  --secondary-foreground: var(--ivory);
+  --muted: oklch(0.9265 0.0148 98.3);
+  --muted-foreground: oklch(0.5495 0.04 247.28);
+  --accent: oklch(0.9265 0.0148 98.3);
+  --accent-foreground: var(--shadow-blue);
+  --destructive: oklch(0.5 0.09 25);
+  --destructive-foreground: var(--ivory);
+  --border: oklch(0.2831 0.0293 281.56 / 14%);
+  --input: oklch(0.2831 0.0293 281.56 / 22%);
+  --ring: var(--stone-blue);
+
+  --chart-1: var(--shadow-blue);
+  --chart-2: var(--stone-blue);
+  --chart-3: oklch(0.5495 0.04 247.28);
+  --chart-4: oklch(0.9265 0.0148 98.3);
+  --chart-5: oklch(0.8 0.02 250);
+
+  --sidebar: var(--shadow-blue);
+  --sidebar-foreground: var(--ivory);
+  --sidebar-primary: var(--stone-blue);
+  --sidebar-primary-foreground: var(--ivory);
+  --sidebar-accent: oklch(0.2306 0.0213 280.53);
+  --sidebar-accent-foreground: var(--ivory);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: var(--stone-blue);
+
+  /* Superficies oscuras de marca */
+  --surface-dark: var(--shadow-blue);
+  --surface-dark-foreground: var(--ivory);
+  --surface-stone: var(--stone-blue);
+
+  /* Movimiento */
+  --ease-calm: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-calm: all 0.6s var(--ease-calm);
+
+  /* Textura de constelación (puntos sutiles) */
+  --pattern-constellation: radial-gradient(
+    circle at center,
+    color-mix(in oklab, var(--shadow-blue) 26%, transparent) 1px,
+    transparent 1.4px
+  );
+  --grain-opacity: 0.055;
 }
 
+/* La marca es monocromática y siempre clara: no hay modo oscuro alterno,
+   las secciones oscuras se resuelven con .surface-dark. */
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --background: var(--ivory);
+  --foreground: var(--shadow-blue);
 }
 
 @layer base {
@@ -137,8 +142,130 @@
     border-color: var(--color-border);
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: var(--shadow-blue);
+    color: var(--ivory);
+  }
+}
+
+@utility surface-dark {
+  background-color: var(--surface-dark);
+  color: var(--surface-dark-foreground);
+  --foreground: var(--ivory);
+  --muted-foreground: color-mix(in oklab, var(--ivory) 62%, transparent);
+  --border: color-mix(in oklab, var(--ivory) 16%, transparent);
+  --input: color-mix(in oklab, var(--ivory) 28%, transparent);
+}
+
+@utility surface-stone {
+  background-color: var(--surface-stone);
+  color: var(--ivory);
+  --foreground: var(--ivory);
+  --muted-foreground: color-mix(in oklab, var(--ivory) 78%, transparent);
+  --border: color-mix(in oklab, var(--ivory) 26%, transparent);
+}
+
+/* Wordmark provisional: reemplazar por el logotipo oficial en SVG/PNG. */
+@utility wordmark {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+@utility eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+@utility statement {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+@utility constellation {
+  background-image: var(--pattern-constellation);
+  background-size: 22px 22px;
+}
+
+@utility grain {
+  position: relative;
+  isolation: isolate;
+}
+
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+@utility rule-line {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, currentColor 28%, transparent),
+    transparent
+  );
+}
+
+@keyframes laatu-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility rise {
+  animation: laatu-rise 0.9s var(--ease-calm) both;
+}
+
+@keyframes laatu-draw {
+  from {
+    stroke-dashoffset: 260;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
