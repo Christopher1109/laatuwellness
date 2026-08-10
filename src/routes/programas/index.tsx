@@ -5,7 +5,7 @@ import { ArrowMark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 
-export const Route = createFileRoute("/programas")({
+export const Route = createFileRoute("/programas/")({
   head: () => ({
     meta: [
       { title: "Programas — Läätu Wellness" },

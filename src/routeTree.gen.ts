@@ -17,10 +17,10 @@ import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as HorariosRouteImport } from './routes/horarios'
 import { Route as NosotrosRouteImport } from './routes/nosotros'
-import { Route as ProgramasRouteImport } from './routes/programas'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCuentaRouteImport } from './routes/_authenticated/cuenta'
+import { Route as ProgramasIndexRouteImport } from './routes/programas/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -61,11 +61,6 @@ const NosotrosRoute = NosotrosRouteImport.update({
   path: '/nosotros',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProgramasRoute = ProgramasRouteImport.update({
-  id: '/programas',
-  path: '/programas',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -81,6 +76,11 @@ const AuthenticatedCuentaRoute = AuthenticatedCuentaRouteImport.update({
   path: '/cuenta',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ProgramasIndexRoute = ProgramasIndexRouteImport.update({
+  id: '/programas/',
+  path: '/programas/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,10 +90,10 @@ export interface FileRoutesByFullPath {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
-  '/programas': typeof ProgramasRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
+  '/programas/': typeof ProgramasIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,10 +103,10 @@ export interface FileRoutesByTo {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
-  '/programas': typeof ProgramasRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
+  '/programas': typeof ProgramasIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,10 +118,10 @@ export interface FileRoutesById {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
-  '/programas': typeof ProgramasRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/cuenta': typeof AuthenticatedCuentaRoute
+  '/programas/': typeof ProgramasIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -133,10 +133,10 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
-    | '/programas'
     | '/reset-password'
     | '/admin'
     | '/cuenta'
+    | '/programas/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -146,10 +146,10 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
-    | '/programas'
     | '/reset-password'
     | '/admin'
     | '/cuenta'
+    | '/programas'
   id:
     | '__root__'
     | '/'
@@ -160,10 +160,10 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
-    | '/programas'
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/cuenta'
+    | '/programas/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -175,8 +175,8 @@ export interface RootRouteChildren {
   ContactoRoute: typeof ContactoRoute
   HorariosRoute: typeof HorariosRoute
   NosotrosRoute: typeof NosotrosRoute
-  ProgramasRoute: typeof ProgramasRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ProgramasIndexRoute: typeof ProgramasIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -237,13 +237,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NosotrosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/programas': {
-      id: '/programas'
-      path: '/programas'
-      fullPath: '/programas'
-      preLoaderRoute: typeof ProgramasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -264,6 +257,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/cuenta'
       preLoaderRoute: typeof AuthenticatedCuentaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/programas/': {
+      id: '/programas/'
+      path: '/programas'
+      fullPath: '/programas/'
+      preLoaderRoute: typeof ProgramasIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -290,8 +290,8 @@ const rootRouteChildren: RootRouteChildren = {
   ContactoRoute: ContactoRoute,
   HorariosRoute: HorariosRoute,
   NosotrosRoute: NosotrosRoute,
-  ProgramasRoute: ProgramasRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ProgramasIndexRoute: ProgramasIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
