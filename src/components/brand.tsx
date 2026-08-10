@@ -29,11 +29,10 @@ export function Wordmark({
 }
 
 
-export function BrandLink({ className }: { className?: string }) {
+export function BrandLink({ className, tone = "ink" }: { className?: string; tone?: "ink" | "ivory" }) {
   return (
-    <Link to="/" aria-label="Läätu Wellness — Inicio" className={cn("group flex items-center gap-3", className)}>
-      <BirdMark className="h-6 w-6 shrink-0" />
-      <Wordmark className="text-[0.8rem] sm:text-[0.9rem]" />
+    <Link to="/" aria-label="Läätu Wellness — Inicio" className={cn("group flex items-center", className)}>
+      <Wordmark tone={tone} className="h-7 sm:h-8" />
     </Link>
   );
 }
