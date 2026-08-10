@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.class_seats_taken(uuid) TO anon, authenticated;
