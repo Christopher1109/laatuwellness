@@ -68,7 +68,7 @@ export function BrandLink({
       aria-label="Läätu Wellness — Inicio"
       className={cn("flex items-center", className)}
     >
-      <Wordmark tone={tone} variant="principal" className="h-11 sm:h-14" />
+      <Wordmark tone={tone} variant="principal" className="h-9 sm:h-14" />
     </Link>
   );
 }
