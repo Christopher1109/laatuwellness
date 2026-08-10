@@ -54,34 +54,34 @@ function Home() {
       {/* ---------- Bienvenida ---------- */}
       <section className="border-b border-border">
         <div className="mx-auto grid max-w-6xl items-stretch gap-0 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr]">
-          <div className="flex flex-col justify-center py-20 pr-0 lg:py-32 lg:pr-16">
+          <div className="flex flex-col justify-center py-14 pr-0 sm:py-20 lg:py-32 lg:pr-16">
             <Coordinates className="rise" />
-            <h1 className="statement rise mt-8 text-[clamp(2.8rem,7.5vw,5.5rem)] leading-[0.95]">
+            <h1 className="statement rise mt-6 text-[clamp(2.6rem,10vw,5.5rem)] leading-[0.95] sm:mt-8">
               Encuentra paz
               <br />
               en el caos.
             </h1>
-            <p className="rise mt-8 max-w-md text-lg text-muted-foreground">
+            <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
               Pilates Reformer, recuperación y acompañamiento en un mismo lugar.
               Máximo diez personas por salón, para que alguien mire tu proceso.
             </p>
-            <div className="rise mt-10 flex flex-wrap gap-3">
+            <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
                 to="/horarios"
-                className="bg-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] text-background transition-opacity hover:opacity-85"
+                className="bg-foreground px-8 py-4 text-center text-[0.72rem] uppercase tracking-[0.2em] text-background transition-opacity hover:opacity-85"
               >
                 Reservar tu clase
               </Link>
               <Link
                 to="/programas"
-                className="border border-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
+                className="border border-foreground px-8 py-4 text-center text-[0.72rem] uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
               >
                 Conocer los programas
               </Link>
             </div>
           </div>
 
-          <div className="relative -mx-5 min-h-[24rem] sm:-mx-8 lg:mx-0 lg:min-h-full">
+          <div className="relative -mx-5 min-h-[19rem] sm:-mx-8 sm:min-h-[24rem] lg:mx-0 lg:min-h-full">
             <img
               src={foto1.url}
               alt="Persona estirando en el estudio Läätu"
@@ -92,6 +92,7 @@ function Home() {
           </div>
         </div>
       </section>
+
 
       {/* ---------- Horarios ---------- */}
       <section className="border-b border-border">
