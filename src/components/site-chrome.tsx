@@ -101,8 +101,9 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <div className="border-t border-border bg-background md:hidden">
-          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-4">
+        <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background md:hidden">
+          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3 pb-6">
+
             {NAV.map((item) => (
               <Link
                 key={item.to}
