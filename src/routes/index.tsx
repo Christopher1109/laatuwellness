@@ -263,7 +263,12 @@ function Home() {
       </section>
 
       {/* ---------- Cierre ---------- */}
-      <section className="surface-dark constellation grain">
+      <section className="surface-dark constellation grain relative overflow-hidden">
+        <PatternField
+          tone="ivory"
+          opacity={0.16}
+          className="-bottom-40 -right-40 h-[38rem] w-[38rem]"
+        />
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
           <Wordmark tone="ivory" variant="stack" className="mx-auto h-24" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">
