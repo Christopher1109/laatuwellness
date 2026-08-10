@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { Constellation, ArrowMark } from "@/components/brand";
+import { Constellation, BirdBadge } from "@/components/brand";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
@@ -120,7 +120,7 @@ function RecoveryBar() {
           <div className="mt-14 grid gap-px bg-border md:grid-cols-3">
             {CARTA.map((g) => (
               <div key={g.grupo} className="bg-background p-8">
-                <ArrowMark className="h-7 w-10 opacity-80" />
+                <BirdBadge size="sm" />
                 <h3 className="mt-6 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                   {g.grupo}
                 </h3>
