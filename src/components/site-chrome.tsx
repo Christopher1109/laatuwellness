@@ -115,12 +115,20 @@ export function SiteHeader() {
               </Link>
             ))}
             <Link
+              to="/horarios"
+              onClick={() => setOpen(false)}
+              className="mt-3 bg-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
+            >
+              Reservar clase
+            </Link>
+            <Link
               to={user ? "/cuenta" : "/auth"}
               onClick={() => setOpen(false)}
-              className="mt-3 bg-foreground px-5 py-3 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
+              className="mt-2 border border-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em]"
             >
               {user ? "Mi cuenta" : "Entrar / Registrarte"}
             </Link>
+
             {user && isAdmin ? (
               <Link
                 to="/admin"
