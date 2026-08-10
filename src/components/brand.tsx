@@ -110,8 +110,8 @@ export function BirdMark({
 }
 
 /**
- * Isotipo dentro de un disco Stone Blue: da contraste al pájaro en tarjetas
- * sobre fondo Ivory, donde el trazo fino se perdía.
+ * Isotipo con trazo reforzado dentro de un disco Shadow Blue: a tamaños
+ * pequeños el trazo original de la constelación se perdía sobre Ivory.
  */
 export function BirdBadge({
   className,
@@ -124,14 +124,25 @@ export function BirdBadge({
     <span
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full bg-foreground transition-colors group-hover:bg-secondary",
-        size === "sm" ? "h-11 w-11" : "h-16 w-16",
+        size === "sm" ? "h-12 w-12" : "h-16 w-16",
         className,
       )}
     >
-      <BirdMark tone="ivory" className={size === "sm" ? "h-6" : "h-9"} />
+      <img
+        src="/brand/laatu-icono-bold-ivory.png"
+        alt=""
+        aria-hidden="true"
+        className={cn(
+          "w-auto object-contain",
+          size === "sm" ? "h-6" : "h-8",
+        )}
+        loading="lazy"
+        decoding="async"
+      />
     </span>
   );
 }
+
 
 /** Alias histórico. */
 export const ArrowMark = BirdMark;
