@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates, BirdBadge, Wordmark } from "@/components/brand";
+import { Constellation, Coordinates, BirdBadge, Wordmark, PatternField } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
