@@ -1,0 +1,15 @@
+revoke execute on function public.has_role(uuid, public.app_role) from public, anon;
+revoke execute on function public.token_balance(uuid) from public, anon;
+revoke execute on function public.book_class(uuid) from public, anon;
+revoke execute on function public.cancel_booking(uuid) from public, anon;
+revoke execute on function public.admin_adjust_tokens(uuid, int, text) from public, anon;
+revoke execute on function public.purchase_plan(uuid, text) from public, anon;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.class_seats_taken(uuid) from public;
+grant execute on function public.has_role(uuid, public.app_role) to authenticated;
+grant execute on function public.token_balance(uuid) to authenticated;
+grant execute on function public.book_class(uuid) to authenticated;
+grant execute on function public.cancel_booking(uuid) to authenticated;
+grant execute on function public.admin_adjust_tokens(uuid, int, text) to authenticated;
+grant execute on function public.purchase_plan(uuid, text) to authenticated;
+grant execute on function public.class_seats_taken(uuid) to anon, authenticated;
