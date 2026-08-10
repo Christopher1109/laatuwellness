@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { ArrowMark } from "@/components/brand";
+import { BirdBadge } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 
@@ -64,7 +64,7 @@ function Programas() {
                   params={{ key: m.key }}
                   className="group flex items-start gap-6 bg-background p-8 transition-colors hover:bg-muted"
                 >
-                  <ArrowMark className="mt-1 h-7 w-10 shrink-0 opacity-80" />
+                  <BirdBadge className="mt-1" />
                   <span>
                     <span className="block text-xl">{m.name}</span>
                     <span className="mt-3 block text-sm text-muted-foreground">
@@ -101,7 +101,7 @@ function Programas() {
                 params={{ key: m.key }}
                 className="group bg-background p-8 transition-colors hover:bg-muted"
               >
-                <ArrowMark className="h-7 w-10 opacity-80" />
+                <BirdBadge />
                 <h3 className="mt-6 text-xl">{m.name}</h3>
                 <p className="mt-3 text-sm text-muted-foreground">
                   {m.description}

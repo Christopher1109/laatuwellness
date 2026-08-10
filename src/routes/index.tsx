@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates, BirdMark, Wordmark } from "@/components/brand";
+import { Constellation, Coordinates, BirdBadge, Wordmark } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -158,7 +158,7 @@ function Home() {
                     offset,
                   )}
                 >
-                  <BirdMark className="h-8 w-11 opacity-80" />
+                  <BirdBadge />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
                   <p className="mt-3 text-sm text-muted-foreground">
                     {m.description}
