@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { BirdMark } from "@/components/brand";
+import { ArrowMark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/coaches")({
@@ -59,7 +59,7 @@ function Coaches() {
                       className="h-full w-full object-cover grayscale"
                     />
                   ) : (
-                    <BirdMark className="h-8 w-8 text-secondary" variant="glide" />
+                    <ArrowMark className="h-8 w-8 text-secondary" />
                   )}
                 </div>
                 <h2 className="mt-6 text-lg">{c.name}</h2>

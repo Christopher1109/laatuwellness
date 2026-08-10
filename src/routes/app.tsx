@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { BirdMark } from "@/components/brand";
+import { ArrowMark } from "@/components/brand";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -27,7 +27,7 @@ function AppSoon() {
       <PageHeader eyebrow="Próximamente" title="La app está en camino." />
       <section className="surface-dark constellation grain">
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
-          <BirdMark className="mx-auto h-10 w-10" />
+          <ArrowMark className="mx-auto h-10 w-10" />
           <h2 className="statement mt-10 text-[clamp(1.8rem,4.5vw,3rem)]">
             Hay belleza en el caos.
           </h2>
