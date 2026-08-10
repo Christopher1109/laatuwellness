@@ -150,8 +150,7 @@ export function SiteFooter() {
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-3">
-              <BirdMark className="h-7 w-7" />
-              <Wordmark className="text-[0.85rem]" />
+              <Wordmark tone="ivory" className="h-9" />
             </div>
             <p className="mt-5 text-sm text-muted-foreground">
               Wellness Recovery Bar. Un espacio para respirar, moverte y
