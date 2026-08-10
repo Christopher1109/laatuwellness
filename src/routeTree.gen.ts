@@ -17,6 +17,7 @@ import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as HorariosRouteImport } from './routes/horarios'
 import { Route as NosotrosRouteImport } from './routes/nosotros'
+import { Route as RecoveryBarRouteImport } from './routes/recovery-bar'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCuentaRouteImport } from './routes/_authenticated/cuenta'
@@ -62,6 +63,11 @@ const NosotrosRoute = NosotrosRouteImport.update({
   path: '/nosotros',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecoveryBarRoute = RecoveryBarRouteImport.update({
+  id: '/recovery-bar',
+  path: '/recovery-bar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
+  '/recovery-bar': typeof RecoveryBarRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
+  '/recovery-bar': typeof RecoveryBarRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/contacto': typeof ContactoRoute
   '/horarios': typeof HorariosRoute
   '/nosotros': typeof NosotrosRoute
+  '/recovery-bar': typeof RecoveryBarRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/cuenta': typeof AuthenticatedCuentaRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
+    | '/recovery-bar'
     | '/reset-password'
     | '/admin'
     | '/cuenta'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
+    | '/recovery-bar'
     | '/reset-password'
     | '/admin'
     | '/cuenta'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/horarios'
     | '/nosotros'
+    | '/recovery-bar'
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/cuenta'
@@ -187,6 +199,7 @@ export interface RootRouteChildren {
   ContactoRoute: typeof ContactoRoute
   HorariosRoute: typeof HorariosRoute
   NosotrosRoute: typeof NosotrosRoute
+  RecoveryBarRoute: typeof RecoveryBarRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ProgramasKeyRoute: typeof ProgramasKeyRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NosotrosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recovery-bar': {
+      id: '/recovery-bar'
+      path: '/recovery-bar'
+      fullPath: '/recovery-bar'
+      preLoaderRoute: typeof RecoveryBarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -310,6 +330,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactoRoute: ContactoRoute,
   HorariosRoute: HorariosRoute,
   NosotrosRoute: NosotrosRoute,
+  RecoveryBarRoute: RecoveryBarRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ProgramasKeyRoute: ProgramasKeyRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,
