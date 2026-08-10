@@ -120,7 +120,7 @@ function RecoveryBar() {
           <div className="mt-14 grid gap-px bg-border md:grid-cols-3">
             {CARTA.map((g) => (
               <div key={g.grupo} className="bg-background p-8">
-                <ArrowMark className="h-5 w-5 text-secondary" />
+                <ArrowMark className="h-7 w-10 opacity-80" />
                 <h3 className="mt-6 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                   {g.grupo}
                 </h3>

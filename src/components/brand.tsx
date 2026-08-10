@@ -7,6 +7,8 @@ import letragramaIvory from "@/assets/laatu-letragrama-ivory.png.asset.json";
 import stackInk from "@/assets/laatu-stack2-ink.png.asset.json";
 import stackIvory from "@/assets/laatu-stack2-ivory.png.asset.json";
 import patron from "@/assets/laatu-patron-ink.png.asset.json";
+import iconoInk from "@/assets/laatu-icono-ink.png.asset.json";
+import iconoIvory from "@/assets/laatu-icono-ivory.png.asset.json";
 
 type Tone = "ink" | "ivory";
 
@@ -86,31 +88,30 @@ export function CirclePattern({ className }: { className?: string }) {
 }
 
 /**
- * Isotipo oficial Läätu: el pájaro/flecha ascendente de la "Ä".
- * Se usa como viñeta y acento en tarjetas de programas.
+ * Isotipo oficial Läätu (1.3.1.1): la grulla de origami en constelación.
  */
-export function BirdMark({ className }: { className?: string }) {
+export function BirdMark({
+  className,
+  tone = "ink",
+}: {
+  className?: string;
+  tone?: Tone;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
+    <img
+      src={tone === "ivory" ? iconoIvory.url : iconoInk.url}
+      alt=""
       aria-hidden="true"
-      className={className}
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3.5 21 L12 5.5 L20.5 21" />
-      <path d="M7.4 15.4 H16.6" />
-      <circle cx="9.6" cy="2.4" r="1" fill="currentColor" stroke="none" />
-      <circle cx="14.4" cy="2.4" r="1" fill="currentColor" stroke="none" />
-    </svg>
+      className={cn("w-auto object-contain", className)}
+      loading="lazy"
+      decoding="async"
+    />
   );
 }
 
 /** Alias histórico. */
 export const ArrowMark = BirdMark;
+
 
 
 /** Separador de sección: línea + punto, lenguaje de constelación del manual. */

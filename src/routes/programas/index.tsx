@@ -64,7 +64,7 @@ function Programas() {
                   params={{ key: m.key }}
                   className="group flex items-start gap-6 bg-background p-8 transition-colors hover:bg-muted"
                 >
-                  <ArrowMark className="mt-1 h-5 w-5 shrink-0 text-secondary" />
+                  <ArrowMark className="mt-1 h-7 w-10 shrink-0 opacity-80" />
                   <span>
                     <span className="block text-xl">{m.name}</span>
                     <span className="mt-3 block text-sm text-muted-foreground">
@@ -101,7 +101,7 @@ function Programas() {
                 params={{ key: m.key }}
                 className="group bg-background p-8 transition-colors hover:bg-muted"
               >
-                <ArrowMark className="h-5 w-5 text-secondary" />
+                <ArrowMark className="h-7 w-10 opacity-80" />
                 <h3 className="mt-6 text-xl">{m.name}</h3>
                 <p className="mt-3 text-sm text-muted-foreground">
                   {m.description}

@@ -158,7 +158,7 @@ function Home() {
                     offset,
                   )}
                 >
-                  <BirdMark className="h-6 w-6 text-secondary" />
+                  <BirdMark className="h-8 w-11 opacity-80" />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
                   <p className="mt-3 text-sm text-muted-foreground">
                     {m.description}
