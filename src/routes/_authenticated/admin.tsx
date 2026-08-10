@@ -102,6 +102,7 @@ function ClassesPanel() {
 
   const create = useMutation({
     mutationFn: async (payload: {
+      module_key: string;
       room: string;
       instructor: string;
       starts_at: string;
@@ -146,13 +147,14 @@ function ClassesPanel() {
   return (
     <div>
       <form
-        className="grid gap-4 border border-border p-6 sm:grid-cols-5"
+        className="grid gap-4 border border-border p-6 sm:grid-cols-6"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
           const local = String(f.get("starts_at"));
           if (!local) return;
           create.mutate({
+            module_key: String(f.get("module_key") || "reformer"),
             room: String(f.get("room") || "Reformer"),
             instructor: String(f.get("instructor") || ""),
             starts_at: new Date(local).toISOString(),
@@ -162,6 +164,17 @@ function ClassesPanel() {
           e.currentTarget.reset();
         }}
       >
+        <label className="text-xs">
+          <span className="eyebrow">Programa</span>
+          <select name="module_key" defaultValue="reformer" className={input}>
+            <option value="reformer">Reformer Studio</option>
+            <option value="salon-2">Segundo Salón</option>
+            <option value="contraste">Contrast Therapy</option>
+            <option value="nutricion">Nutrition</option>
+            <option value="psicologia">Psychology</option>
+            <option value="rehabilitacion">Rehabilitación</option>
+          </select>
+        </label>
         <label className="text-xs">
           <span className="eyebrow">Salón</span>
           <input name="room" defaultValue="Reformer" className={input} />
@@ -194,6 +207,9 @@ function ClassesPanel() {
               )}
             </span>
             <span>{c.room}</span>
+            <span className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              {c.module_key}
+            </span>
             <span className="text-muted-foreground">{c.instructor}</span>
             <span className="text-muted-foreground">Cupo {c.capacity}</span>
             <div className="flex gap-3">
