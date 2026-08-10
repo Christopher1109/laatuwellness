@@ -59,7 +59,7 @@ function Coaches() {
                       className="h-full w-full object-cover grayscale"
                     />
                   ) : (
-                    <BirdBadge />
+                    <BirdBadge variant={2} />
                   )}
                 </div>
                 <h2 className="mt-6 text-lg">{c.name}</h2>

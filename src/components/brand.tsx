@@ -74,10 +74,16 @@ export function BrandLink({
 }
 
 /** Patrón de círculos del manual (1.4.1.2), como textura de fondo. */
-export function CirclePattern({ className }: { className?: string }) {
+export function CirclePattern({
+  className,
+  tone = "ink",
+}: {
+  className?: string;
+  tone?: Tone;
+}) {
   return (
     <img
-      src={patron.url}
+      src={tone === "ivory" ? "/brand/laatu-patron-ivory.png" : patron.url}
       alt=""
       aria-hidden="true"
       className={cn("pointer-events-none select-none object-cover", className)}
@@ -109,39 +115,89 @@ export function BirdMark({
   );
 }
 
+const BIRD_SRC = {
+  1: {
+    ink: "/brand/laatu-icono-bold-ink.png",
+    ivory: "/brand/laatu-icono-bold-ivory.png",
+  },
+  2: {
+    ink: "/brand/laatu-icono-v1-bold-ink.png",
+    ivory: "/brand/laatu-icono-v1-bold-ivory.png",
+  },
+  3: {
+    ink: "/brand/laatu-icono-v2-bold-ink.png",
+    ivory: "/brand/laatu-icono-v2-bold-ivory.png",
+  },
+} as const;
+
 /**
- * Isotipo con trazo reforzado dentro de un disco Shadow Blue: a tamaños
- * pequeños el trazo original de la constelación se perdía sobre Ivory.
+ * Isotipo con trazo reforzado dentro de una placa cuadrada Shadow Blue:
+ * a tamaños pequeños el trazo original de la constelación se perdía sobre
+ * Ivory. `variant` alterna entre el isotipo principal y sus dos variantes
+ * oficiales (1.3.1.2 y 1.3.3.2).
  */
 export function BirdBadge({
   className,
   size = "md",
+  variant = 1,
+  tone = "ink",
 }: {
   className?: string;
   size?: "sm" | "md";
+  variant?: 1 | 2 | 3;
+  tone?: Tone;
 }) {
+  const dark = tone === "ink";
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full bg-foreground transition-colors group-hover:bg-secondary",
+        "inline-flex shrink-0 items-center justify-center rounded-[2px] transition-colors",
+        dark
+          ? "bg-foreground group-hover:bg-secondary"
+          : "border border-current/25 bg-transparent",
         size === "sm" ? "h-12 w-12" : "h-16 w-16",
         className,
       )}
     >
       <img
-        src="/brand/laatu-icono-bold-ivory.png"
+        src={BIRD_SRC[variant].ivory}
         alt=""
         aria-hidden="true"
-        className={cn(
-          "w-auto object-contain",
-          size === "sm" ? "h-6" : "h-8",
-        )}
+        className={cn("w-auto object-contain", size === "sm" ? "h-6" : "h-8")}
         loading="lazy"
         decoding="async"
       />
     </span>
   );
 }
+
+/**
+ * Campo de patrón de círculos: textura de marca posicionable en cualquier
+ * sección, con recorte y opacidad controlados.
+ */
+export function PatternField({
+  className,
+  tone = "ink",
+  opacity = 0.14,
+}: {
+  className?: string;
+  tone?: Tone;
+  opacity?: number;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute overflow-hidden select-none",
+        className,
+      )}
+      style={{ opacity }}
+    >
+      <CirclePattern tone={tone} className="h-full w-full" />
+    </div>
+  );
+}
+
 
 
 /** Alias histórico. */

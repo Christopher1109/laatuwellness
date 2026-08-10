@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates, BirdBadge, Wordmark } from "@/components/brand";
+import { Constellation, Coordinates, BirdBadge, Wordmark, PatternField } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -118,7 +118,12 @@ function Home() {
       </section>
 
       {/* ---------- Frase ---------- */}
-      <section className="surface-dark grain">
+      <section className="surface-dark grain relative overflow-hidden">
+        <PatternField
+          tone="ivory"
+          opacity={0.18}
+          className="-left-40 top-1/2 h-[34rem] w-[34rem] -translate-y-1/2"
+        />
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
           <Constellation className="mx-auto max-w-xs opacity-60" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.6rem)] leading-[1.15]">
@@ -131,8 +136,12 @@ function Home() {
       </section>
 
       {/* ---------- Programas ---------- */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <section className="relative overflow-hidden border-b border-border">
+        <PatternField
+          opacity={0.1}
+          className="-right-32 -top-24 h-[30rem] w-[30rem]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Programas</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.9rem,4.5vw,3rem)]">
             Todo el recorrido, bajo un mismo techo.
@@ -158,7 +167,7 @@ function Home() {
                     offset,
                   )}
                 >
-                  <BirdBadge />
+                  <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
                   <p className="mt-3 text-sm text-muted-foreground">
                     {m.description}
@@ -203,8 +212,12 @@ function Home() {
       </section>
 
       {/* ---------- Conócenos ---------- */}
-      <section>
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <section className="relative overflow-hidden">
+        <PatternField
+          opacity={0.08}
+          className="-left-48 bottom-0 h-[26rem] w-[26rem]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="eyebrow">Conócenos</p>
@@ -250,7 +263,12 @@ function Home() {
       </section>
 
       {/* ---------- Cierre ---------- */}
-      <section className="surface-dark constellation grain">
+      <section className="surface-dark constellation grain relative overflow-hidden">
+        <PatternField
+          tone="ivory"
+          opacity={0.16}
+          className="-bottom-40 -right-40 h-[38rem] w-[38rem]"
+        />
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
           <Wordmark tone="ivory" variant="stack" className="mx-auto h-24" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">

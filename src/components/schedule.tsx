@@ -304,7 +304,7 @@ export function Schedule({
               className="flex flex-col border border-border bg-background"
             >
               <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-5 py-4">
-                <BirdBadge size="sm" />
+                <BirdBadge size="sm" variant={3} />
                 <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
                   {nombre.get(g.key) ?? g.key}
                 </h3>

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { Constellation, BirdBadge } from "@/components/brand";
+import { Constellation, BirdBadge, PatternField } from "@/components/brand";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
@@ -111,16 +111,20 @@ function RecoveryBar() {
         </div>
       </section>
 
-      <section>
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <section className="relative overflow-hidden">
+        <PatternField
+          opacity={0.08}
+          className="-right-36 top-10 h-[28rem] w-[28rem]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">La carta</p>
           <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
             Solo en el estudio.
           </h2>
           <div className="mt-14 grid gap-px bg-border md:grid-cols-3">
-            {CARTA.map((g) => (
+            {CARTA.map((g, i) => (
               <div key={g.grupo} className="bg-background p-8">
-                <BirdBadge size="sm" />
+                <BirdBadge size="sm" variant={((i % 3) + 1) as 1 | 2 | 3} />
                 <h3 className="mt-6 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                   {g.grupo}
                 </h3>
