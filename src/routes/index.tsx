@@ -1,26 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, BirdMark } from "@/components/brand";
+import { Constellation, Coordinates, ArrowMark, Wordmark } from "@/components/brand";
+import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
-import hero from "@/assets/hero-reformer.jpg";
-import studio from "@/assets/studio-space.jpg";
-import hands from "@/assets/detail-hands.jpg";
+import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
+import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
+import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
+import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Läätu Wellness — Wellness Recovery Bar" },
+      { title: "Läätu Wellness — Pilates Reformer y recuperación en Monterrey" },
       {
         name: "description",
         content:
-          "Estudio boutique de Pilates Reformer y recuperación en salones íntimos de 10 personas. Abraza tu recorrido.",
+          "Estudio de Pilates Reformer, terapia de contraste, nutrición y psicología. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
       },
-      { property: "og:title", content: "Läätu Wellness — Wellness Recovery Bar" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:title", content: "Läätu Wellness — Encuentra paz en el caos" },
       {
         property: "og:description",
         content:
-          "Pilates Reformer, terapia de contraste y bienestar integral. Un espacio para respirar.",
+          "Pilates Reformer, contraste, nutrición y psicología en un solo lugar. Reserva tu clase.",
       },
     ],
   }),
@@ -29,7 +33,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { data: modules } = useQuery({
-    queryKey: ["modules", "enabled"],
+    queryKey: ["site-modules"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("site_modules")
@@ -41,142 +45,207 @@ function Home() {
     },
   });
 
+  const programas = (modules ?? []).filter((m) => m.category !== "bar");
+
   return (
     <SiteLayout>
-      {/* HERO */}
-      <section className="relative grain min-h-[86vh] overflow-hidden">
-        <img
-          src={hero}
-          alt="Práctica de Pilates Reformer en el estudio Läätu"
-          width={1600}
-          height={1104}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-[oklch(0.2831_0.0293_281.56_/_0.62)]" />
-        <div className="surface-dark relative z-[2] mx-auto flex min-h-[86vh] max-w-6xl flex-col justify-end bg-transparent px-5 pb-16 pt-28 sm:px-8">
-          <p className="eyebrow rise">Wellness Recovery Bar</p>
-          <h1 className="statement rise mt-6 max-w-3xl text-[clamp(3rem,9vw,6.5rem)]">
-            Abraza tu recorrido.
-          </h1>
-          <p className="rise mt-6 max-w-md text-base text-muted-foreground">
-            Pilates Reformer, recuperación por contraste y bienestar integral en
-            salones íntimos. El proceso importa más que el destino.
-          </p>
-          <div className="rise mt-10 flex flex-wrap gap-3">
-            <Link
-              to="/horarios"
-              className="bg-ivory px-7 py-3.5 text-[0.72rem] uppercase tracking-[0.18em] text-shadow transition-opacity hover:opacity-85"
-            >
-              Reserva tu clase
-            </Link>
-            <Link
-              to="/programas"
-              className="border border-current px-7 py-3.5 text-[0.72rem] uppercase tracking-[0.18em] transition-colors hover:bg-ivory hover:text-shadow"
-            >
-              Conoce los programas
-            </Link>
+      {/* ---------- Bienvenida ---------- */}
+      <section className="border-b border-border">
+        <div className="mx-auto grid max-w-6xl items-stretch gap-0 px-5 sm:px-8 lg:grid-cols-[1.05fr_1fr]">
+          <div className="flex flex-col justify-center py-20 pr-0 lg:py-32 lg:pr-16">
+            <Coordinates className="rise" />
+            <h1 className="statement rise mt-8 text-[clamp(2.8rem,7.5vw,5.5rem)] leading-[0.95]">
+              Encuentra paz
+              <br />
+              en el caos.
+            </h1>
+            <p className="rise mt-8 max-w-md text-lg text-muted-foreground">
+              Pilates Reformer, recuperación y acompañamiento en un mismo lugar.
+              Máximo diez personas por salón, para que alguien mire tu proceso.
+            </p>
+            <div className="rise mt-10 flex flex-wrap gap-3">
+              <Link
+                to="/horarios"
+                className="bg-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] text-background transition-opacity hover:opacity-85"
+              >
+                Reservar tu clase
+              </Link>
+              <Link
+                to="/programas"
+                className="border border-foreground px-8 py-4 text-[0.72rem] uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
+              >
+                Conocer los programas
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative -mx-5 min-h-[24rem] sm:-mx-8 lg:mx-0 lg:min-h-full">
+            <img
+              src={foto1.url}
+              alt="Persona estirando en el estudio Läätu"
+              className="h-full w-full object-cover"
+              loading="eager"
+              decoding="async"
+            />
           </div>
         </div>
       </section>
 
-      {/* STATEMENT */}
+      {/* ---------- Horarios ---------- */}
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-          <Constellation className="mb-14 opacity-60" />
-          <div className="grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-end">
-            <h2 className="statement text-[clamp(2rem,5vw,3.6rem)]">
-              Date un espacio para respirar.
-            </h2>
-            <p className="text-base text-muted-foreground">
-              Läätu existe para acompañar tu transformación consciente: el
-              camino del punto A al punto B. Trabajamos el cuerpo pensando en
-              longevidad, en conexión y en la pausa que te devuelve a ti.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p className="eyebrow">Horarios</p>
+              <h2 className="statement mt-4 text-[clamp(1.9rem,4.5vw,3rem)]">
+                Reserva tu lugar.
+              </h2>
+            </div>
+            <Link
+              to="/horarios"
+              className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+            >
+              Ver agenda completa →
+            </Link>
+          </div>
+
+          <div className="mt-12">
+            <Schedule defaultRange="semana" limit={12} />
           </div>
         </div>
       </section>
 
-      {/* MÓDULOS ACTIVOS */}
+      {/* ---------- Frase ---------- */}
+      <section className="surface-dark grain">
+        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
+          <Constellation className="mx-auto max-w-xs opacity-60" />
+          <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.6rem)] leading-[1.15]">
+            Date un espacio para respirar.
+          </p>
+          <p className="mt-6 font-mono text-[0.68rem] uppercase tracking-[0.24em] opacity-70">
+            @laatu
+          </p>
+        </div>
+      </section>
+
+      {/* ---------- Programas ---------- */}
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Programas</p>
-          <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
-            {(modules ?? []).map((m) => (
-              <article key={m.key} className="bg-background p-8">
-                <BirdMark className="h-5 w-5 text-secondary" variant="glide" />
+          <h2 className="statement mt-4 max-w-xl text-[clamp(1.9rem,4.5vw,3rem)]">
+            Todo el recorrido, bajo un mismo techo.
+          </h2>
+
+          <div className="mt-14 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+            {programas.map((m) => (
+              <Link
+                key={m.key}
+                to="/programas/$key"
+                params={{ key: m.key }}
+                className="group bg-background p-8 transition-colors hover:bg-muted"
+              >
+                <ArrowMark className="h-5 w-5 text-secondary" />
                 <h3 className="mt-6 text-xl">{m.name}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
-              </article>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {m.description}
+                </p>
+                <span className="mt-6 inline-block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground transition-colors group-hover:text-foreground">
+                  Ver horarios →
+                </span>
+              </Link>
             ))}
           </div>
-          <Link
-            to="/programas"
-            className="mt-10 inline-block border-b border-foreground pb-1 text-[0.72rem] uppercase tracking-[0.18em]"
-          >
-            Ver todo
-          </Link>
         </div>
       </section>
 
-      {/* IMAGEN + INTIMIDAD */}
+      {/* ---------- Recovery Bar ---------- */}
       <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl gap-0 md:grid-cols-2">
-          <div className="grain relative">
-            <img
-              src={studio}
-              alt="Interior del estudio con luz natural"
-              loading="lazy"
-              width={1600}
-              height={1008}
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="flex flex-col justify-center px-5 py-20 sm:px-12">
-            <p className="eyebrow">10 personas por salón</p>
-            <h2 className="statement mt-6 text-[clamp(1.9rem,4vw,3rem)]">
-              Atención personalizada, no una fila de máquinas.
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-24 sm:px-8 lg:grid-cols-2">
+          <img
+            src={foto4.url}
+            alt="Recuperación después de entrenar en Läätu"
+            className="aspect-[4/5] w-full object-cover"
+            loading="lazy"
+          />
+          <div>
+            <p className="eyebrow">Recovery Bar</p>
+            <h2 className="statement mt-4 text-[clamp(1.8rem,4vw,2.8rem)]">
+              Lo que tu cuerpo pide después.
             </h2>
             <p className="mt-6 text-muted-foreground">
-              Cada salón recibe máximo diez personas. Suficiente para que la
-              instructora te vea, te corrija y te acompañe. Suficiente para que
-              nadie te vea a ti.
+              Smoothies de proteína, shots, infusiones y café de especialidad.
+              Nuestra barra vive dentro del estudio y se ordena ahí mismo.
             </p>
             <Link
-              to="/nosotros"
-              className="mt-8 inline-block w-fit border-b border-foreground pb-1 text-[0.72rem] uppercase tracking-[0.18em]"
+              to="/recovery-bar"
+              className="mt-8 inline-block border border-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
             >
-              Conócenos
+              Ver la barra
             </Link>
           </div>
         </div>
       </section>
 
-      {/* CTA OSCURO */}
-      <section className="surface-dark constellation grain">
-        <div className="relative z-[2] mx-auto grid max-w-6xl gap-12 px-5 py-28 sm:px-8 md:grid-cols-2 md:items-center">
-          <div>
-            <h2 className="statement text-[clamp(2rem,5vw,3.4rem)]">
-              Vive el hoy, no el mañana.
-            </h2>
-            <p className="mt-6 max-w-md text-muted-foreground">
-              Crea tu cuenta, firma tu waiver y reserva con tokens. Todo desde
-              un mismo lugar.
-            </p>
-            <Link
-              to="/auth"
-              className="mt-9 inline-block bg-ivory px-7 py-3.5 text-[0.72rem] uppercase tracking-[0.18em] text-shadow transition-opacity hover:opacity-85"
-            >
-              Crear mi cuenta
-            </Link>
+      {/* ---------- Conócenos ---------- */}
+      <section>
+        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+            <div>
+              <p className="eyebrow">Conócenos</p>
+              <h2 className="statement mt-4 text-[clamp(1.8rem,4vw,2.8rem)]">
+                Diez personas por salón.
+              </h2>
+              <p className="mt-6 text-muted-foreground">
+                No creemos en las clases multitudinarias. Grupos pequeños,
+                corrección individual y un ritmo que respeta tu cuerpo. Ser
+                flexible no es una debilidad.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <Link
+                  to="/nosotros"
+                  className="border border-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
+                >
+                  Nuestra historia
+                </Link>
+                <Link
+                  to="/coaches"
+                  className="px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+                >
+                  Conoce a los coaches
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <img
+                src={foto3.url}
+                alt="Acompañamiento entre coach y alumna"
+                className="aspect-[3/4] w-full object-cover"
+                loading="lazy"
+              />
+              <img
+                src={foto2.url}
+                alt="Entrenamiento de fuerza en Läätu"
+                className="mt-10 aspect-[3/4] w-full object-cover"
+                loading="lazy"
+              />
+            </div>
           </div>
-          <img
-            src={hands}
-            alt="Detalle de manos sosteniendo las correas del reformer"
-            loading="lazy"
-            width={1200}
-            height={1504}
-            className="aspect-[4/5] w-full object-cover"
-          />
+        </div>
+      </section>
+
+      {/* ---------- Cierre ---------- */}
+      <section className="surface-dark constellation grain">
+        <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
+          <Wordmark tone="ivory" variant="stack" className="mx-auto h-24" />
+          <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">
+            Abraza tu recorrido.
+          </p>
+          <Link
+            to="/horarios"
+            className="mt-10 inline-block bg-ivory px-8 py-4 text-[0.72rem] uppercase tracking-[0.18em] text-shadow"
+          >
+            Reservar tu clase
+          </Link>
         </div>
       </section>
     </SiteLayout>
