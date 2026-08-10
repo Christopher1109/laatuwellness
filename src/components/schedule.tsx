@@ -85,13 +85,18 @@ export function RangeTabs({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div
+      className={cn(
+        "-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0",
+        className,
+      )}
+    >
       {RANGOS.map((r) => (
         <button
           key={r.key}
           onClick={() => onChange(r.key)}
           className={cn(
-            "border px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.18em] transition-colors",
+            "shrink-0 border px-4 py-2.5 text-[0.64rem] uppercase tracking-[0.16em] transition-colors sm:px-5 sm:text-[0.68rem] sm:tracking-[0.18em]",
             value === r.key
               ? "border-foreground bg-foreground text-background"
               : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
@@ -103,6 +108,7 @@ export function RangeTabs({
     </div>
   );
 }
+
 
 type ClassRow = {
   id: string;
