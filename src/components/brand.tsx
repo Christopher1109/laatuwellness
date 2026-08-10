@@ -7,6 +7,8 @@ import letragramaIvory from "@/assets/laatu-letragrama-ivory.png.asset.json";
 import stackInk from "@/assets/laatu-stack2-ink.png.asset.json";
 import stackIvory from "@/assets/laatu-stack2-ivory.png.asset.json";
 import patron from "@/assets/laatu-patron-ink.png.asset.json";
+import iconoInk from "@/assets/laatu-icono-ink.png.asset.json";
+import iconoIvory from "@/assets/laatu-icono-ivory.png.asset.json";
 
 type Tone = "ink" | "ivory";
 
