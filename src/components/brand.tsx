@@ -160,7 +160,7 @@ export function BirdBadge({
       )}
     >
       <img
-        src={BIRD_SRC[variant][dark ? "ivory" : "ivory"]}
+        src={BIRD_SRC[variant].ivory}
         alt=""
         aria-hidden="true"
         className={cn("w-auto object-contain", size === "sm" ? "h-6" : "h-8")}
