@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { BrandLink, Wordmark } from "@/components/brand";
+import { BrandLink, Wordmark, Coordinates } from "@/components/brand";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ const NAV = [
   { to: "/programas", label: "Programas" },
   { to: "/coaches", label: "Coaches" },
   { to: "/horarios", label: "Horarios" },
+  { to: "/recovery-bar", label: "Recovery Bar" },
   { to: "/contacto", label: "Contacto" },
 ] as const;
 
@@ -27,7 +29,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5 sm:h-28 sm:px-8">
         <BrandLink />
 
         <nav className="hidden items-center gap-8 md:flex">
@@ -149,9 +151,8 @@ export function SiteFooter() {
       <div className="relative z-[2] mx-auto max-w-6xl px-5 py-16 sm:px-8">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
-            <div className="flex items-center gap-3">
-              <Wordmark tone="ivory" className="h-9" />
-            </div>
+            <Wordmark tone="ivory" variant="stack" className="h-20" />
+            <Coordinates className="mt-6" />
             <p className="mt-5 text-sm text-muted-foreground">
               Wellness Recovery Bar. Un espacio para respirar, moverte y
               agradecer el recorrido.
@@ -172,6 +173,7 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-2 text-muted-foreground">
                 <li><Link to="/horarios" className="hover:text-foreground">Horarios</Link></li>
                 <li><Link to="/cuenta" className="hover:text-foreground">Mi cuenta</Link></li>
+                <li><Link to="/recovery-bar" className="hover:text-foreground">Recovery Bar</Link></li>
                 <li><Link to="/app" className="hover:text-foreground">App</Link></li>
               </ul>
             </div>
@@ -214,6 +216,7 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
+      <WhatsAppButton />
     </div>
   );
 }
