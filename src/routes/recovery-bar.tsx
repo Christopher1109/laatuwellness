@@ -81,7 +81,7 @@ function RecoveryBar() {
       />
 
       <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-2">
           <img
             src={foto4.url}
             alt="Hidratación y recuperación después de entrenar"
@@ -116,7 +116,7 @@ function RecoveryBar() {
           opacity={0.08}
           className="-right-36 top-10 h-[28rem] w-[28rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <p className="eyebrow">La carta</p>
           <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
             Solo en el estudio.

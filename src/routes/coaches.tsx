@@ -46,7 +46,7 @@ function Coaches() {
       />
 
       <section>
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
             {(data ?? []).map((c) => (
               <article key={c.id} className="bg-background p-8">

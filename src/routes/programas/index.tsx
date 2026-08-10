@@ -57,7 +57,7 @@ function Programas() {
           opacity={0.09}
           className="-right-40 -top-32 h-[30rem] w-[30rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Movimiento</p>
           <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:items-center">
             <div className="space-y-px bg-border">
@@ -96,7 +96,7 @@ function Programas() {
           opacity={0.07}
           className="-bottom-32 -left-40 h-[28rem] w-[28rem]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Recuperación y acompañamiento</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.7rem,4vw,2.6rem)]">
             El proceso no termina en la clase.
