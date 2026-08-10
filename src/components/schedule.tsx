@@ -70,6 +70,7 @@ export function timeLabel(iso: string) {
   return new Intl.DateTimeFormat("es-MX", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(new Date(iso));
 }
 
@@ -225,7 +226,7 @@ export function Schedule({
                       className="flex flex-wrap items-center justify-between gap-4 py-5"
                     >
                       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-                        <span className="w-20 text-lg tabular-nums">
+                        <span className="w-16 text-lg tabular-nums">
                           {timeLabel(c.starts_at)}
                         </span>
                         <span className="text-sm">{c.room}</span>
