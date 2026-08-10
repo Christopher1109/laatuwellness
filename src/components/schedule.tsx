@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { BirdMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
 const ERRORS: Record<string, string> = {
@@ -103,30 +104,65 @@ export function RangeTabs({
   );
 }
 
+type ClassRow = {
+  id: string;
+  room: string;
+  instructor: string;
+  starts_at: string;
+  duration_min: number;
+  capacity: number;
+  tokens_cost: number;
+  module_key: string | null;
+  taken: number;
+};
+
 /**
- * Agenda de clases con reserva. Si se pasa `moduleKey`, sólo muestra las
- * clases de ese programa.
+ * Agenda de clases con reserva. Se segmenta por programa y cada programa
+ * vive en su propia ventana con scroll para que la lista nunca crezca de más.
  */
 export function Schedule({
   moduleKey,
-  defaultRange = "semana",
+  defaultRange = "hoy",
   showTabs = true,
+  showModuleFilter,
   limit,
 }: {
   moduleKey?: string | undefined;
   defaultRange?: Rango;
   showTabs?: boolean;
+  showModuleFilter?: boolean;
   limit?: number;
 }) {
   const [rango, setRango] = useState<Rango>(defaultRange);
+  const [filtro, setFiltro] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { from, to } = rangeBounds(rango);
+  const conFiltro = showModuleFilter ?? !moduleKey;
+
+  const { data: modules } = useQuery({
+    queryKey: ["site-modules"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_modules")
+        .select("*")
+        .eq("enabled", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const nombre = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of modules ?? []) map.set(m.key, m.name);
+    return map;
+  }, [modules]);
 
   const { data: classes, isLoading } = useQuery({
     queryKey: ["classes", moduleKey ?? "all", rango],
-    queryFn: async () => {
+    queryFn: async (): Promise<ClassRow[]> => {
       let q = supabase
         .from("classes")
         .select("*")
@@ -135,7 +171,7 @@ export function Schedule({
         .lt("starts_at", to.toISOString())
         .order("starts_at");
       if (moduleKey) q = q.eq("module_key", moduleKey);
-      const { data, error } = await q.limit(80);
+      const { data, error } = await q.limit(120);
       if (error) throw error;
 
       return Promise.all(
@@ -187,76 +223,152 @@ export function Schedule({
     },
   });
 
-  const visible = limit ? (classes ?? []).slice(0, limit) : (classes ?? []);
+  const all = classes ?? [];
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, typeof visible>();
-    for (const c of visible) {
-      const key = dayLabel(c.starts_at);
-      map.set(key, [...(map.get(key) ?? []), c]);
-    }
-    return [...map.entries()];
-  }, [visible]);
+  /** Programas presentes en el rango, en el orden del catálogo. */
+  const presentes = useMemo(() => {
+    const keys = new Set(all.map((c) => c.module_key ?? "otros"));
+    const ordered = (modules ?? [])
+      .map((m) => m.key)
+      .filter((k) => keys.has(k));
+    for (const k of keys) if (!ordered.includes(k)) ordered.push(k);
+    return ordered;
+  }, [all, modules]);
+
+  const grupos = useMemo(() => {
+    const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
+    return activos.map((key) => {
+      let items = all.filter((c) => (c.module_key ?? "otros") === key);
+      if (limit) items = items.slice(0, limit);
+      const dias = new Map<string, ClassRow[]>();
+      for (const c of items) {
+        const d = dayLabel(c.starts_at);
+        dias.set(d, [...(dias.get(d) ?? []), c]);
+      }
+      return { key, total: items.length, dias: [...dias.entries()] };
+    });
+  }, [all, presentes, filtro, limit]);
+
+  const total = grupos.reduce((n, g) => n + g.total, 0);
 
   return (
     <div>
-      {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
+        {showTabs && conFiltro ? (
+          <span className="hidden h-6 w-px bg-border sm:block" />
+        ) : null}
+        {conFiltro ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFiltro(null)}
+              className={cn(
+                "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                filtro === null
+                  ? "border-secondary bg-secondary/15 text-foreground"
+                  : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+              )}
+            >
+              Todos
+            </button>
+            {presentes.map((k) => (
+              <button
+                key={k}
+                onClick={() => setFiltro(k)}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-[0.64rem] uppercase tracking-[0.16em] transition-colors",
+                  filtro === k
+                    ? "border-secondary bg-secondary/15 text-foreground"
+                    : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+                )}
+              >
+                {nombre.get(k) ?? k}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
-      ) : grouped.length === 0 ? (
+      ) : total === 0 ? (
         <p className="mt-10 text-muted-foreground">
           No hay clases publicadas en este rango. Escríbenos por WhatsApp y te
           avisamos en cuanto se abra el horario.
         </p>
       ) : (
-        <div className="mt-10 space-y-12">
-          {grouped.map(([day, items]) => (
-            <div key={day}>
-              <h3 className="text-[0.68rem] uppercase tracking-[0.22em] text-muted-foreground">
-                {day}
-              </h3>
-              <ul className="mt-4 divide-y divide-border border-y border-border">
-                {(items ?? []).map((c) => {
-                  const full = c.taken >= c.capacity;
-                  const mine = bookedIds.has(c.id);
-                  return (
-                    <li
-                      key={c.id}
-                      className="flex flex-wrap items-center justify-between gap-4 py-5"
-                    >
-                      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-                        <span className="w-16 text-lg tabular-nums">
-                          {timeLabel(c.starts_at)}
-                        </span>
-                        <span className="text-sm">{c.room}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {c.instructor}
-                        </span>
-                        <span className="text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                          {Math.max(c.capacity - c.taken, 0)} lugares · {c.duration_min} min
-                        </span>
-                      </div>
-                      {mine ? (
-                        <span className="text-[0.65rem] uppercase tracking-[0.18em] text-secondary">
-                          Reservada
-                        </span>
-                      ) : (
-                        <button
-                          disabled={full || book.isPending}
-                          onClick={() =>
-                            user ? book.mutate(c.id) : navigate({ to: "/auth" })
-                          }
-                          className="border border-foreground px-5 py-2 text-[0.66rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-35"
-                        >
-                          {full ? "Lleno" : "Reservar"}
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          {grupos.map((g) => (
+            <section
+              key={g.key}
+              className="flex flex-col border border-border bg-background"
+            >
+              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-5 py-4">
+                <BirdMark className="h-5 w-5 shrink-0 text-secondary" />
+                <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
+                  {nombre.get(g.key) ?? g.key}
+                </h3>
+                <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
+                  {g.total} {g.total === 1 ? "sesión" : "sesiones"}
+                </span>
+              </header>
+
+              <div className="max-h-[22rem] overflow-y-auto px-5">
+                {g.dias.map(([day, items]) => (
+                  <div key={day} className="py-4">
+                    <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
+                      {day}
+                    </p>
+                    <ul className="mt-2 divide-y divide-border">
+                      {items.map((c) => {
+                        const full = c.taken >= c.capacity;
+                        const mine = bookedIds.has(c.id);
+                        const libres = Math.max(c.capacity - c.taken, 0);
+                        return (
+                          <li
+                            key={c.id}
+                            className="flex items-center justify-between gap-4 py-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-baseline gap-3">
+                                <span className="text-base tabular-nums">
+                                  {timeLabel(c.starts_at)}
+                                </span>
+                                <span className="truncate text-sm text-muted-foreground">
+                                  {c.instructor || c.room}
+                                </span>
+                              </div>
+                              <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                {libres} lugares · {c.duration_min} min ·{" "}
+                                {c.tokens_cost}{" "}
+                                {c.tokens_cost === 1 ? "token" : "tokens"}
+                              </p>
+                            </div>
+                            {mine ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-secondary">
+                                Reservada
+                              </span>
+                            ) : (
+                              <button
+                                disabled={full || book.isPending}
+                                onClick={() =>
+                                  user
+                                    ? book.mutate(c.id)
+                                    : navigate({ to: "/auth" })
+                                }
+                                className="shrink-0 border border-foreground px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-35"
+                              >
+                                {full ? "Lleno" : "Reservar"}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
