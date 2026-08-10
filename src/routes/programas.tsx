@@ -1,40 +1,35 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { BirdMark } from "@/components/brand";
+import { ArrowMark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
-import sauna from "@/assets/contrast-sauna.jpg";
+import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 
 export const Route = createFileRoute("/programas")({
   head: () => ({
     meta: [
-      { title: "Programas y paquetes — Läätu Wellness" },
+      { title: "Programas — Läätu Wellness" },
       {
         name: "description",
         content:
-          "Reformer Studio, terapia de contraste, nutrición y psicología. Conoce los salones, servicios y paquetes de tokens de Läätu.",
+          "Pilates Reformer, terapia de contraste, nutrición, psicología y rehabilitación. Consulta horarios y reserva tu sesión.",
       },
-      { property: "og:title", content: "Programas y paquetes — Läätu Wellness" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:title", content: "Programas — Läätu Wellness" },
       {
         property: "og:description",
-        content: "Salones, servicios de recuperación y paquetes de clases.",
+        content:
+          "Reformer, contraste, nutrición, psicología y rehabilitación en un mismo estudio.",
       },
     ],
   }),
   component: Programas,
 });
 
-function money(cents: number, currency: string) {
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
 function Programas() {
-  const { data: modules } = useQuery({
-    queryKey: ["modules", "all-enabled"],
+  const { data } = useQuery({
+    queryKey: ["site-modules"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("site_modules")
@@ -46,113 +41,77 @@ function Programas() {
     },
   });
 
-  const { data: plans } = useQuery({
-    queryKey: ["plans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("token_plans")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const salones = (modules ?? []).filter((m) => m.category === "salon");
-  const servicios = (modules ?? []).filter((m) => m.category !== "salon");
+  const salones = (data ?? []).filter((m) => m.category === "salon");
+  const servicios = (data ?? []).filter((m) => m.category === "servicio");
 
   return (
     <SiteLayout>
       <PageHeader
         eyebrow="Programas"
-        title="Traza tu propio camino."
-        intro="Cada salón y cada servicio es un módulo independiente. Se activan y se desactivan según lo que el estudio esté ofreciendo hoy."
+        title="Elige por dónde empezar."
+        intro="Cada programa tiene su propio horario y su propio paquete de sesiones. Entra, revisa los cupos y reserva."
       />
 
       <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-          <p className="eyebrow">Salones</p>
-          <div className="mt-10 grid gap-px bg-border md:grid-cols-2">
-            {salones.map((m) => (
-              <article key={m.key} className="bg-background p-8 sm:p-12">
-                <BirdMark className="h-6 w-6 text-secondary" />
-                <h2 className="mt-6 text-2xl">{m.name}</h2>
-                <p className="mt-4 text-muted-foreground">{m.description}</p>
-                <p className="mt-6 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Máx. 10 personas · 50 min
-                </p>
-              </article>
-            ))}
-            {salones.length === 0 ? (
-              <p className="bg-background p-8 text-muted-foreground">
-                Los salones se anunciarán pronto.
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl gap-0 md:grid-cols-2">
-          <img
-            src={sauna}
-            alt="Sauna infrarrojo del área de recuperación"
-            loading="lazy"
-            width={1408}
-            height={1008}
-            className="h-full w-full object-cover"
-          />
-          <div className="px-5 py-20 sm:px-12">
-            <p className="eyebrow">Servicios adicionales</p>
-            <ul className="mt-8 divide-y divide-border">
-              {servicios.map((m) => (
-                <li key={m.key} className="py-6">
-                  <h3 className="text-lg">{m.name}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{m.description}</p>
-                </li>
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+          <p className="eyebrow">Movimiento</p>
+          <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="space-y-px bg-border">
+              {salones.map((m) => (
+                <Link
+                  key={m.key}
+                  to="/programas/$key"
+                  params={{ key: m.key }}
+                  className="group flex items-start gap-6 bg-background p-8 transition-colors hover:bg-muted"
+                >
+                  <ArrowMark className="mt-1 h-5 w-5 shrink-0 text-secondary" />
+                  <span>
+                    <span className="block text-xl">{m.name}</span>
+                    <span className="mt-3 block text-sm text-muted-foreground">
+                      {m.description}
+                    </span>
+                    <span className="mt-5 block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground group-hover:text-foreground">
+                      Ver horarios →
+                    </span>
+                  </span>
+                </Link>
               ))}
-            </ul>
+            </div>
+            <img
+              src={foto2.url}
+              alt="Sesión de entrenamiento en Läätu"
+              className="aspect-[4/5] w-full object-cover"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>
 
-      <section className="surface-dark constellation grain">
-        <div className="relative z-[2] mx-auto max-w-6xl px-5 py-24 sm:px-8">
-          <p className="eyebrow">Paquetes</p>
-          <h2 className="statement mt-6 text-[clamp(2rem,5vw,3.2rem)]">
-            Compra tokens, reserva cuando puedas.
+      <section>
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+          <p className="eyebrow">Recuperación y acompañamiento</p>
+          <h2 className="statement mt-4 max-w-xl text-[clamp(1.7rem,4vw,2.6rem)]">
+            El proceso no termina en la clase.
           </h2>
-          <p className="mt-5 max-w-lg text-muted-foreground">
-            Un token equivale a una clase. Se acreditan a tu cuenta al comprar y
-            se descuentan al reservar.
-          </p>
-
-          <div className="mt-12 grid gap-px bg-border sm:grid-cols-3">
-            {(plans ?? []).map((p) => (
-              <article key={p.id} className="surface-dark p-8">
-                <h3 className="text-xl">{p.name}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">{p.description}</p>
-                <p className="mt-8 text-3xl">{money(p.price_cents, p.currency)}</p>
-                <p className="mt-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {p.tokens} {p.tokens === 1 ? "token" : "tokens"}
-                  {p.recurring ? " · recurrente" : ""}
-                  {p.validity_days ? ` · ${p.validity_days} días` : ""}
+          <div className="mt-12 grid gap-px bg-border sm:grid-cols-2">
+            {servicios.map((m) => (
+              <Link
+                key={m.key}
+                to="/programas/$key"
+                params={{ key: m.key }}
+                className="group bg-background p-8 transition-colors hover:bg-muted"
+              >
+                <ArrowMark className="h-5 w-5 text-secondary" />
+                <h3 className="mt-6 text-xl">{m.name}</h3>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {m.description}
                 </p>
-              </article>
+                <span className="mt-6 inline-block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground group-hover:text-foreground">
+                  Ver horarios y sesiones →
+                </span>
+              </Link>
             ))}
           </div>
-
-          <Link
-            to="/cuenta"
-            className="mt-12 inline-block bg-ivory px-7 py-3.5 text-[0.72rem] uppercase tracking-[0.18em] text-shadow"
-          >
-            Comprar tokens
-          </Link>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Precios y reglas de congelamiento pendientes de confirmación con el
-            estudio.
-          </p>
         </div>
       </section>
     </SiteLayout>
