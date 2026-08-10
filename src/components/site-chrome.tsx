@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { BrandLink, Wordmark, BirdMark } from "@/components/brand";
+import { BrandLink, Wordmark } from "@/components/brand";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
