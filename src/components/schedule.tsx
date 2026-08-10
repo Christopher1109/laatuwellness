@@ -112,7 +112,7 @@ export function Schedule({
   showTabs = true,
   limit,
 }: {
-  moduleKey?: string;
+  moduleKey?: string | undefined;
   defaultRange?: Rango;
   showTabs?: boolean;
   limit?: number;
