@@ -80,7 +80,7 @@ function ProgramaDetalle() {
 
   const purchase = useMutation({
     mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", { _plan_id: planId });
+      const { error } = await supabase.rpc("purchase_plan", { _plan_id: planId, _payment_method: "en_sitio" });
       if (error) throw error;
     },
     onSuccess: () => {
