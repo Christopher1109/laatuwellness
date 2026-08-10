@@ -167,7 +167,7 @@ function Home() {
                     offset,
                   )}
                 >
-                  <BirdBadge />
+                  <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
                   <p className="mt-3 text-sm text-muted-foreground">
                     {m.description}
