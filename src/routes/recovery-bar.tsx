@@ -121,9 +121,9 @@ function RecoveryBar() {
           <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
             Solo en el estudio.
           </h2>
-          <div className="mt-14 grid gap-px bg-border md:grid-cols-3">
+          <div className="mt-10 grid gap-px sm:mt-14 bg-border md:grid-cols-3">
             {CARTA.map((g, i) => (
-              <div key={g.grupo} className="bg-background p-8">
+              <div key={g.grupo} className="bg-background p-6 sm:p-8">
                 <BirdBadge size="sm" variant={((i % 3) + 1) as 1 | 2 | 3} />
                 <h3 className="mt-6 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
                   {g.grupo}

@@ -49,7 +49,7 @@ function Coaches() {
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
             {(data ?? []).map((c) => (
-              <article key={c.id} className="bg-background p-8">
+              <article key={c.id} className="bg-background p-6 sm:p-8">
                 <div className="constellation grain flex aspect-[3/4] items-center justify-center bg-muted">
                   {c.image_url ? (
                     <img

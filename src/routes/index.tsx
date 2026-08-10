@@ -148,7 +148,7 @@ function Home() {
             Todo el recorrido, bajo un mismo techo.
           </h2>
 
-          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 lg:grid-cols-6">
             {programas.map((m, i) => {
               const resto = programas.length % 3;
               const enUltimaFila = i >= programas.length - resto && resto !== 0;
@@ -164,7 +164,7 @@ function Home() {
                   to="/programas/$key"
                   params={{ key: m.key }}
                   className={cn(
-                    "group flex flex-col border border-border bg-background p-8 transition-colors hover:bg-muted lg:col-span-2",
+                    "group flex flex-col border border-border bg-background p-6 transition-colors sm:p-8 hover:bg-muted lg:col-span-2",
                     offset,
                   )}
                 >
