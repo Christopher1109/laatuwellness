@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates, ArrowMark, Wordmark } from "@/components/brand";
+import { Constellation, Coordinates, BirdMark, Wordmark } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
@@ -110,7 +112,7 @@ function Home() {
           </div>
 
           <div className="mt-12">
-            <Schedule defaultRange="semana" limit={12} />
+            <Schedule defaultRange="hoy" limit={6} />
           </div>
         </div>
       </section>
@@ -136,25 +138,39 @@ function Home() {
             Todo el recorrido, bajo un mismo techo.
           </h2>
 
-          <div className="mt-14 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
-            {programas.map((m) => (
-              <Link
-                key={m.key}
-                to="/programas/$key"
-                params={{ key: m.key }}
-                className="group bg-background p-8 transition-colors hover:bg-muted"
-              >
-                <ArrowMark className="h-5 w-5 text-secondary" />
-                <h3 className="mt-6 text-xl">{m.name}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {m.description}
-                </p>
-                <span className="mt-6 inline-block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground transition-colors group-hover:text-foreground">
-                  Ver horarios →
-                </span>
-              </Link>
-            ))}
+          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            {programas.map((m, i) => {
+              const resto = programas.length % 3;
+              const enUltimaFila = i >= programas.length - resto && resto !== 0;
+              const offset =
+                resto === 2 && i === programas.length - 2
+                  ? "lg:col-start-2"
+                  : resto === 1 && enUltimaFila
+                    ? "lg:col-start-3"
+                    : "";
+              return (
+                <Link
+                  key={m.key}
+                  to="/programas/$key"
+                  params={{ key: m.key }}
+                  className={cn(
+                    "group flex flex-col border border-border bg-background p-8 transition-colors hover:bg-muted lg:col-span-2",
+                    offset,
+                  )}
+                >
+                  <BirdMark className="h-6 w-6 text-secondary" />
+                  <h3 className="mt-6 text-xl">{m.name}</h3>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {m.description}
+                  </p>
+                  <span className="mt-auto pt-6 text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground transition-colors group-hover:text-foreground">
+                    Ver horarios →
+                  </span>
+                </Link>
+              );
+            })}
           </div>
+
         </div>
       </section>
 

@@ -86,10 +86,10 @@ export function CirclePattern({ className }: { className?: string }) {
 }
 
 /**
- * Acento gráfico de marca: la "Ä" del letragrama es una flecha ascendente.
- * Se reutiliza como bullet/viñeta en listas y tarjetas.
+ * Isotipo oficial Läätu: el pájaro/flecha ascendente de la "Ä".
+ * Se usa como viñeta y acento en tarjetas de programas.
  */
-export function ArrowMark({ className }: { className?: string }) {
+export function BirdMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -97,15 +97,21 @@ export function ArrowMark({ className }: { className?: string }) {
       aria-hidden="true"
       className={className}
       stroke="currentColor"
-      strokeWidth="1.2"
+      strokeWidth="1.4"
+      strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M4 21 L12 3 L20 21 L12 14 Z" />
-      <circle cx="8.5" cy="1.8" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="15.5" cy="1.8" r="1.3" fill="currentColor" stroke="none" />
+      <path d="M3.5 21 L12 5.5 L20.5 21" />
+      <path d="M7.4 15.4 H16.6" />
+      <circle cx="9.6" cy="2.4" r="1" fill="currentColor" stroke="none" />
+      <circle cx="14.4" cy="2.4" r="1" fill="currentColor" stroke="none" />
     </svg>
   );
 }
+
+/** Alias histórico. */
+export const ArrowMark = BirdMark;
+
 
 /** Separador de sección: línea + punto, lenguaje de constelación del manual. */
 export function Constellation({ className }: { className?: string }) {

@@ -3,6 +3,8 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { BrandLink, Wordmark, Coordinates } from "@/components/brand";
 import { WhatsAppButton } from "@/components/whatsapp-button";
+import { InstallPrompt } from "@/components/install-prompt";
+
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -217,9 +219,11 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       <SiteFooter />
       <WhatsAppButton />
+      <InstallPrompt />
     </div>
   );
 }
+
 
 export function PageHeader({
   eyebrow,
