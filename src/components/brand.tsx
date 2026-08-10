@@ -1,26 +1,33 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import wordmarkDark from "@/assets/laatu-wordmark-dark.png.asset.json";
+import wordmarkLight from "@/assets/laatu-wordmark-light.png.asset.json";
 
 /**
- * PROVISIONAL: wordmark tipográfico mientras se integran los archivos
- * oficiales (logo-laatu-fondo-claro / logo-laatu-fondo-oscuro).
- * Al recibirlos: importar el SVG/PNG y reemplazar el <span> por <img>,
- * sin estirar, rotar ni recolorear.
+ * Logotipo oficial Läätu Wellness. Nunca estirar, rotar ni recolorear:
+ * usar la variante `tone="ink"` sobre fondos claros y `tone="ivory"`
+ * sobre fondos oscuros (Shadow Blue / Stone Blue).
  */
 export function Wordmark({
   className,
-  compact = false,
+  tone = "ink",
 }: {
   className?: string;
-  compact?: boolean;
+  tone?: "ink" | "ivory";
 }) {
+  const asset = tone === "ivory" ? wordmarkLight : wordmarkDark;
+
   return (
-    <span className={cn("wordmark inline-flex items-baseline gap-[0.34em]", className)}>
-      <span>Läätu</span>
-      {!compact ? <span className="opacity-60">Wellness</span> : null}
-    </span>
+    <img
+      src={asset.url}
+      alt="Läätu Wellness"
+      className={cn("h-8 w-auto object-contain", className)}
+      loading="eager"
+      decoding="async"
+    />
   );
 }
+
 
 export function BrandLink({ className }: { className?: string }) {
   return (
