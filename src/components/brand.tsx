@@ -123,12 +123,12 @@ export function BirdBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full bg-secondary transition-colors group-hover:bg-foreground",
-        size === "sm" ? "h-10 w-10" : "h-14 w-14",
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-foreground transition-colors group-hover:bg-secondary",
+        size === "sm" ? "h-11 w-11" : "h-16 w-16",
         className,
       )}
     >
-      <BirdMark tone="ivory" className={size === "sm" ? "h-5" : "h-7"} />
+      <BirdMark tone="ivory" className={size === "sm" ? "h-6" : "h-9"} />
     </span>
   );
 }
