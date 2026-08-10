@@ -118,7 +118,12 @@ function Home() {
       </section>
 
       {/* ---------- Frase ---------- */}
-      <section className="surface-dark grain">
+      <section className="surface-dark grain relative overflow-hidden">
+        <PatternField
+          tone="ivory"
+          opacity={0.18}
+          className="-left-40 top-1/2 h-[34rem] w-[34rem] -translate-y-1/2"
+        />
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-28 text-center sm:px-8">
           <Constellation className="mx-auto max-w-xs opacity-60" />
           <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.6rem)] leading-[1.15]">
