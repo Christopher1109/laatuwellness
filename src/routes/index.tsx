@@ -212,8 +212,12 @@ function Home() {
       </section>
 
       {/* ---------- Conócenos ---------- */}
-      <section>
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+      <section className="relative overflow-hidden">
+        <PatternField
+          opacity={0.08}
+          className="-left-48 bottom-0 h-[26rem] w-[26rem]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
               <p className="eyebrow">Conócenos</p>
