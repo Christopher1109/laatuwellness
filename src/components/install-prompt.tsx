@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { X, Share, Plus, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "laatu-install-prompt-dismissed";
-
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -17,6 +15,18 @@ function isStandalone() {
   );
 }
 
+/** Solo celulares y tablets: en escritorio no tiene sentido. */
+function isMobileOrTablet() {
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent;
+  const esTablet = /iPad|Tablet|PlayBook|Silk/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+  const esMovil = /Android|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const pantallaChica = window.matchMedia("(max-width: 1024px)").matches;
+  const tactil = window.matchMedia("(pointer: coarse)").matches;
+  return esMovil || esTablet || (pantallaChica && tactil);
+}
+
+
 /**
  * Invitación a instalar Läätu en la pantalla de inicio.
  * En Android/Chrome dispara el instalador nativo; en iOS muestra los pasos
@@ -29,7 +39,7 @@ export function InstallPrompt() {
 
   useEffect(() => {
     if (isStandalone()) return;
-    if (window.localStorage.getItem(STORAGE_KEY) === "1") return;
+    if (!isMobileOrTablet()) return;
 
     const ua = window.navigator.userAgent;
     const esIos = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
@@ -49,10 +59,7 @@ export function InstallPrompt() {
     };
   }, []);
 
-  const close = (recordar = true) => {
-    if (recordar) window.localStorage.setItem(STORAGE_KEY, "1");
-    setOpen(false);
-  };
+  const close = () => setOpen(false);
 
   const install = async () => {
     if (!deferred) return;
@@ -61,6 +68,7 @@ export function InstallPrompt() {
     setDeferred(null);
     close();
   };
+
 
   if (!open) return null;
 
