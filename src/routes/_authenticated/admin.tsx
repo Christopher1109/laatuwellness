@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CalendarDays,
+  Stethoscope,
   ShoppingCart,
   Package,
   UserCheck,
@@ -13,6 +14,7 @@ import {
   CalendarRange,
   Clock,
   Contact,
+  LineChart,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +30,7 @@ import {
   MyAvailabilityPanel,
   TimeClockPanel,
   CoachProfilePanel,
+  FinancePanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -41,6 +44,12 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: Admin,
 });
 
+// Horarios de clase (Reformer, Contrast Therapy...) viven separados de los
+// horarios de consultorio (fisioterapia, psicología, nutrición) para que no
+// se mezclen en la misma lista.
+const CLASS_MODULES = ["reformer", "salon-2", "contraste"] as const;
+const CONSULTORIO_MODULES = ["nutricion", "psicologia", "rehabilitacion"] as const;
+
 function Admin() {
   const { isAdmin, isStaff, isCoach, loading, staffProfile } = useAuth();
 
@@ -49,7 +58,8 @@ function Admin() {
         {
           label: "Operación",
           items: [
-            { key: "horarios", label: "Horarios", icon: CalendarDays },
+            { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
+            { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
             { key: "checkin", label: "Check-in", icon: UserCheck },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
             { key: "inventario", label: "Inventario", icon: Package },
@@ -63,6 +73,10 @@ function Admin() {
             { key: "nomina", label: "Nómina", icon: Wallet },
             { key: "turnos", label: "Turnos", icon: CalendarRange },
           ],
+        },
+        {
+          label: "Negocio",
+          items: [{ key: "finanzas", label: "Finanzas", icon: LineChart }],
         },
         {
           label: "Mi cuenta",
@@ -122,7 +136,12 @@ function Admin() {
       title="Panel del estudio"
       subtitle={staffProfile?.role}
     >
-      {activeKey === "horarios" ? <ClassesPanel /> : null}
+      {activeKey === "horarios-clases" ? (
+        <ClassesPanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
+      ) : null}
+      {activeKey === "horarios-consultorio" ? (
+        <ClassesPanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
+      ) : null}
       {activeKey === "checkin" ? <CheckInPanel /> : null}
       {activeKey === "pos" ? <POSPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
@@ -130,6 +149,7 @@ function Admin() {
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "turnos" ? <ShiftSchedulePanel /> : null}
+      {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "disponibilidad" ? <MyAvailabilityPanel /> : null}
       {activeKey === "checador" ? <TimeClockPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}
@@ -138,16 +158,27 @@ function Admin() {
 }
 
 // ============================================================================
-// HORARIOS (clases) — agrupado por día, colapsable
+// HORARIOS (clases o consultorio, según `modules`) — tabla alineada,
+// agrupada por día.
 // ============================================================================
-function ClassesPanel() {
+const MODULE_LABELS: Record<string, string> = {
+  reformer: "Reformer Studio",
+  "salon-2": "Segundo Salón",
+  contraste: "Contrast Therapy",
+  nutricion: "Nutrición",
+  psicologia: "Psicología",
+  rehabilitacion: "Rehabilitación",
+};
+
+function ClassesPanel({ modules, title }: { modules: string[]; title: string }) {
   const qc = useQueryClient();
   const { data } = useQuery({
-    queryKey: ["admin-classes"],
+    queryKey: ["admin-classes", modules.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .in("module_key", modules)
         .order("starts_at")
         .limit(300);
       if (error) throw error;
@@ -168,11 +199,11 @@ function ClassesPanel() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Clase agregada.");
+      toast.success("Agregado.");
       void qc.invalidateQueries({ queryKey: ["admin-classes"] });
       void qc.invalidateQueries({ queryKey: ["classes"] });
     },
-    onError: () => toast.error("No se pudo crear la clase."),
+    onError: () => toast.error("No se pudo crear."),
   });
 
   const toggle = useMutation({
@@ -192,7 +223,7 @@ function ClassesPanel() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Clase eliminada.");
+      toast.success("Eliminado.");
       void qc.invalidateQueries({ queryKey: ["admin-classes"] });
       void qc.invalidateQueries({ queryKey: ["classes"] });
     },
@@ -200,7 +231,7 @@ function ClassesPanel() {
   });
 
   const byDay = useMemo(() => {
-    const groups = new Map<string, typeof data>();
+    const groups = new Map<string, NonNullable<typeof data>>();
     for (const c of data ?? []) {
       const key = new Intl.DateTimeFormat("es-MX", {
         weekday: "long",
@@ -215,17 +246,17 @@ function ClassesPanel() {
   return (
     <div>
       <details className="mb-6 border border-border p-6" open={(data ?? []).length === 0}>
-        <summary className="cursor-pointer eyebrow">Agregar clase</summary>
+        <summary className="cursor-pointer eyebrow">Agregar a {title.toLowerCase()}</summary>
         <form
-          className="mt-4 grid gap-4 sm:grid-cols-6"
+          className="mt-4 grid gap-4 sm:grid-cols-3 lg:grid-cols-6"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             const local = String(f.get("starts_at"));
             if (!local) return;
             create.mutate({
-              module_key: String(f.get("module_key") || "reformer"),
-              room: String(f.get("room") || "Reformer"),
+              module_key: String(f.get("module_key") || modules[0]),
+              room: String(f.get("room") || ""),
               instructor: String(f.get("instructor") || ""),
               starts_at: new Date(local).toISOString(),
               capacity: Number(f.get("capacity") || 10),
@@ -236,26 +267,36 @@ function ClassesPanel() {
         >
           <label className="text-xs">
             <span className="eyebrow">Programa</span>
-            <select name="module_key" defaultValue="reformer" className={input}>
-              <option value="reformer">Reformer Studio</option>
-              <option value="salon-2">Segundo Salón</option>
-              <option value="contraste">Contrast Therapy</option>
-              <option value="nutricion">Nutrition</option>
-              <option value="psicologia">Psychology</option>
-              <option value="rehabilitacion">Rehabilitación</option>
+            <select name="module_key" defaultValue={modules[0]} className={input}>
+              {modules.map((m) => (
+                <option key={m} value={m}>
+                  {MODULE_LABELS[m] ?? m}
+                </option>
+              ))}
             </select>
           </label>
           <label className="text-xs">
-            <span className="eyebrow">Salón</span>
-            <input name="room" defaultValue="Reformer" className={input} />
+            <span className="eyebrow">Salón / consultorio</span>
+            <input name="room" placeholder="Reformer / Consultorio 1" className={input} />
           </label>
           <label className="text-xs">
-            <span className="eyebrow">Instructora</span>
+            <span className="eyebrow">Instructora / especialista</span>
             <input name="instructor" className={input} />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Fecha y hora</span>
             <input name="starts_at" type="datetime-local" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Duración (min)</span>
+            <input
+              name="duration_min"
+              type="number"
+              min={10}
+              max={180}
+              defaultValue={50}
+              className={input}
+            />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Cupo</span>
@@ -268,8 +309,8 @@ function ClassesPanel() {
               className={input}
             />
           </label>
-          <div className="flex items-end">
-            <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
+          <div className="sm:col-span-3 lg:col-span-6">
+            <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
               Agregar
             </button>
           </div>
@@ -277,48 +318,63 @@ function ClassesPanel() {
       </details>
 
       <div className="space-y-3">
-        {byDay.map(([day, classes]) => (
+        {byDay.map(([day, items]) => (
           <details key={day} className="border border-border" open>
             <summary className="cursor-pointer border-b border-border px-4 py-3 text-sm capitalize">
-              {day} <span className="text-muted-foreground">· {classes?.length}</span>
+              {day} <span className="text-muted-foreground">· {items.length}</span>
             </summary>
-            <ul className="divide-y divide-border text-sm">
-              {(classes ?? []).map((c) => (
-                <li
-                  key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                >
-                  <span className="w-16">
-                    {new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
-                      new Date(c.starts_at),
-                    )}
-                  </span>
-                  <span>{c.room}</span>
-                  <span className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                    {c.module_key}
-                  </span>
-                  <span className="text-muted-foreground">{c.instructor}</span>
-                  <span className="text-muted-foreground">Cupo {c.capacity}</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => toggle.mutate({ id: c.id, active: !c.active })}
-                      className="border border-input px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em]"
-                    >
-                      {c.active ? "Ocultar" : "Publicar"}
-                    </button>
-                    <button
-                      onClick={() => remove.mutate(c.id)}
-                      className="border border-input px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] text-destructive"
-                    >
-                      Borrar
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                    <th className="px-4 py-2">Hora</th>
+                    <th className="px-4 py-2">Salón / consultorio</th>
+                    <th className="px-4 py-2">Programa</th>
+                    <th className="px-4 py-2">Instructora / especialista</th>
+                    <th className="px-4 py-2">Cupo</th>
+                    <th className="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {items.map((c) => (
+                    <tr key={c.id}>
+                      <td className="px-4 py-3">
+                        {new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
+                          new Date(c.starts_at),
+                        )}
+                      </td>
+                      <td className="px-4 py-3">{c.room}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.instructor}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.capacity}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => toggle.mutate({ id: c.id, active: !c.active })}
+                            className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em]"
+                          >
+                            {c.active ? "Ocultar" : "Publicar"}
+                          </button>
+                          <button
+                            onClick={() => remove.mutate(c.id)}
+                            className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-destructive"
+                          >
+                            Borrar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </details>
         ))}
-        {byDay.length === 0 ? <p className="text-muted-foreground">Sin clases todavía.</p> : null}
+        {byDay.length === 0 ? (
+          <p className="text-muted-foreground">Sin horarios todavía en {title.toLowerCase()}.</p>
+        ) : null}
       </div>
     </div>
   );
