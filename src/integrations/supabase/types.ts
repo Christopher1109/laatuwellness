@@ -340,6 +340,8 @@ export type Database = {
           price_cents: number
           sku: string | null
           stock: number
+          unit: string
+          unit_size: string
         }
         Insert: {
           active?: boolean
@@ -353,6 +355,8 @@ export type Database = {
           price_cents?: number
           sku?: string | null
           stock?: number
+          unit?: string
+          unit_size?: string
         }
         Update: {
           active?: boolean
@@ -366,6 +370,8 @@ export type Database = {
           price_cents?: number
           sku?: string | null
           stock?: number
+          unit?: string
+          unit_size?: string
         }
         Relationships: []
       }
@@ -541,6 +547,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          latitude: number | null
+          longitude: number | null
           note: string
           photo_url: string | null
           staff_id: string
@@ -549,6 +557,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           note?: string
           photo_url?: string | null
           staff_id: string
@@ -557,6 +567,8 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           note?: string
           photo_url?: string | null
           staff_id?: string

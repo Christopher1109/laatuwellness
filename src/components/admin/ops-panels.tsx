@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,12 +13,14 @@ const money = (cents: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format((cents ?? 0) / 100);
 
 const WEEKDAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const UNITS = ["pieza", "caja", "kg", "g", "l", "ml", "dosis"];
 
 // ============================================================================
 // PUNTO DE VENTA (POS)
 // ============================================================================
 export function POSPanel() {
   const qc = useQueryClient();
+  const [search, setSearch] = useState("");
   const { data: products } = useQuery({
     queryKey: ["pos-products"],
     queryFn: async () => {
@@ -31,6 +34,17 @@ export function POSPanel() {
     },
   });
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products ?? [];
+    return (products ?? []).filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku ?? "").toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q),
+    );
+  }, [products, search]);
+
   const [cart, setCart] = useState<Record<string, number>>({});
   const [clientEmail, setClientEmail] = useState("");
   const [payment, setPayment] = useState("efectivo");
@@ -42,6 +56,8 @@ export function POSPanel() {
       return sum + (p ? p.price_cents * qty : 0);
     }, 0);
   }, [cart, products]);
+
+  const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
   const checkout = useMutation({
     mutationFn: async () => {
@@ -84,37 +100,62 @@ export function POSPanel() {
   });
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-      <ul className="divide-y divide-border border-y border-border text-sm">
-        {(products ?? []).map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-4 py-4">
-            <div>
-              <p>{p.name}</p>
-              <p className="text-muted-foreground">
-                {money(p.price_cents)} · stock {p.stock}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                className="border border-input px-3 py-1.5"
-                onClick={() => setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) }))}
+    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div>
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, SKU o categoría…"
+            className={`${input} pl-9`}
+            autoFocus
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filtered.map((p) => {
+            const qty = cart[p.id] ?? 0;
+            return (
+              <div
+                key={p.id}
+                className={`flex items-center justify-between gap-3 border p-4 transition-colors ${qty > 0 ? "border-foreground" : "border-border"}`}
               >
-                −
-              </button>
-              <span className="w-8 text-center">{cart[p.id] ?? 0}</span>
-              <button
-                className="border border-input px-3 py-1.5"
-                onClick={() => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 }))}
-              >
-                +
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+                <div className="min-w-0">
+                  <p className="truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {money(p.price_cents)} · stock {p.stock} {p.unit}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    className="border border-input px-2.5 py-1"
+                    onClick={() =>
+                      setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) }))
+                    }
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center">{qty}</span>
+                  <button
+                    className="border border-input px-2.5 py-1"
+                    onClick={() => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 }))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin resultados.</p>
+          ) : null}
+        </div>
+      </div>
 
       <div className="h-fit space-y-4 border border-border p-6">
-        <p className="eyebrow">Cobro</p>
+        <p className="eyebrow">
+          Cobro {itemCount > 0 ? `· ${itemCount} artículo${itemCount === 1 ? "" : "s"}` : ""}
+        </p>
         <label className="block text-xs">
           <span className="eyebrow">Correo del cliente (opcional)</span>
           <input
@@ -132,9 +173,9 @@ export function POSPanel() {
             <option value="transferencia">Transferencia</option>
           </select>
         </label>
-        <p className="text-lg">{money(total)}</p>
+        <p className="text-2xl">{money(total)}</p>
         <button
-          disabled={checkout.isPending}
+          disabled={checkout.isPending || itemCount === 0}
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
@@ -150,6 +191,9 @@ export function POSPanel() {
 // ============================================================================
 export function InventoryPanel() {
   const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("todas");
+
   const { data } = useQuery({
     queryKey: ["admin-products"],
     queryFn: async () => {
@@ -190,129 +234,261 @@ export function InventoryPanel() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin-products"] }),
   });
 
+  const categories = Array.from(new Set((data ?? []).map((p) => p.category))).sort();
+
+  const filtered = (data ?? []).filter((p) => {
+    if (categoryFilter !== "todas" && p.category !== categoryFilter) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
+  });
+
   const today = new Date();
   const soon = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const lowStockCount = (data ?? []).filter((p) => p.stock <= p.low_stock_threshold).length;
+  const expiringCount = (data ?? []).filter(
+    (p) => p.expires_at && new Date(p.expires_at) <= soon,
+  ).length;
 
   return (
     <div>
-      <form
-        className="grid gap-4 border border-border p-6 sm:grid-cols-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          create.mutate({
-            name: String(f.get("name") || ""),
-            category: String(f.get("category") || "merch"),
-            price_cents: Math.round(Number(f.get("price") || 0) * 100),
-            stock: Number(f.get("stock") || 0),
-            low_stock_threshold: Number(f.get("threshold") || 5),
-            expires_at: f.get("expires_at") ? String(f.get("expires_at")) : null,
-          });
-          e.currentTarget.reset();
-        }}
-      >
-        <label className="text-xs">
-          <span className="eyebrow">Nombre</span>
-          <input name="name" required className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Categoría</span>
-          <input name="category" defaultValue="merch" className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Precio (MXN)</span>
-          <input name="price" type="number" min={0} step="0.01" className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Stock inicial</span>
-          <input name="stock" type="number" min={0} defaultValue={0} className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Alerta stock bajo</span>
-          <input name="threshold" type="number" min={0} defaultValue={5} className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Caducidad</span>
-          <input name="expires_at" type="date" className={input} />
-        </label>
-        <div className="sm:col-span-6">
-          <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
-            Agregar producto
-          </button>
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <div className="border border-border p-4">
+          <p className="eyebrow">SKUs activos</p>
+          <p className="mt-1 text-2xl">{(data ?? []).filter((p) => p.active).length}</p>
         </div>
-      </form>
+        <div className={`border p-4 ${lowStockCount > 0 ? "border-destructive" : "border-border"}`}>
+          <p className="eyebrow">Stock bajo</p>
+          <p className="mt-1 text-2xl">{lowStockCount}</p>
+        </div>
+        <div className={`border p-4 ${expiringCount > 0 ? "border-destructive" : "border-border"}`}>
+          <p className="eyebrow">Caducan en 30 días</p>
+          <p className="mt-1 text-2xl">{expiringCount}</p>
+        </div>
+      </div>
 
-      <ul className="mt-8 divide-y divide-border border-y border-border text-sm">
-        {(data ?? []).map((p) => {
-          const low = p.stock <= p.low_stock_threshold;
-          const expiring = p.expires_at ? new Date(p.expires_at) <= soon : false;
-          return (
-            <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-              <span className="w-48">{p.name}</span>
-              <span className="text-muted-foreground">{p.category}</span>
-              <span>{money(p.price_cents)}</span>
-              <span className={low ? "text-destructive" : ""}>
-                Stock {p.stock}
-                {low ? " · bajo" : ""}
-              </span>
-              {p.expires_at ? (
-                <span className={expiring ? "text-destructive" : "text-muted-foreground"}>
-                  Caduca{" "}
-                  {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
-                    new Date(p.expires_at),
-                  )}
-                </span>
-              ) : null}
-              <div className="flex items-center gap-2">
-                <button
-                  className="border border-input px-3 py-1.5"
-                  onClick={() => adjust.mutate({ id: p.id, delta: -1, reason: "Salida manual" })}
-                >
-                  −
-                </button>
-                <button
-                  className="border border-input px-3 py-1.5"
-                  onClick={() => adjust.mutate({ id: p.id, delta: 1, reason: "Entrada manual" })}
-                >
-                  +
-                </button>
-                <button
-                  className="border border-input px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em]"
-                  onClick={() => update.mutate({ id: p.id, patch: { active: !p.active } })}
-                >
-                  {p.active ? "Ocultar" : "Publicar"}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <details className="mb-6 border border-border p-6">
+        <summary className="cursor-pointer eyebrow">Agregar producto</summary>
+        <form
+          className="mt-4 grid gap-4 sm:grid-cols-3 lg:grid-cols-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            create.mutate({
+              name: String(f.get("name") || ""),
+              category: String(f.get("category") || "merch"),
+              price_cents: Math.round(Number(f.get("price") || 0) * 100),
+              stock: Number(f.get("stock") || 0),
+              unit: String(f.get("unit") || "pieza"),
+              unit_size: String(f.get("unit_size") || ""),
+              low_stock_threshold: Number(f.get("threshold") || 5),
+              expires_at: f.get("expires_at") ? String(f.get("expires_at")) : null,
+            });
+            e.currentTarget.reset();
+          }}
+        >
+          <label className="text-xs">
+            <span className="eyebrow">Nombre</span>
+            <input name="name" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Categoría</span>
+            <input name="category" defaultValue="merch" className={input} list="inv-categories" />
+            <datalist id="inv-categories">
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Precio (MXN)</span>
+            <input name="price" type="number" min={0} step="0.01" className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Unidad</span>
+            <select name="unit" defaultValue="pieza" className={input}>
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Presentación</span>
+            <input name="unit_size" placeholder='ej. "500 ml"' className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Stock inicial</span>
+            <input name="stock" type="number" min={0} defaultValue={0} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Alerta stock bajo</span>
+            <input name="threshold" type="number" min={0} defaultValue={5} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Caducidad</span>
+            <input name="expires_at" type="date" className={input} />
+          </label>
+          <div className="flex items-end">
+            <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
+              Agregar
+            </button>
+          </div>
+        </form>
+      </details>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar producto o SKU…"
+            className={`${input} pl-9`}
+          />
+        </div>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className={`${input} w-auto`}
+        >
+          <option value="todas">Todas las categorías</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              <th className="px-4 py-3">Producto</th>
+              <th className="px-4 py-3">Categoría</th>
+              <th className="px-4 py-3">Precio</th>
+              <th className="px-4 py-3">Stock</th>
+              <th className="px-4 py-3">Caducidad</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {filtered.map((p) => {
+              const low = p.stock <= p.low_stock_threshold;
+              const expiring = p.expires_at ? new Date(p.expires_at) <= soon : false;
+              return (
+                <tr key={p.id}>
+                  <td className="px-4 py-3">
+                    <p>{p.name}</p>
+                    {p.unit_size ? (
+                      <p className="text-xs text-muted-foreground">{p.unit_size}</p>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{p.category}</td>
+                  <td className="px-4 py-3">{money(p.price_cents)}</td>
+                  <td className={`px-4 py-3 ${low ? "text-destructive" : ""}`}>
+                    {p.stock} {p.unit}
+                    {low ? " · bajo" : ""}
+                  </td>
+                  <td
+                    className={`px-4 py-3 ${expiring ? "text-destructive" : "text-muted-foreground"}`}
+                  >
+                    {p.expires_at
+                      ? new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                          new Date(p.expires_at),
+                        )
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        className="border border-input px-2.5 py-1"
+                        onClick={() =>
+                          adjust.mutate({ id: p.id, delta: -1, reason: "Salida manual" })
+                        }
+                      >
+                        −
+                      </button>
+                      <button
+                        className="border border-input px-2.5 py-1"
+                        onClick={() =>
+                          adjust.mutate({ id: p.id, delta: 1, reason: "Entrada manual" })
+                        }
+                      >
+                        +
+                      </button>
+                      <button
+                        className="border border-input px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.12em]"
+                        onClick={() => update.mutate({ id: p.id, patch: { active: !p.active } })}
+                      >
+                        {p.active ? "Ocultar" : "Publicar"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                  Sin resultados.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 // ============================================================================
-// CHECK-IN
+// CHECK-IN — selecciona automáticamente la clase en curso
 // ============================================================================
+function pickCurrentClass(classes: Tables<"classes">[] | undefined) {
+  if (!classes || classes.length === 0) return "";
+  const now = Date.now();
+  // clase en curso (ya empezó, aún dentro de su duración + 15 min de cortesía)
+  const inProgress = classes.find((c) => {
+    const start = new Date(c.starts_at).getTime();
+    const end = start + (c.duration_min + 15) * 60_000;
+    return now >= start - 15 * 60_000 && now <= end;
+  });
+  if (inProgress) return inProgress.id;
+  // si ninguna está en curso, la próxima que va a empezar
+  const upcoming = classes.filter((c) => new Date(c.starts_at).getTime() > now);
+  return upcoming[0]?.id ?? classes[0]?.id ?? "";
+}
+
 export function CheckInPanel() {
   const qc = useQueryClient();
   const [classId, setClassId] = useState<string>("");
+  const [search, setSearch] = useState("");
 
   const { data: classes } = useQuery({
     queryKey: ["checkin-classes"],
     queryFn: async () => {
       const from = new Date();
       from.setHours(from.getHours() - 3);
+      const to = new Date();
+      to.setHours(to.getHours() + 12);
       const { data, error } = await supabase
         .from("classes")
         .select("*")
         .gte("starts_at", from.toISOString())
+        .lte("starts_at", to.toISOString())
         .order("starts_at")
         .limit(50);
       if (error) throw error;
       return data;
     },
   });
+
+  useEffect(() => {
+    if (!classId && classes) setClassId(pickCurrentClass(classes));
+  }, [classes, classId]);
 
   const { data: rows } = useQuery({
     enabled: Boolean(classId),
@@ -367,25 +543,55 @@ export function CheckInPanel() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["checkin-bookings", classId] }),
   });
 
+  const filteredRows = (rows ?? []).filter((r) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (r.profile?.full_name ?? "").toLowerCase().includes(q) ||
+      (r.profile?.email ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const currentClass = classes?.find((c) => c.id === classId);
+
   return (
     <div>
-      <label className="block text-xs">
-        <span className="eyebrow">Clase</span>
-        <select value={classId} onChange={(e) => setClassId(e.target.value)} className={input}>
-          <option value="">Selecciona una clase</option>
-          {(classes ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
-                new Date(c.starts_at),
-              )}{" "}
-              · {c.room} · {c.instructor}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="mb-6 flex flex-wrap items-end gap-4">
+        <label className="min-w-[280px] text-xs">
+          <span className="eyebrow">Clase (se selecciona sola según la hora)</span>
+          <select value={classId} onChange={(e) => setClassId(e.target.value)} className={input}>
+            {(classes ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
+                  new Date(c.starts_at),
+                )}{" "}
+                · {c.room} · {c.instructor}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre…"
+            className={`${input} pl-9`}
+          />
+        </div>
+      </div>
 
-      <ul className="mt-8 divide-y divide-border border-y border-border text-sm">
-        {(rows ?? []).map((r) => (
+      {currentClass ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          {currentClass.room} con {currentClass.instructor} ·{" "}
+          {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
+            new Date(currentClass.starts_at),
+          )}
+        </p>
+      ) : null}
+
+      <ul className="divide-y divide-border border-y border-border text-sm">
+        {filteredRows.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div>
               <p>{r.profile?.full_name || "Sin nombre"}</p>
@@ -413,7 +619,7 @@ export function CheckInPanel() {
             </div>
           </li>
         ))}
-        {classId && (rows ?? []).length === 0 ? (
+        {classId && filteredRows.length === 0 ? (
           <li className="py-6 text-muted-foreground">Sin reservas para esta clase.</li>
         ) : null}
       </ul>
@@ -464,60 +670,83 @@ export function StaffDirectoryPanel() {
 
   return (
     <div>
-      <form
-        className="grid gap-4 border border-border p-6 sm:grid-cols-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          create.mutate({
-            full_name: String(f.get("full_name") || ""),
-            email: String(f.get("email") || ""),
-            role: String(f.get("role") || "staff") as "admin" | "staff" | "coach",
-            hourly_rate_cents: Math.round(Number(f.get("rate") || 0) * 100),
-          });
-          e.currentTarget.reset();
-        }}
-      >
-        <label className="text-xs">
-          <span className="eyebrow">Nombre</span>
-          <input name="full_name" required className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Correo administrativo</span>
-          <input name="email" type="email" required className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Rol</span>
-          <select name="role" defaultValue="staff" className={input}>
-            <option value="staff">Staff / recepción</option>
-            <option value="coach">Coach</option>
-            <option value="admin">Administrador</option>
-          </select>
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Tarifa por hora (MXN)</span>
-          <input name="rate" type="number" min={0} step="0.01" className={input} />
-        </label>
-        <div className="flex items-end">
-          <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
-            Dar de alta
-          </button>
-        </div>
-      </form>
+      <details className="mb-6 border border-border p-6">
+        <summary className="cursor-pointer eyebrow">Dar de alta a alguien del equipo</summary>
+        <form
+          className="mt-4 grid gap-4 sm:grid-cols-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            create.mutate({
+              full_name: String(f.get("full_name") || ""),
+              email: String(f.get("email") || ""),
+              role: String(f.get("role") || "staff") as "admin" | "staff" | "coach",
+              hourly_rate_cents: Math.round(Number(f.get("rate") || 0) * 100),
+            });
+            e.currentTarget.reset();
+          }}
+        >
+          <label className="text-xs">
+            <span className="eyebrow">Nombre</span>
+            <input name="full_name" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Correo administrativo</span>
+            <input name="email" type="email" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Rol</span>
+            <select name="role" defaultValue="staff" className={input}>
+              <option value="staff">Staff / recepción</option>
+              <option value="coach">Coach</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Tarifa por hora (MXN)</span>
+            <input name="rate" type="number" min={0} step="0.01" className={input} />
+          </label>
+          <div className="flex items-end">
+            <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
+              Dar de alta
+            </button>
+          </div>
+        </form>
+      </details>
 
-      <ul className="mt-8 divide-y divide-border border-y border-border text-sm">
+      <ul className="divide-y divide-border border-y border-border text-sm">
         {(data ?? []).map((s) => (
           <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div>
-              <p>
-                {s.full_name} <span className="text-muted-foreground">· {s.role}</span>
-              </p>
+              <input
+                defaultValue={s.full_name}
+                onBlur={(e) => update.mutate({ id: s.id, patch: { full_name: e.target.value } })}
+                className="border-b border-transparent bg-transparent hover:border-input focus:border-foreground focus:outline-none"
+              />
               <p className="text-muted-foreground">
-                {s.email}
+                <input
+                  defaultValue={s.email}
+                  onBlur={(e) => update.mutate({ id: s.id, patch: { email: e.target.value } })}
+                  className="border-b border-transparent bg-transparent text-xs hover:border-input focus:border-foreground focus:outline-none"
+                />
                 {s.user_id ? "" : " · aún no ha iniciado sesión"}
               </p>
             </div>
             <div className="flex items-center gap-4">
+              <select
+                value={s.role}
+                onChange={(e) =>
+                  update.mutate({
+                    id: s.id,
+                    patch: { role: e.target.value as "admin" | "staff" | "coach" },
+                  })
+                }
+                className={`${input} w-auto`}
+              >
+                <option value="staff">Staff</option>
+                <option value="coach">Coach</option>
+                <option value="admin">Admin</option>
+              </select>
               <label className="text-xs">
                 <span className="eyebrow">Tarifa/hr</span>
                 <input
@@ -543,6 +772,184 @@ export function StaffDirectoryPanel() {
             </div>
           </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+// ============================================================================
+// CLIENTES: perfil, historial, y análisis financiero/asistencia
+// ============================================================================
+export function ClientsPanel() {
+  const qc = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: async () => {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const { data: ledger } = await supabase.from("token_ledger").select("user_id, delta, reason");
+      const { data: waivers } = await supabase.from("waiver_signatures").select("user_id");
+      const { data: bookings } = await supabase.from("bookings").select("id, user_id, status");
+      const { data: transactions } = await supabase
+        .from("transactions")
+        .select("user_id, amount_cents, status");
+      const { data: checkIns } = await supabase.from("check_ins").select("booking_id, status");
+
+      const balances = new Map<string, number>();
+      const refunds = new Map<string, number>();
+      for (const row of ledger ?? []) {
+        balances.set(row.user_id, (balances.get(row.user_id) ?? 0) + row.delta);
+        if (row.reason?.toLowerCase().includes("reembolso")) {
+          refunds.set(row.user_id, (refunds.get(row.user_id) ?? 0) + 1);
+        }
+      }
+      const signed = new Set((waivers ?? []).map((w) => w.user_id));
+      const revenue = new Map<string, number>();
+      for (const t of transactions ?? []) {
+        if (t.status === "completed")
+          revenue.set(t.user_id, (revenue.get(t.user_id) ?? 0) + t.amount_cents);
+      }
+      const bookingsByUser = new Map<
+        string,
+        { total: number; attended: number; no_show: number; cancelled: number }
+      >();
+      const checkInByBooking = new Map((checkIns ?? []).map((c) => [c.booking_id, c.status]));
+      for (const b of bookings ?? []) {
+        const acc = bookingsByUser.get(b.user_id) ?? {
+          total: 0,
+          attended: 0,
+          no_show: 0,
+          cancelled: 0,
+        };
+        acc.total += 1;
+        if (b.status === "cancelada") acc.cancelled += 1;
+        const st = checkInByBooking.get(b.id);
+        if (st === "a_tiempo" || st === "tarde") acc.attended += 1;
+        if (st === "no_show") acc.no_show += 1;
+        bookingsByUser.set(b.user_id, acc);
+      }
+
+      return (profiles ?? []).map((p) => ({
+        ...p,
+        balance: balances.get(p.id) ?? 0,
+        waiver: signed.has(p.id),
+        revenue_cents: revenue.get(p.id) ?? 0,
+        refund_events: refunds.get(p.id) ?? 0,
+        bookings: bookingsByUser.get(p.id) ?? { total: 0, attended: 0, no_show: 0, cancelled: 0 },
+      }));
+    },
+  });
+
+  const adjust = useMutation({
+    mutationFn: async ({ userId, delta }: { userId: string; delta: number }) => {
+      const { error } = await supabase.rpc("admin_adjust_tokens", {
+        _user_id: userId,
+        _delta: delta,
+        _reason: "Ajuste manual del estudio",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Saldo actualizado.");
+      void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+    },
+    onError: () => toast.error("No se pudo ajustar el saldo."),
+  });
+
+  const [search, setSearch] = useState("");
+  const filtered = (data ?? []).filter((c) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return c.full_name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+  });
+
+  const summary = useMemo(() => {
+    const totalRevenue = (data ?? []).reduce((sum, c) => sum + c.revenue_cents, 0);
+    const totalClients = (data ?? []).length;
+    const totalAttended = (data ?? []).reduce((sum, c) => sum + c.bookings.attended, 0);
+    const totalNoShow = (data ?? []).reduce((sum, c) => sum + c.bookings.no_show, 0);
+    const totalRefundEvents = (data ?? []).reduce((sum, c) => sum + c.refund_events, 0);
+    return { totalRevenue, totalClients, totalAttended, totalNoShow, totalRefundEvents };
+  }, [data]);
+
+  return (
+    <div>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="border border-border p-4">
+          <p className="eyebrow">Ingresos totales</p>
+          <p className="mt-1 text-xl">{money(summary.totalRevenue)}</p>
+        </div>
+        <div className="border border-border p-4">
+          <p className="eyebrow">Clientes</p>
+          <p className="mt-1 text-xl">{summary.totalClients}</p>
+        </div>
+        <div className="border border-border p-4">
+          <p className="eyebrow">Asistencias</p>
+          <p className="mt-1 text-xl">{summary.totalAttended}</p>
+        </div>
+        <div className="border border-border p-4">
+          <p className="eyebrow">No-shows</p>
+          <p className="mt-1 text-xl">{summary.totalNoShow}</p>
+        </div>
+        <div className="border border-border p-4">
+          <p className="eyebrow">Créditos reembolsados</p>
+          <p className="mt-1 text-xl">{summary.totalRefundEvents}</p>
+        </div>
+      </div>
+
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar cliente por nombre o correo…"
+          className={`${input} pl-9`}
+        />
+      </div>
+
+      <ul className="divide-y divide-border border-y border-border text-sm">
+        {filtered.map((c) => (
+          <li key={c.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
+            <div>
+              <p>{c.full_name || "Sin nombre"}</p>
+              <p className="text-muted-foreground">
+                {c.email}
+                {c.phone ? ` · ${c.phone}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {c.waiver ? "Waiver ✓" : "Sin waiver"} · {money(c.revenue_cents)} pagados ·{" "}
+                {c.bookings.attended} asistidas · {c.bookings.no_show} no-show ·{" "}
+                {c.bookings.cancelled} canceladas
+                {c.refund_events > 0 ? ` · ${c.refund_events} reembolsos` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => adjust.mutate({ userId: c.id, delta: -1 })}
+                className="border border-input px-3 py-1.5"
+                aria-label="Restar un token"
+              >
+                −
+              </button>
+              <span className="w-10 text-center text-lg">{c.balance}</span>
+              <button
+                onClick={() => adjust.mutate({ userId: c.id, delta: 1 })}
+                className="border border-input px-3 py-1.5"
+                aria-label="Sumar un token"
+              >
+                +
+              </button>
+            </div>
+          </li>
+        ))}
+        {filtered.length === 0 ? (
+          <li className="py-6 text-muted-foreground">Sin resultados.</li>
+        ) : null}
       </ul>
     </div>
   );
@@ -622,11 +1029,9 @@ export function PayrollPanel() {
       amount: number;
       reason: string;
     }) => {
-      const { error } = await supabase.from("payroll_adjustments").insert({
-        staff_id: staffId,
-        amount_cents: Math.round(amount * 100),
-        reason,
-      });
+      const { error } = await supabase
+        .from("payroll_adjustments")
+        .insert({ staff_id: staffId, amount_cents: Math.round(amount * 100), reason });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -635,25 +1040,38 @@ export function PayrollPanel() {
     },
   });
 
+  const grandTotal = (rows ?? []).reduce((sum, r) => sum + r.total, 0);
+
   return (
     <div>
-      <div className="flex flex-wrap items-end gap-4 border border-border p-6">
-        <label className="text-xs">
-          <span className="eyebrow">Desde</span>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className={input}
-          />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Hasta</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={input} />
-        </label>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border border-border p-6">
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="text-xs">
+            <span className="eyebrow">Desde</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className={input}
+            />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Hasta</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className={input}
+            />
+          </label>
+        </div>
+        <div className="text-right">
+          <p className="eyebrow">Total del periodo</p>
+          <p className="text-2xl">{money(grandTotal)}</p>
+        </div>
       </div>
 
-      <ul className="mt-8 divide-y divide-border border-y border-border text-sm">
+      <ul className="divide-y divide-border border-y border-border text-sm">
         {(rows ?? []).map((r) => (
           <li key={r.staff.id} className="space-y-3 py-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -716,7 +1134,7 @@ export function PayrollPanel() {
 }
 
 // ============================================================================
-// HORARIOS DE STAFF: turnos requeridos (admin) + disponibilidad (self-service)
+// TURNOS: vista semanal tipo calendario
 // ============================================================================
 export function ShiftSchedulePanel() {
   const qc = useQueryClient();
@@ -769,101 +1187,120 @@ export function ShiftSchedulePanel() {
   });
 
   return (
-    <div className="space-y-10">
-      <form
-        className="grid gap-4 border border-border p-6 sm:grid-cols-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          createSlot.mutate({
-            weekday: Number(f.get("weekday")),
-            start_time: String(f.get("start_time")),
-            end_time: String(f.get("end_time")),
-            role_needed: String(f.get("role_needed")) as "admin" | "staff" | "coach",
-            notes: String(f.get("notes") || ""),
-          });
-          e.currentTarget.reset();
-        }}
-      >
-        <label className="text-xs">
-          <span className="eyebrow">Día</span>
-          <select name="weekday" className={input}>
-            {WEEKDAYS.map((w, i) => (
-              <option key={w} value={i}>
-                {w}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Inicio</span>
-          <input name="start_time" type="time" required className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Fin</span>
-          <input name="end_time" type="time" required className={input} />
-        </label>
-        <label className="text-xs">
-          <span className="eyebrow">Rol</span>
-          <select name="role_needed" defaultValue="staff" className={input}>
-            <option value="staff">Staff</option>
-            <option value="coach">Coach</option>
-          </select>
-        </label>
-        <label className="text-xs sm:col-span-2">
-          <span className="eyebrow">Notas</span>
-          <input name="notes" className={input} />
-        </label>
-        <div className="sm:col-span-6">
-          <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
-            Publicar turno requerido
-          </button>
-        </div>
-      </form>
+    <div className="space-y-8">
+      <details className="border border-border p-6">
+        <summary className="cursor-pointer eyebrow">Publicar turno requerido</summary>
+        <form
+          className="mt-4 grid gap-4 sm:grid-cols-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            createSlot.mutate({
+              weekday: Number(f.get("weekday")),
+              start_time: String(f.get("start_time")),
+              end_time: String(f.get("end_time")),
+              role_needed: String(f.get("role_needed")) as "admin" | "staff" | "coach",
+              notes: String(f.get("notes") || ""),
+            });
+            e.currentTarget.reset();
+          }}
+        >
+          <label className="text-xs">
+            <span className="eyebrow">Día</span>
+            <select name="weekday" className={input}>
+              {WEEKDAYS.map((w, i) => (
+                <option key={w} value={i}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Inicio</span>
+            <input name="start_time" type="time" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Fin</span>
+            <input name="end_time" type="time" required className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Rol</span>
+            <select name="role_needed" defaultValue="staff" className={input}>
+              <option value="staff">Staff</option>
+              <option value="coach">Coach</option>
+            </select>
+          </label>
+          <label className="text-xs sm:col-span-2">
+            <span className="eyebrow">Notas</span>
+            <input name="notes" className={input} />
+          </label>
+          <div className="sm:col-span-6">
+            <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
+              Publicar
+            </button>
+          </div>
+        </form>
+      </details>
 
-      <ul className="divide-y divide-border border-y border-border text-sm">
-        {(slots ?? []).map((s) => {
-          const slotClaims = (claims ?? []).filter((c) => c.shift_slot_id === s.id);
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+        {WEEKDAYS.map((day, weekday) => {
+          const daySlots = (slots ?? []).filter((s) => s.weekday === weekday);
           return (
-            <li key={s.id} className="space-y-2 py-4">
-              <p>
-                {WEEKDAYS[s.weekday]} {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}{" "}
-                <span className="text-muted-foreground">
-                  · {s.role_needed} · {s.notes}
-                </span>
+            <div key={day} className="border border-border">
+              <p className="border-b border-border px-3 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                {day}
               </p>
-              {slotClaims.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nadie ha propuesto cubrirlo.</p>
-              ) : (
-                <ul className="ml-4 space-y-1">
-                  {slotClaims.map((c) => (
-                    <li key={c.id} className="flex items-center gap-3 text-xs">
-                      <span>{c.staff?.full_name}</span>
-                      <span className="text-muted-foreground">{c.status}</span>
-                      {c.status === "propuesto" ? (
-                        <>
-                          <button
-                            onClick={() => setClaim.mutate({ id: c.id, status: "confirmado" })}
-                            className="border border-input px-2 py-1"
-                          >
-                            Confirmar
-                          </button>
-                          <button
-                            onClick={() => setClaim.mutate({ id: c.id, status: "rechazado" })}
-                            className="border border-input px-2 py-1 text-destructive"
-                          >
-                            Rechazar
-                          </button>
-                        </>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
+              <div className="space-y-3 p-3">
+                {daySlots.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sin turnos.</p>
+                ) : null}
+                {daySlots.map((s) => {
+                  const slotClaims = (claims ?? []).filter((c) => c.shift_slot_id === s.id);
+                  const confirmed = slotClaims.filter((c) => c.status === "confirmado").length;
+                  return (
+                    <div key={s.id} className="border border-border/60 p-2 text-xs">
+                      <p>
+                        {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {s.role_needed} ·{" "}
+                        {confirmed > 0 ? `${confirmed} confirmado(s)` : "sin cubrir"}
+                      </p>
+                      {slotClaims
+                        .filter((c) => c.status !== "confirmado")
+                        .map((c) => (
+                          <div key={c.id} className="mt-1 flex items-center justify-between gap-1">
+                            <span>{c.staff?.full_name}</span>
+                            {c.status === "propuesto" ? (
+                              <span className="flex gap-1">
+                                <button
+                                  onClick={() =>
+                                    setClaim.mutate({ id: c.id, status: "confirmado" })
+                                  }
+                                  className="border border-input px-1.5"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  onClick={() => setClaim.mutate({ id: c.id, status: "rechazado" })}
+                                  className="border border-input px-1.5 text-destructive"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">{c.status}</span>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -912,38 +1349,70 @@ export function MyAvailabilityPanel() {
   });
 
   return (
-    <ul className="divide-y divide-border border-y border-border text-sm">
-      {(slots ?? []).map((s) => {
-        const mine = (myClaims ?? []).find((c) => c.shift_slot_id === s.id);
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      {WEEKDAYS.map((day, weekday) => {
+        const daySlots = (slots ?? []).filter((s) => s.weekday === weekday);
         return (
-          <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <span>
-              {WEEKDAYS[s.weekday]} {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}{" "}
-              <span className="text-muted-foreground">{s.notes}</span>
-            </span>
-            {mine ? (
-              <span className="text-muted-foreground">{mine.status}</span>
-            ) : (
-              <button
-                onClick={() => claim.mutate(s.id)}
-                className="border border-input px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em]"
-              >
-                Puedo cubrirlo
-              </button>
-            )}
-          </li>
+          <div key={day} className="border border-border">
+            <p className="border-b border-border px-3 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              {day}
+            </p>
+            <div className="space-y-2 p-3">
+              {daySlots.length === 0 ? <p className="text-xs text-muted-foreground">—</p> : null}
+              {daySlots.map((s) => {
+                const mine = (myClaims ?? []).find((c) => c.shift_slot_id === s.id);
+                return (
+                  <div key={s.id} className="text-xs">
+                    <p>
+                      {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
+                    </p>
+                    {mine ? (
+                      <p className="text-muted-foreground">{mine.status}</p>
+                    ) : (
+                      <button
+                        onClick={() => claim.mutate(s.id)}
+                        className="mt-1 border border-input px-2 py-1"
+                      >
+                        Puedo cubrirlo
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
 // ============================================================================
-// CHECADOR: entrada / salida con foto
+// CHECADOR: entrada / salida con foto + ubicación obligatorias
 // ============================================================================
 export function TimeClockPanel() {
   const { staffProfile } = useAuth();
   const qc = useQueryClient();
+  const [locationStatus, setLocationStatus] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("denied");
+      return;
+    }
+    setLocationStatus("requesting");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationStatus("granted");
+      },
+      () => setLocationStatus("denied"),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }, []);
 
   const { data: today } = useQuery({
     queryKey: ["my-clock", staffProfile?.id],
@@ -963,54 +1432,62 @@ export function TimeClockPanel() {
   });
 
   const punch = useMutation({
-    mutationFn: async ({ type, file }: { type: "in" | "out"; file: File | null }) => {
-      let photo_url: string | null = null;
-      if (file) {
-        const path = `${staffProfile!.id}/${Date.now()}-${type}.jpg`;
-        const { error: upErr } = await supabase.storage.from("staff-photos").upload(path, file);
-        if (upErr) throw upErr;
-        photo_url = path;
-      }
-      const { error } = await supabase
-        .from("time_clock_entries")
-        .insert({ staff_id: staffProfile!.id, type, photo_url });
+    mutationFn: async ({ type, file }: { type: "in" | "out"; file: File }) => {
+      if (!coords) throw new Error("Necesitamos tu ubicación para poder checar.");
+      const path = `${staffProfile!.id}/${Date.now()}-${type}.jpg`;
+      const { error: upErr } = await supabase.storage.from("staff-photos").upload(path, file);
+      if (upErr) throw upErr;
+      const { error } = await supabase.from("time_clock_entries").insert({
+        staff_id: staffProfile!.id,
+        type,
+        photo_url: path,
+        latitude: coords.lat,
+        longitude: coords.lng,
+      });
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       toast.success(vars.type === "in" ? "Entrada registrada." : "Salida registrada.");
       void qc.invalidateQueries({ queryKey: ["my-clock"] });
     },
-    onError: () => toast.error("No se pudo registrar. Intenta de nuevo."),
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "No se pudo registrar. Intenta de nuevo."),
   });
 
   const lastType = today?.[today.length - 1]?.type;
   const nextType: "in" | "out" = lastType === "in" ? "out" : "in";
+  const ready = locationStatus === "granted";
 
   return (
     <div className="max-w-md space-y-6 border border-border p-6">
       <p className="eyebrow">Checador — {staffProfile?.full_name}</p>
-      <label className="block text-xs">
+
+      {locationStatus !== "granted" ? (
+        <div className="border border-destructive p-3 text-xs text-destructive">
+          {locationStatus === "denied"
+            ? "Necesitamos permiso de ubicación para poder checar. Actívalo en tu navegador y recarga esta página."
+            : "Solicitando acceso a tu ubicación…"}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">Ubicación confirmada.</p>
+      )}
+
+      <label className={`block text-xs ${!ready ? "pointer-events-none opacity-50" : ""}`}>
         <span className="eyebrow">
-          {nextType === "in" ? "Foto para marcar entrada" : "Foto para marcar salida"}
+          {nextType === "in" ? "Foto para marcar entrada" : "Foto para marcar salida"} (obligatoria)
         </span>
         <input
           type="file"
           accept="image/*"
           capture="user"
-          id="clock-photo"
+          disabled={!ready}
           className={input}
           onChange={(e) => {
-            const file = e.target.files?.[0] ?? null;
-            punch.mutate({ type: nextType, file });
+            const file = e.target.files?.[0];
+            if (file) punch.mutate({ type: nextType, file });
           }}
         />
       </label>
-      <button
-        onClick={() => punch.mutate({ type: nextType, file: null })}
-        className="w-full border border-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em]"
-      >
-        Marcar {nextType === "in" ? "entrada" : "salida"} sin foto
-      </button>
 
       <ul className="space-y-1 text-sm text-muted-foreground">
         {(today ?? []).map((t) => (
