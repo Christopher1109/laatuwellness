@@ -423,7 +423,7 @@ export type Database = {
       token_balance: { Args: { _user_id: string }; Returns: number }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "staff" | "coach"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -551,7 +551,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "staff", "coach"],
     },
   },
 } as const
