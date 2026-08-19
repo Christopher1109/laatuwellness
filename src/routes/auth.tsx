@@ -39,6 +39,20 @@ const signInSchema = z.object({
 
 type Mode = "in" | "up" | "forgot";
 
+// Si el correo con el que se inicia sesión pertenece a un usuario
+// administrativo/operativo (staff_profiles), lo mandamos a la zona
+// administrativa en lugar de la zona de cliente ("/cuenta").
+async function resolveLandingRoute(userId: string | undefined): Promise<"/admin" | "/cuenta"> {
+  if (!userId) return "/cuenta";
+  const { data } = await supabase
+    .from("staff_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .maybeSingle();
+  return data ? "/admin" : "/cuenta";
+}
+
 function Auth() {
   const [mode, setMode] = useState<Mode>("in");
   const [busy, setBusy] = useState(false);
@@ -76,7 +90,7 @@ function Auth() {
         });
         if (error) throw error;
         if (data.session) {
-          navigate({ to: "/cuenta" });
+          navigate({ to: await resolveLandingRoute(data.user?.id) });
         } else {
           toast.success("Revisa tu correo para confirmar tu cuenta.");
         }
@@ -106,9 +120,9 @@ function Auth() {
         toast.error(parsed.error.issues[0]?.message ?? "Revisa los datos");
         return;
       }
-      const { error } = await supabase.auth.signInWithPassword(parsed.data);
+      const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
       if (error) throw error;
-      navigate({ to: "/cuenta" });
+      navigate({ to: await resolveLandingRoute(data.user?.id) });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Algo salió mal");
     } finally {
@@ -125,7 +139,8 @@ function Auth() {
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/cuenta" });
+    const { data: userData } = await supabase.auth.getUser();
+    navigate({ to: await resolveLandingRoute(userData.user?.id) });
   };
 
   return (
@@ -162,24 +177,45 @@ function Auth() {
             {mode === "up" ? (
               <>
                 <div>
-                  <label htmlFor="full_name" className="eyebrow">Nombre completo</label>
-                  <input id="full_name" name="full_name" required maxLength={100} className={field} />
+                  <label htmlFor="full_name" className="eyebrow">
+                    Nombre completo
+                  </label>
+                  <input
+                    id="full_name"
+                    name="full_name"
+                    required
+                    maxLength={100}
+                    className={field}
+                  />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="eyebrow">Teléfono (opcional)</label>
+                  <label htmlFor="phone" className="eyebrow">
+                    Teléfono (opcional)
+                  </label>
                   <input id="phone" name="phone" maxLength={30} className={field} />
                 </div>
               </>
             ) : null}
 
             <div>
-              <label htmlFor="email" className="eyebrow">Correo</label>
-              <input id="email" name="email" type="email" required maxLength={255} className={field} />
+              <label htmlFor="email" className="eyebrow">
+                Correo
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                maxLength={255}
+                className={field}
+              />
             </div>
 
             {mode !== "forgot" ? (
               <div>
-                <label htmlFor="password" className="eyebrow">Contraseña</label>
+                <label htmlFor="password" className="eyebrow">
+                  Contraseña
+                </label>
                 <input
                   id="password"
                   name="password"
@@ -226,19 +262,28 @@ function Auth() {
               <>
                 <p>
                   ¿Aún no tienes cuenta?{" "}
-                  <button onClick={() => setMode("up")} className="border-b border-foreground pb-0.5 text-foreground">
+                  <button
+                    onClick={() => setMode("up")}
+                    className="border-b border-foreground pb-0.5 text-foreground"
+                  >
                     Regístrate
                   </button>
                 </p>
                 <p>
-                  <button onClick={() => setMode("forgot")} className="border-b border-border pb-0.5">
+                  <button
+                    onClick={() => setMode("forgot")}
+                    className="border-b border-border pb-0.5"
+                  >
                     Olvidé mi contraseña
                   </button>
                 </p>
               </>
             ) : (
               <p>
-                <button onClick={() => setMode("in")} className="border-b border-foreground pb-0.5 text-foreground">
+                <button
+                  onClick={() => setMode("in")}
+                  className="border-b border-foreground pb-0.5 text-foreground"
+                >
                   Volver a iniciar sesión
                 </button>
               </p>
