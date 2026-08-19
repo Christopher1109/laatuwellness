@@ -402,6 +402,7 @@ export type Database = {
       shift_claims: {
         Row: {
           created_at: string
+          for_date: string
           id: string
           shift_slot_id: string
           staff_id: string
@@ -409,6 +410,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          for_date?: string
           id?: string
           shift_slot_id: string
           staff_id: string
@@ -416,6 +418,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          for_date?: string
           id?: string
           shift_slot_id?: string
           staff_id?: string
@@ -446,6 +449,7 @@ export type Database = {
           id: string
           notes: string
           role_needed: Database["public"]["Enums"]["app_role"]
+          spots_needed: number
           start_time: string
           weekday: number
         }
@@ -456,6 +460,7 @@ export type Database = {
           id?: string
           notes?: string
           role_needed?: Database["public"]["Enums"]["app_role"]
+          spots_needed?: number
           start_time: string
           weekday: number
         }
@@ -466,6 +471,7 @@ export type Database = {
           id?: string
           notes?: string
           role_needed?: Database["public"]["Enums"]["app_role"]
+          spots_needed?: number
           start_time?: string
           weekday?: number
         }

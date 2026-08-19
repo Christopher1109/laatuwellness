@@ -1134,10 +1134,79 @@ export function PayrollPanel() {
 }
 
 // ============================================================================
-// TURNOS: vista semanal tipo calendario
+// TURNOS: calendario mensual con cobertura por día
+//   - cada turno (mañana/tarde) necesita "spots_needed" personas
+//   - verde = cubierto, amarillo = falta cubrir, rojo = casi nadie confirmado
 // ============================================================================
+type ShiftSlot = Tables<"shift_slots">;
+type ShiftClaim = Tables<"shift_claims"> & { staff?: { full_name: string } | null };
+
+function monthGrid(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const startOffset = first.getDay(); // 0 domingo
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function dateKey(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function dayCoverage(date: Date, slots: ShiftSlot[], claims: ShiftClaim[]) {
+  const daySlots = slots.filter((s) => s.weekday === date.getDay() && s.active);
+  if (daySlots.length === 0) return { color: "none" as const, slots: [] };
+  const key = dateKey(date);
+  const perSlot = daySlots.map((s) => {
+    const slotClaims = claims.filter((c) => c.shift_slot_id === s.id && c.for_date === key);
+    const confirmed = slotClaims.filter((c) => c.status === "confirmado").length;
+    let color: "green" | "yellow" | "red";
+    if (confirmed >= s.spots_needed) color = "green";
+    else if (confirmed > 0) color = "yellow";
+    else color = "red";
+    return { slot: s, claims: slotClaims, confirmed, color };
+  });
+  const color = perSlot.some((p) => p.color === "red")
+    ? "red"
+    : perSlot.some((p) => p.color === "yellow")
+      ? "yellow"
+      : "green";
+  return { color, slots: perSlot };
+}
+
+const COVERAGE_DOT: Record<string, string> = {
+  green: "bg-emerald-500",
+  yellow: "bg-amber-400",
+  red: "bg-destructive",
+  none: "bg-transparent",
+};
+
+function useMonthCursor() {
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  return {
+    cursor,
+    prev: () =>
+      setCursor((c) =>
+        c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 },
+      ),
+    next: () =>
+      setCursor((c) =>
+        c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 },
+      ),
+  };
+}
+
 export function ShiftSchedulePanel() {
   const qc = useQueryClient();
+  const { cursor, prev, next } = useMonthCursor();
+  const [selected, setSelected] = useState<Date>(new Date());
+
   const { data: slots } = useQuery({
     queryKey: ["admin-shift-slots"],
     queryFn: async () => {
@@ -1150,14 +1219,20 @@ export function ShiftSchedulePanel() {
       return data;
     },
   });
+
+  const monthStart = new Date(cursor.year, cursor.month, 1);
+  const monthEnd = new Date(cursor.year, cursor.month + 1, 0);
+
   const { data: claims } = useQuery({
-    queryKey: ["admin-shift-claims"],
+    queryKey: ["admin-shift-claims", dateKey(monthStart)],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("shift_claims")
-        .select("*, staff:staff_profiles(full_name)");
+        .select("*, staff:staff_profiles(full_name)")
+        .gte("for_date", dateKey(monthStart))
+        .lte("for_date", dateKey(monthEnd));
       if (error) throw error;
-      return data as (Tables<"shift_claims"> & { staff: { full_name: string } | null })[];
+      return data as ShiftClaim[];
     },
   });
 
@@ -1167,6 +1242,7 @@ export function ShiftSchedulePanel() {
       start_time: string;
       end_time: string;
       role_needed: "admin" | "staff" | "coach";
+      spots_needed: number;
       notes: string;
     }) => {
       const { error } = await supabase.from("shift_slots").insert(payload);
@@ -1186,12 +1262,17 @@ export function ShiftSchedulePanel() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin-shift-claims"] }),
   });
 
+  const cells = monthGrid(cursor.year, cursor.month);
+  const selectedCoverage = dayCoverage(selected, slots ?? [], claims ?? []);
+
   return (
     <div className="space-y-8">
       <details className="border border-border p-6">
-        <summary className="cursor-pointer eyebrow">Publicar turno requerido</summary>
+        <summary className="cursor-pointer eyebrow">
+          Publicar turno requerido (recurrente por día de la semana)
+        </summary>
         <form
-          className="mt-4 grid gap-4 sm:grid-cols-6"
+          className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -1200,6 +1281,7 @@ export function ShiftSchedulePanel() {
               start_time: String(f.get("start_time")),
               end_time: String(f.get("end_time")),
               role_needed: String(f.get("role_needed")) as "admin" | "staff" | "coach",
+              spots_needed: Number(f.get("spots_needed") || 3),
               notes: String(f.get("notes") || ""),
             });
             e.currentTarget.reset();
@@ -1230,11 +1312,22 @@ export function ShiftSchedulePanel() {
               <option value="coach">Coach</option>
             </select>
           </label>
-          <label className="text-xs sm:col-span-2">
-            <span className="eyebrow">Notas</span>
-            <input name="notes" className={input} />
+          <label className="text-xs">
+            <span className="eyebrow">Spots</span>
+            <input
+              name="spots_needed"
+              type="number"
+              min={1}
+              max={10}
+              defaultValue={3}
+              className={input}
+            />
           </label>
-          <div className="sm:col-span-6">
+          <label className="text-xs lg:col-span-2">
+            <span className="eyebrow">Notas</span>
+            <input name="notes" placeholder="ej. Turno mañana" className={input} />
+          </label>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-7">
             <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
               Publicar
             </button>
@@ -1242,64 +1335,105 @@ export function ShiftSchedulePanel() {
         </form>
       </details>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
-        {WEEKDAYS.map((day, weekday) => {
-          const daySlots = (slots ?? []).filter((s) => s.weekday === weekday);
+      <div className="flex items-center justify-between">
+        <button onClick={prev} className="border border-input px-3 py-1.5 text-sm">
+          ← Anterior
+        </button>
+        <p className="eyebrow capitalize">
+          {new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(monthStart)}
+        </p>
+        <button onClick={next} className="border border-input px-3 py-1.5 text-sm">
+          Siguiente →
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+        {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+          <div key={i}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((date, i) => {
+          if (!date) return <div key={i} />;
+          const cov = dayCoverage(date, slots ?? [], claims ?? []);
+          const isSelected = dateKey(date) === dateKey(selected);
           return (
-            <div key={day} className="border border-border">
-              <p className="border-b border-border px-3 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                {day}
-              </p>
-              <div className="space-y-3 p-3">
-                {daySlots.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Sin turnos.</p>
-                ) : null}
-                {daySlots.map((s) => {
-                  const slotClaims = (claims ?? []).filter((c) => c.shift_slot_id === s.id);
-                  const confirmed = slotClaims.filter((c) => c.status === "confirmado").length;
-                  return (
-                    <div key={s.id} className="border border-border/60 p-2 text-xs">
-                      <p>
-                        {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {s.role_needed} ·{" "}
-                        {confirmed > 0 ? `${confirmed} confirmado(s)` : "sin cubrir"}
-                      </p>
-                      {slotClaims
-                        .filter((c) => c.status !== "confirmado")
-                        .map((c) => (
-                          <div key={c.id} className="mt-1 flex items-center justify-between gap-1">
-                            <span>{c.staff?.full_name}</span>
-                            {c.status === "propuesto" ? (
-                              <span className="flex gap-1">
-                                <button
-                                  onClick={() =>
-                                    setClaim.mutate({ id: c.id, status: "confirmado" })
-                                  }
-                                  className="border border-input px-1.5"
-                                >
-                                  ✓
-                                </button>
-                                <button
-                                  onClick={() => setClaim.mutate({ id: c.id, status: "rechazado" })}
-                                  className="border border-input px-1.5 text-destructive"
-                                >
-                                  ✕
-                                </button>
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">{c.status}</span>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <button
+              key={i}
+              onClick={() => setSelected(date)}
+              className={`flex aspect-square flex-col items-center justify-center gap-1 border text-sm transition-colors ${
+                isSelected ? "border-foreground" : "border-border"
+              }`}
+            >
+              <span>{date.getDate()}</span>
+              {cov.color !== "none" ? (
+                <span className={`h-2 w-2 rounded-full ${COVERAGE_DOT[cov.color]}`} />
+              ) : null}
+            </button>
           );
         })}
+      </div>
+
+      <div className="border border-border p-6">
+        <p className="eyebrow">
+          {new Intl.DateTimeFormat("es-MX", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          }).format(selected)}
+        </p>
+        {selectedCoverage.slots.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Sin turnos configurados para este día.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {selectedCoverage.slots.map(({ slot, claims: slotClaims, confirmed, color }) => (
+              <div
+                key={slot.id}
+                className="border-l-4 pl-4"
+                style={{
+                  borderColor:
+                    color === "green" ? "#10b981" : color === "yellow" ? "#fbbf24" : "#dc2626",
+                }}
+              >
+                <p className="text-sm">
+                  {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} · {slot.role_needed} ·{" "}
+                  {confirmed}/{slot.spots_needed} cubiertos
+                  {slot.notes ? ` · ${slot.notes}` : ""}
+                </p>
+                {slotClaims.length === 0 ? (
+                  <p className="mt-1 text-xs text-muted-foreground">Nadie se ha anotado.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {slotClaims.map((c) => (
+                      <li key={c.id} className="flex items-center gap-2">
+                        <span>{c.staff?.full_name}</span>
+                        <span className="text-muted-foreground">{c.status}</span>
+                        {c.status === "propuesto" ? (
+                          <>
+                            <button
+                              onClick={() => setClaim.mutate({ id: c.id, status: "confirmado" })}
+                              className="border border-input px-2 py-0.5"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => setClaim.mutate({ id: c.id, status: "rechazado" })}
+                              className="border border-input px-2 py-0.5 text-destructive"
+                            >
+                              Rechazar
+                            </button>
+                          </>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1308,6 +1442,9 @@ export function ShiftSchedulePanel() {
 export function MyAvailabilityPanel() {
   const { staffProfile } = useAuth();
   const qc = useQueryClient();
+  const { cursor, prev, next } = useMonthCursor();
+  const [selected, setSelected] = useState<Date>(new Date());
+
   const { data: slots } = useQuery({
     queryKey: ["my-shift-slots", staffProfile?.role],
     enabled: Boolean(staffProfile),
@@ -1322,24 +1459,29 @@ export function MyAvailabilityPanel() {
       return data;
     },
   });
-  const { data: myClaims } = useQuery({
-    queryKey: ["my-shift-claims", staffProfile?.id],
+
+  const monthStart = new Date(cursor.year, cursor.month, 1);
+  const monthEnd = new Date(cursor.year, cursor.month + 1, 0);
+
+  const { data: claims } = useQuery({
+    queryKey: ["my-shift-claims", staffProfile?.id, dateKey(monthStart)],
     enabled: Boolean(staffProfile),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("shift_claims")
-        .select("*")
-        .eq("staff_id", staffProfile!.id);
+        .select("*, staff:staff_profiles(full_name)")
+        .gte("for_date", dateKey(monthStart))
+        .lte("for_date", dateKey(monthEnd));
       if (error) throw error;
-      return data;
+      return data as ShiftClaim[];
     },
   });
 
   const claim = useMutation({
-    mutationFn: async (slotId: string) => {
+    mutationFn: async ({ slotId, forDate }: { slotId: string; forDate: string }) => {
       const { error } = await supabase
         .from("shift_claims")
-        .insert({ shift_slot_id: slotId, staff_id: staffProfile!.id });
+        .insert({ shift_slot_id: slotId, staff_id: staffProfile!.id, for_date: forDate });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1348,41 +1490,90 @@ export function MyAvailabilityPanel() {
     },
   });
 
+  const cells = monthGrid(cursor.year, cursor.month);
+  const selectedCoverage = dayCoverage(selected, slots ?? [], claims ?? []);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
-      {WEEKDAYS.map((day, weekday) => {
-        const daySlots = (slots ?? []).filter((s) => s.weekday === weekday);
-        return (
-          <div key={day} className="border border-border">
-            <p className="border-b border-border px-3 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              {day}
-            </p>
-            <div className="space-y-2 p-3">
-              {daySlots.length === 0 ? <p className="text-xs text-muted-foreground">—</p> : null}
-              {daySlots.map((s) => {
-                const mine = (myClaims ?? []).find((c) => c.shift_slot_id === s.id);
-                return (
-                  <div key={s.id} className="text-xs">
-                    <p>
-                      {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
-                    </p>
-                    {mine ? (
-                      <p className="text-muted-foreground">{mine.status}</p>
-                    ) : (
-                      <button
-                        onClick={() => claim.mutate(s.id)}
-                        className="mt-1 border border-input px-2 py-1"
-                      >
-                        Puedo cubrirlo
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <button onClick={prev} className="border border-input px-3 py-1.5 text-sm">
+          ← Anterior
+        </button>
+        <p className="eyebrow capitalize">
+          {new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(monthStart)}
+        </p>
+        <button onClick={next} className="border border-input px-3 py-1.5 text-sm">
+          Siguiente →
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+        {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+          <div key={i}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((date, i) => {
+          if (!date) return <div key={i} />;
+          const cov = dayCoverage(date, slots ?? [], claims ?? []);
+          const isSelected = dateKey(date) === dateKey(selected);
+          const isPast = date < today;
+          return (
+            <button
+              key={i}
+              disabled={isPast}
+              onClick={() => setSelected(date)}
+              className={`flex aspect-square flex-col items-center justify-center gap-1 border text-sm transition-colors disabled:opacity-30 ${
+                isSelected ? "border-foreground" : "border-border"
+              }`}
+            >
+              <span>{date.getDate()}</span>
+              {cov.color !== "none" ? (
+                <span className={`h-2 w-2 rounded-full ${COVERAGE_DOT[cov.color]}`} />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="border border-border p-6">
+        <p className="eyebrow">
+          {new Intl.DateTimeFormat("es-MX", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          }).format(selected)}
+        </p>
+        {selectedCoverage.slots.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No hay turnos de tu rol este día.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {selectedCoverage.slots.map(({ slot, claims: slotClaims, confirmed }) => {
+              const mine = slotClaims.find((c) => c.staff_id === staffProfile?.id);
+              return (
+                <div key={slot.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span>
+                    {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} · {confirmed}/
+                    {slot.spots_needed} cubiertos
+                  </span>
+                  {mine ? (
+                    <span className="text-muted-foreground">{mine.status}</span>
+                  ) : (
+                    <button
+                      onClick={() => claim.mutate({ slotId: slot.id, forDate: dateKey(selected) })}
+                      className="border border-input px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em]"
+                    >
+                      Puedo cubrirlo
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 }
@@ -1596,6 +1787,149 @@ export function CoachProfilePanel() {
           ) : null}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// FINANZAS — solo administradores: ingresos del mes por categoría,
+// costo de nómina y margen resultante.
+// ============================================================================
+export function FinancePanel() {
+  const monthStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const now = new Date();
+
+  const { data } = useQuery({
+    queryKey: ["finance-month", monthStart.toISOString()],
+    queryFn: async () => {
+      const fromIso = monthStart.toISOString();
+      const toIso = now.toISOString();
+
+      const { data: transactions } = await supabase
+        .from("transactions")
+        .select("amount_cents, status, created_at")
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso);
+      const clasesRevenue = (transactions ?? [])
+        .filter((t) => t.status === "completed")
+        .reduce((sum, t) => sum + t.amount_cents, 0);
+
+      const { data: saleItems } = await supabase
+        .from("pos_sale_items")
+        .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at)")
+        .gte("sale.created_at", fromIso)
+        .lte("sale.created_at", toIso);
+      const productIds = Array.from(
+        new Set((saleItems ?? []).map((i) => i.product_id).filter(Boolean)),
+      ) as string[];
+      const { data: products } = productIds.length
+        ? await supabase.from("products").select("id, category").in("id", productIds)
+        : { data: [] as { id: string; category: string }[] };
+      const categoryById = new Map((products ?? []).map((p) => [p.id, p.category]));
+
+      let merchRevenue = 0;
+      let consumibleRevenue = 0;
+      let otrosRevenue = 0;
+      for (const item of saleItems ?? []) {
+        const amount = item.qty * item.unit_price_cents;
+        const cat = item.product_id ? categoryById.get(item.product_id) : undefined;
+        if (cat === "merch") merchRevenue += amount;
+        else if (cat === "consumible" || cat === "suplemento") consumibleRevenue += amount;
+        else otrosRevenue += amount;
+      }
+
+      const { data: staff } = await supabase.from("staff_profiles").select("*").eq("active", true);
+      let payrollCost = 0;
+      for (const s of staff ?? []) {
+        const { data: seconds } = await supabase.rpc("staff_worked_seconds", {
+          _staff_id: s.id,
+          _from: fromIso,
+          _to: toIso,
+        });
+        payrollCost += ((seconds ?? 0) / 3600) * s.hourly_rate_cents;
+      }
+      const { data: adjustments } = await supabase
+        .from("payroll_adjustments")
+        .select("amount_cents")
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso);
+      payrollCost += (adjustments ?? []).reduce((sum, a) => sum + a.amount_cents, 0);
+
+      const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue + otrosRevenue;
+      return {
+        clasesRevenue,
+        merchRevenue,
+        consumibleRevenue,
+        otrosRevenue,
+        totalRevenue,
+        payrollCost,
+        margin: totalRevenue - payrollCost,
+      };
+    },
+  });
+
+  const marginPositive = (data?.margin ?? 0) >= 0;
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy.
+        Ingresos por transacciones completadas y ventas de mostrador; costo de nómina calculado a
+        partir del checador y ajustes manuales.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="border border-border p-5">
+          <p className="eyebrow">Clases (paquetes/membresías)</p>
+          <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
+        </div>
+        <div className="border border-border p-5">
+          <p className="eyebrow">Merch</p>
+          <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
+        </div>
+        <div className="border border-border p-5">
+          <p className="eyebrow">Recovery Bar / consumibles</p>
+          <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
+        </div>
+        <div className="border border-border p-5">
+          <p className="eyebrow">Otros</p>
+          <p className="mt-1 text-xl">{money(data?.otrosRevenue ?? 0)}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="border border-border p-6">
+          <p className="eyebrow">Ingresos del mes</p>
+          <p className="mt-2 text-2xl">{money(data?.totalRevenue ?? 0)}</p>
+        </div>
+        <div className="border border-border p-6">
+          <p className="eyebrow">Costo de nómina del mes</p>
+          <p className="mt-2 text-2xl">{money(data?.payrollCost ?? 0)}</p>
+        </div>
+        <div
+          className={`border p-6 ${marginPositive ? "border-emerald-500" : "border-destructive"}`}
+        >
+          <p className="eyebrow">Margen</p>
+          <p
+            className={`mt-2 text-2xl ${marginPositive ? "text-emerald-600" : "text-destructive"}`}
+          >
+            {marginPositive ? "+" : ""}
+            {money(data?.margin ?? 0)}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Nota: este margen resta solo el costo de nómina calculado (horas del checador × tarifa, más
+        ajustes). No incluye costo de mercancía vendida (lo que costó comprar el inventario), renta,
+        ni otros gastos fijos — dime si quieres que lo sumemos también para tener el margen real
+        completo.
+      </p>
     </div>
   );
 }
