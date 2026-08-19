@@ -6,6 +6,17 @@ import { SiteLayout } from "@/components/site-chrome";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  POSPanel,
+  InventoryPanel,
+  CheckInPanel,
+  StaffDirectoryPanel,
+  PayrollPanel,
+  ShiftSchedulePanel,
+  MyAvailabilityPanel,
+  TimeClockPanel,
+  CoachProfilePanel,
+} from "@/components/admin/ops-panels";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -19,15 +30,36 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: Admin,
 });
 
-const TABS = ["Horarios", "Módulos", "Paquetes", "Usuarios", "Leads"] as const;
-type Tab = (typeof TABS)[number];
+const ADMIN_ONLY_TABS = [
+  "Horarios",
+  "Módulos",
+  "Paquetes",
+  "Usuarios",
+  "Leads",
+  "Staff",
+  "Nómina",
+  "Turnos",
+] as const;
+const STAFF_TABS = ["POS", "Inventario", "Check-in", "Checador", "Mi disponibilidad"] as const;
+const COACH_TABS = ["Mi perfil", "Checador", "Mi disponibilidad"] as const;
+type Tab =
+  (typeof ADMIN_ONLY_TABS)[number] | (typeof STAFF_TABS)[number] | (typeof COACH_TABS)[number];
 
 const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
 
 function Admin() {
-  const { isAdmin, loading } = useAuth();
-  const [tab, setTab] = useState<Tab>("Horarios");
+  const { isAdmin, isStaff, isCoach, loading, staffProfile } = useAuth();
+
+  const tabs: Tab[] = isAdmin
+    ? [...STAFF_TABS.filter((t) => t !== "Mi disponibilidad"), ...ADMIN_ONLY_TABS]
+    : isCoach
+      ? [...COACH_TABS]
+      : isStaff
+        ? [...STAFF_TABS]
+        : [];
+
+  const [tab, setTab] = useState<Tab>(tabs[0] ?? "Horarios");
 
   if (loading) {
     return (
@@ -37,7 +69,7 @@ function Admin() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !isStaff) {
     return (
       <SiteLayout>
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
@@ -50,19 +82,23 @@ function Admin() {
     );
   }
 
+  const activeTab = tabs.includes(tab) ? tab : tabs[0];
+
   return (
     <SiteLayout>
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
           <p className="eyebrow">Panel del estudio</p>
-          <h1 className="statement mt-4 text-[clamp(2rem,5vw,3rem)]">Administración</h1>
+          <h1 className="statement mt-4 text-[clamp(2rem,5vw,3rem)]">
+            {staffProfile ? `Hola, ${staffProfile.full_name.split(" ")[0]}` : "Administración"}
+          </h1>
           <nav className="mt-10 flex flex-wrap gap-2">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={`border px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em] transition-colors ${
-                  tab === t
+                  activeTab === t
                     ? "border-foreground bg-foreground text-background"
                     : "border-input hover:border-foreground"
                 }`}
@@ -75,11 +111,20 @@ function Admin() {
       </section>
 
       <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
-        {tab === "Horarios" ? <ClassesPanel /> : null}
-        {tab === "Módulos" ? <ModulesPanel /> : null}
-        {tab === "Paquetes" ? <PlansPanel /> : null}
-        {tab === "Usuarios" ? <UsersPanel /> : null}
-        {tab === "Leads" ? <LeadsPanel /> : null}
+        {activeTab === "Horarios" ? <ClassesPanel /> : null}
+        {activeTab === "Módulos" ? <ModulesPanel /> : null}
+        {activeTab === "Paquetes" ? <PlansPanel /> : null}
+        {activeTab === "Usuarios" ? <UsersPanel /> : null}
+        {activeTab === "Leads" ? <LeadsPanel /> : null}
+        {activeTab === "POS" ? <POSPanel /> : null}
+        {activeTab === "Inventario" ? <InventoryPanel /> : null}
+        {activeTab === "Check-in" ? <CheckInPanel /> : null}
+        {activeTab === "Staff" ? <StaffDirectoryPanel /> : null}
+        {activeTab === "Nómina" ? <PayrollPanel /> : null}
+        {activeTab === "Turnos" ? <ShiftSchedulePanel /> : null}
+        {activeTab === "Mi disponibilidad" ? <MyAvailabilityPanel /> : null}
+        {activeTab === "Checador" ? <TimeClockPanel /> : null}
+        {activeTab === "Mi perfil" ? <CoachProfilePanel /> : null}
       </div>
     </SiteLayout>
   );
@@ -189,7 +234,14 @@ function ClassesPanel() {
         </label>
         <label className="text-xs">
           <span className="eyebrow">Cupo</span>
-          <input name="capacity" type="number" min={1} max={40} defaultValue={10} className={input} />
+          <input
+            name="capacity"
+            type="number"
+            min={1}
+            max={40}
+            defaultValue={10}
+            className={input}
+          />
         </label>
         <div className="flex items-end">
           <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
@@ -335,7 +387,10 @@ function PlansPanel() {
               min={0}
               defaultValue={p.price_cents / 100}
               onBlur={(e) =>
-                update.mutate({ id: p.id, patch: { price_cents: Math.round(Number(e.target.value) * 100) } })
+                update.mutate({
+                  id: p.id,
+                  patch: { price_cents: Math.round(Number(e.target.value) * 100) },
+                })
               }
               className={input}
             />
@@ -410,7 +465,10 @@ function UsersPanel() {
         <li key={u.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
           <div>
             <p>{u.full_name || "Sin nombre"}</p>
-            <p className="text-muted-foreground">{u.email}{u.phone ? ` · ${u.phone}` : ""}</p>
+            <p className="text-muted-foreground">
+              {u.email}
+              {u.phone ? ` · ${u.phone}` : ""}
+            </p>
           </div>
           <div className="flex items-center gap-6">
             <span className="text-muted-foreground">
@@ -465,7 +523,9 @@ function LeadsPanel() {
                 {l.name} · <span className="text-muted-foreground">{l.email}</span>
               </p>
               <span className="text-muted-foreground">
-                {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date(l.created_at))}
+                {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                  new Date(l.created_at),
+                )}
               </span>
             </div>
             <p className="mt-2 text-muted-foreground">{l.message}</p>
