@@ -67,7 +67,7 @@ export function POSPanel() {
         });
       if (items.length === 0) throw new Error("Agrega al menos un producto");
       const { error } = await supabase.rpc("pos_checkout", {
-        _user_id: userId,
+        _user_id: userId as string,
         _payment_method: payment,
         _items: items,
       });
