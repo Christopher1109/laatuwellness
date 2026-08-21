@@ -278,6 +278,7 @@ export function InventoryPanel() {
               name: String(f.get("name") || ""),
               category: String(f.get("category") || "merch"),
               price_cents: Math.round(Number(f.get("price") || 0) * 100),
+              cost_cents: Math.round(Number(f.get("cost") || 0) * 100),
               stock: Number(f.get("stock") || 0),
               unit: String(f.get("unit") || "pieza"),
               unit_size: String(f.get("unit_size") || ""),
@@ -301,8 +302,12 @@ export function InventoryPanel() {
             </datalist>
           </label>
           <label className="text-xs">
-            <span className="eyebrow">Precio (MXN)</span>
+            <span className="eyebrow">Precio de venta (MXN)</span>
             <input name="price" type="number" min={0} step="0.01" className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Costo de compra (MXN)</span>
+            <input name="cost" type="number" min={0} step="0.01" className={input} />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Unidad</span>
@@ -368,7 +373,8 @@ export function InventoryPanel() {
             <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
               <th className="px-4 py-3">Producto</th>
               <th className="px-4 py-3">Categoría</th>
-              <th className="px-4 py-3">Precio</th>
+              <th className="px-4 py-3">Precio / costo</th>
+              <th className="px-4 py-3">Margen</th>
               <th className="px-4 py-3">Stock</th>
               <th className="px-4 py-3">Caducidad</th>
               <th className="px-4 py-3"></th>
@@ -387,7 +393,15 @@ export function InventoryPanel() {
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.category}</td>
-                  <td className="px-4 py-3">{money(p.price_cents)}</td>
+                  <td className="px-4 py-3">
+                    {money(p.price_cents)}
+                    <span className="text-muted-foreground"> / {money(p.cost_cents)}</span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {p.price_cents > 0
+                      ? `${Math.round(((p.price_cents - p.cost_cents) / p.price_cents) * 100)}%`
+                      : "—"}
+                  </td>
                   <td className={`px-4 py-3 ${low ? "text-destructive" : ""}`}>
                     {p.stock} {p.unit}
                     {low ? " · bajo" : ""}
@@ -432,7 +446,7 @@ export function InventoryPanel() {
             })}
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
                   Sin resultados.
                 </td>
               </tr>
@@ -792,6 +806,13 @@ export function ClientsPanel() {
         .order("created_at", { ascending: false });
       if (error) throw error;
 
+      // El staff (admins, recepción, coaches) también tiene cuenta y por lo
+      // tanto fila en `profiles` — pero son trabajadores, no clientes, así
+      // que se excluyen de este listado por su user_id en staff_profiles.
+      const { data: staffProfiles } = await supabase.from("staff_profiles").select("user_id");
+      const staffUserIds = new Set((staffProfiles ?? []).map((s) => s.user_id).filter(Boolean));
+      const clientProfiles = (profiles ?? []).filter((p) => !staffUserIds.has(p.id));
+
       const { data: ledger } = await supabase.from("token_ledger").select("user_id, delta, reason");
       const { data: waivers } = await supabase.from("waiver_signatures").select("user_id");
       const { data: bookings } = await supabase.from("bookings").select("id, user_id, status");
@@ -834,7 +855,7 @@ export function ClientsPanel() {
         bookingsByUser.set(b.user_id, acc);
       }
 
-      return (profiles ?? []).map((p) => ({
+      return clientProfiles.map((p) => ({
         ...p,
         balance: balances.get(p.id) ?? 0,
         waiver: signed.has(p.id),
@@ -1041,9 +1062,47 @@ export function PayrollPanel() {
   });
 
   const grandTotal = (rows ?? []).reduce((sum, r) => sum + r.total, 0);
+  const exampleRate = 8500; // MXN 85/h, solo para el ejemplo ilustrativo
+  const exampleHours = 42.5;
 
   return (
     <div>
+      <details className="mb-6 border border-border p-6">
+        <summary className="cursor-pointer eyebrow">¿Cómo se calcula? Ver un ejemplo</summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div className="border border-border p-4">
+            <p className="eyebrow">1. Horas trabajadas</p>
+            <p className="mt-1 text-muted-foreground">
+              Suma automática del checador (entrada/salida) en el rango de fechas.
+            </p>
+            <p className="mt-2 text-lg">{exampleHours.toFixed(1)} h</p>
+          </div>
+          <div className="border border-border p-4">
+            <p className="eyebrow">2. Tarifa por hora</p>
+            <p className="mt-1 text-muted-foreground">
+              La capturada en el perfil de esa persona en Staff.
+            </p>
+            <p className="mt-2 text-lg">{money(exampleRate)}/h</p>
+          </div>
+          <div className="border border-foreground p-4">
+            <p className="eyebrow">3. Total del periodo</p>
+            <p className="mt-1 text-muted-foreground">
+              {exampleHours.toFixed(1)} h × {money(exampleRate)} + ajustes (bonos, descuentos por
+              no-show, etc.) que agregues a mano.
+            </p>
+            <p className="mt-2 text-lg">
+              {money(Math.round(exampleHours * exampleRate))}{" "}
+              <span className="text-muted-foreground">+ ajustes</span>
+            </p>
+          </div>
+        </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Esto es solo un ejemplo ilustrativo (no es nómina real). Cada persona del equipo se
+          calcula así, individualmente, con su propia tarifa y sus propias horas checadas —lo ves
+          desglosado abajo, persona por persona, con espacio para agregar bonos o descuentos.
+        </p>
+      </details>
+
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border border-border p-6">
         <div className="flex flex-wrap items-end gap-4">
           <label className="text-xs">
@@ -1177,11 +1236,13 @@ function dayCoverage(date: Date, slots: ShiftSlot[], claims: ShiftClaim[]) {
   return { color, slots: perSlot };
 }
 
-const COVERAGE_DOT: Record<string, string> = {
-  green: "bg-emerald-500",
-  yellow: "bg-amber-400",
-  red: "bg-destructive",
-  none: "bg-transparent",
+// Celda completa del calendario coloreada según cobertura del día
+// (verde = cubierto, amarillo = falta cubrir, rojo = casi nadie confirmado).
+const COVERAGE_CELL: Record<string, string> = {
+  green: "border-emerald-500 bg-emerald-500/15 text-emerald-900 dark:text-emerald-300",
+  yellow: "border-amber-400 bg-amber-400/15 text-amber-900 dark:text-amber-300",
+  red: "border-destructive bg-destructive/10 text-destructive",
+  none: "border-border",
 };
 
 function useMonthCursor() {
@@ -1352,6 +1413,17 @@ export function ShiftSchedulePanel() {
           <div key={i}>{d}</div>
         ))}
       </div>
+      <div className="mb-2 flex flex-wrap items-center gap-4 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 border border-emerald-500 bg-emerald-500/15" /> Cubierto
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 border border-amber-400 bg-amber-400/15" /> Falta cubrir
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 border border-destructive bg-destructive/10" /> Casi nadie
+        </span>
+      </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((date, i) => {
           if (!date) return <div key={i} />;
@@ -1361,41 +1433,95 @@ export function ShiftSchedulePanel() {
             <button
               key={i}
               onClick={() => setSelected(date)}
-              className={`flex aspect-square flex-col items-center justify-center gap-1 border text-sm transition-colors ${
-                isSelected ? "border-foreground" : "border-border"
-              }`}
+              className={`flex aspect-square flex-col items-center justify-center border text-sm font-medium transition-colors ${
+                COVERAGE_CELL[cov.color]
+              } ${isSelected ? "ring-2 ring-inset ring-foreground" : ""}`}
             >
               <span>{date.getDate()}</span>
-              {cov.color !== "none" ? (
-                <span className={`h-2 w-2 rounded-full ${COVERAGE_DOT[cov.color]}`} />
-              ) : null}
             </button>
           );
         })}
       </div>
 
-      <div className="border border-border p-6">
-        <p className="eyebrow">
-          {new Intl.DateTimeFormat("es-MX", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          }).format(selected)}
+      <ShiftDayDetail selected={selected} selectedCoverage={selectedCoverage} setClaim={setClaim} />
+    </div>
+  );
+}
+
+// Detalle del día seleccionado en el calendario de Turnos (solo admin):
+// junta la cobertura de staff/coaches con los horarios de clase de ese
+// mismo día, para que de un vistazo se vea todo lo que pasa esa fecha.
+function ShiftDayDetail({
+  selected,
+  selectedCoverage,
+  setClaim,
+}: {
+  selected: Date;
+  selectedCoverage: ReturnType<typeof dayCoverage>;
+  setClaim: { mutate: (vars: { id: string; status: "confirmado" | "rechazado" }) => void };
+}) {
+  const key = dateKey(selected);
+  const { data: dayClasses } = useQuery({
+    queryKey: ["shift-day-classes", key],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .gte("starts_at", `${key}T00:00:00`)
+        .lt("starts_at", `${key}T23:59:59`)
+        .order("starts_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  return (
+    <div className="border border-border p-6">
+      <p className="eyebrow">
+        {new Intl.DateTimeFormat("es-MX", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }).format(selected)}
+      </p>
+
+      <div className="mt-4">
+        <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+          Horarios de clase / consultorio este día
+        </p>
+        {(dayClasses ?? []).length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Sin clases programadas.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-border text-sm">
+            {(dayClasses ?? []).map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  {new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
+                    new Date(c.starts_at),
+                  )}{" "}
+                  · {c.room} · {c.instructor}
+                </span>
+                <span className="text-muted-foreground">Cupo {c.capacity}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+          Cobertura de staff / coaches
         </p>
         {selectedCoverage.slots.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Sin turnos configurados para este día.
           </p>
         ) : (
-          <div className="mt-4 space-y-4">
+          <div className="mt-3 space-y-4">
             {selectedCoverage.slots.map(({ slot, claims: slotClaims, confirmed, color }) => (
               <div
                 key={slot.id}
-                className="border-l-4 pl-4"
-                style={{
-                  borderColor:
-                    color === "green" ? "#10b981" : color === "yellow" ? "#fbbf24" : "#dc2626",
-                }}
+                className={`border-l-4 pl-4 ${COVERAGE_CELL[color]} border-y-0 border-r-0`}
               >
                 <p className="text-sm">
                   {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} · {slot.role_needed} ·{" "}
@@ -1410,7 +1536,7 @@ export function ShiftSchedulePanel() {
                       <li key={c.id} className="flex items-center gap-2">
                         <span>{c.staff?.full_name}</span>
                         <span className="text-muted-foreground">{c.status}</span>
-                        {c.status === "propuesto" ? (
+                        {c.status === "propuesto" && setClaim ? (
                           <>
                             <button
                               onClick={() => setClaim.mutate({ id: c.id, status: "confirmado" })}
@@ -1525,14 +1651,11 @@ export function MyAvailabilityPanel() {
               key={i}
               disabled={isPast}
               onClick={() => setSelected(date)}
-              className={`flex aspect-square flex-col items-center justify-center gap-1 border text-sm transition-colors disabled:opacity-30 ${
-                isSelected ? "border-foreground" : "border-border"
-              }`}
+              className={`flex aspect-square flex-col items-center justify-center border text-sm font-medium transition-colors disabled:opacity-30 ${
+                COVERAGE_CELL[cov.color]
+              } ${isSelected ? "ring-2 ring-inset ring-foreground" : ""}`}
             >
               <span>{date.getDate()}</span>
-              {cov.color !== "none" ? (
-                <span className={`h-2 w-2 rounded-full ${COVERAGE_DOT[cov.color]}`} />
-              ) : null}
             </button>
           );
         })}
@@ -1828,20 +1951,40 @@ export function FinancePanel() {
         new Set((saleItems ?? []).map((i) => i.product_id).filter(Boolean)),
       ) as string[];
       const { data: products } = productIds.length
-        ? await supabase.from("products").select("id, category").in("id", productIds)
-        : { data: [] as { id: string; category: string }[] };
-      const categoryById = new Map((products ?? []).map((p) => [p.id, p.category]));
+        ? await supabase
+            .from("products")
+            .select("id, category, cost_cents, name")
+            .in("id", productIds)
+        : { data: [] as { id: string; category: string; cost_cents: number; name: string }[] };
+      const productById = new Map((products ?? []).map((p) => [p.id, p]));
 
       let merchRevenue = 0;
       let consumibleRevenue = 0;
       let otrosRevenue = 0;
+      let unitsSold = 0;
+      let cogs = 0;
+      const topProducts = new Map<string, { name: string; units: number; revenue: number }>();
       for (const item of saleItems ?? []) {
         const amount = item.qty * item.unit_price_cents;
-        const cat = item.product_id ? categoryById.get(item.product_id) : undefined;
+        const product = item.product_id ? productById.get(item.product_id) : undefined;
+        const cat = product?.category;
         if (cat === "merch") merchRevenue += amount;
         else if (cat === "consumible" || cat === "suplemento") consumibleRevenue += amount;
         else otrosRevenue += amount;
+        unitsSold += item.qty;
+        cogs += item.qty * (product?.cost_cents ?? 0);
+        if (product) {
+          const acc = topProducts.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
+          acc.units += item.qty;
+          acc.revenue += amount;
+          topProducts.set(product.id, acc);
+        }
       }
+      const posRevenue = merchRevenue + consumibleRevenue + otrosRevenue;
+      const posGrossMargin = posRevenue - cogs;
+      const topProductsSorted = Array.from(topProducts.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
 
       const { data: staff } = await supabase.from("staff_profiles").select("*").eq("active", true);
       let payrollCost = 0;
@@ -1866,9 +2009,14 @@ export function FinancePanel() {
         merchRevenue,
         consumibleRevenue,
         otrosRevenue,
+        posRevenue,
+        cogs,
+        posGrossMargin,
+        unitsSold,
+        topProductsSorted,
         totalRevenue,
         payrollCost,
-        margin: totalRevenue - payrollCost,
+        margin: totalRevenue - cogs - payrollCost,
       };
     },
   });
@@ -1879,26 +2027,72 @@ export function FinancePanel() {
     <div className="space-y-8">
       <p className="text-sm text-muted-foreground">
         Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy.
-        Ingresos por transacciones completadas y ventas de mostrador; costo de nómina calculado a
-        partir del checador y ajustes manuales.
+        Ingresos por venta de tokens/créditos y por ventas de mostrador (Recovery Bar/merch); costo
+        de mercancía y de nómina descontados para el margen real del negocio.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="border border-border p-5">
-          <p className="eyebrow">Clases (paquetes/membresías)</p>
-          <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
+      <div>
+        <p className="mb-3 eyebrow">Qué se vende</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="border border-border p-5">
+            <p className="eyebrow">Tokens / créditos (paquetes)</p>
+            <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
+          </div>
+          <div className="border border-border p-5">
+            <p className="eyebrow">Merch</p>
+            <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
+          </div>
+          <div className="border border-border p-5">
+            <p className="eyebrow">Recovery Bar / consumibles</p>
+            <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
+          </div>
+          <div className="border border-border p-5">
+            <p className="eyebrow">Otros</p>
+            <p className="mt-1 text-xl">{money(data?.otrosRevenue ?? 0)}</p>
+          </div>
         </div>
-        <div className="border border-border p-5">
-          <p className="eyebrow">Merch</p>
-          <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
+      </div>
+
+      <div>
+        <p className="mb-3 eyebrow">Qué se compra (costo de mercancía vendida)</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="border border-border p-5">
+            <p className="eyebrow">Unidades vendidas (punto de venta)</p>
+            <p className="mt-1 text-xl">{data?.unitsSold ?? 0}</p>
+          </div>
+          <div className="border border-border p-5">
+            <p className="eyebrow">Costo de esa mercancía</p>
+            <p className="mt-1 text-xl">{money(data?.cogs ?? 0)}</p>
+          </div>
+          <div className="border border-border p-5">
+            <p className="eyebrow">Margen bruto de mostrador</p>
+            <p className="mt-1 text-xl">{money(data?.posGrossMargin ?? 0)}</p>
+          </div>
         </div>
+        {data && data.topProductsSorted.length > 0 ? (
+          <div className="mt-4 border border-border">
+            <p className="border-b border-border px-4 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              Top 5 productos del mes
+            </p>
+            <ul className="divide-y divide-border text-sm">
+              {data.topProductsSorted.map((p) => (
+                <li key={p.name} className="flex items-center justify-between px-4 py-2.5">
+                  <span>{p.name}</span>
+                  <span className="text-muted-foreground">
+                    {p.units} uds · {money(p.revenue)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+
+      <div>
+        <p className="mb-3 eyebrow">Qué se paga en nómina</p>
         <div className="border border-border p-5">
-          <p className="eyebrow">Recovery Bar / consumibles</p>
-          <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
-        </div>
-        <div className="border border-border p-5">
-          <p className="eyebrow">Otros</p>
-          <p className="mt-1 text-xl">{money(data?.otrosRevenue ?? 0)}</p>
+          <p className="eyebrow">Costo de nómina del mes (checador × tarifa + ajustes)</p>
+          <p className="mt-1 text-xl">{money(data?.payrollCost ?? 0)}</p>
         </div>
       </div>
 
@@ -1908,13 +2102,13 @@ export function FinancePanel() {
           <p className="mt-2 text-2xl">{money(data?.totalRevenue ?? 0)}</p>
         </div>
         <div className="border border-border p-6">
-          <p className="eyebrow">Costo de nómina del mes</p>
-          <p className="mt-2 text-2xl">{money(data?.payrollCost ?? 0)}</p>
+          <p className="eyebrow">Costo total (mercancía + nómina)</p>
+          <p className="mt-2 text-2xl">{money((data?.cogs ?? 0) + (data?.payrollCost ?? 0))}</p>
         </div>
         <div
           className={`border p-6 ${marginPositive ? "border-emerald-500" : "border-destructive"}`}
         >
-          <p className="eyebrow">Margen</p>
+          <p className="eyebrow">Margen real del negocio</p>
           <p
             className={`mt-2 text-2xl ${marginPositive ? "text-emerald-600" : "text-destructive"}`}
           >
@@ -1925,10 +2119,9 @@ export function FinancePanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nota: este margen resta solo el costo de nómina calculado (horas del checador × tarifa, más
-        ajustes). No incluye costo de mercancía vendida (lo que costó comprar el inventario), renta,
-        ni otros gastos fijos — dime si quieres que lo sumemos también para tener el margen real
-        completo.
+        Nota: el margen ya resta costo de mercancía vendida (según el costo de compra capturado en
+        Inventario) y costo de nómina (checador × tarifa + ajustes). No incluye renta ni otros
+        gastos fijos del estudio — dime si quieres que también los sumemos.
       </p>
     </div>
   );
