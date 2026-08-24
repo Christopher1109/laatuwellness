@@ -13,6 +13,7 @@ import {
   Contact,
   LineChart,
   Tag,
+  Home,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,7 @@ import {
   PackagesPanel,
   CoachProfilePanel,
   FinancePanel,
+  DashboardPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -52,6 +54,9 @@ function Admin() {
 
   const groups: AdminNavGroup[] = isAdmin
     ? [
+        {
+          items: [{ key: "inicio", label: "Inicio", icon: Home }],
+        },
         {
           label: "Operación",
           items: [
@@ -124,6 +129,7 @@ function Admin() {
       title="Panel del estudio"
       subtitle={staffProfile?.role}
     >
+      {activeKey === "inicio" ? <DashboardPanel onGoTo={(key) => setActive(key)} /> : null}
       {activeKey === "horarios-clases" ? (
         <AdminSchedulePanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
       ) : null}

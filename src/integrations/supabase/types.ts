@@ -386,6 +386,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_notes: string
           created_at: string
           email: string
           full_name: string
@@ -393,6 +394,7 @@ export type Database = {
           phone: string | null
         }
         Insert: {
+          admin_notes?: string
           created_at?: string
           email?: string
           full_name?: string
@@ -400,6 +402,7 @@ export type Database = {
           phone?: string | null
         }
         Update: {
+          admin_notes?: string
           created_at?: string
           email?: string
           full_name?: string
@@ -941,6 +944,25 @@ export type Database = {
       admin_purchase_plan: {
         Args: { _plan_id: string; _payment_method: string; _user_id: string }
         Returns: string
+      }
+      admin_book_class: {
+        Args: { _class_id: string; _seat?: number | null; _user_id: string }
+        Returns: {
+          class_id: string
+          created_at: string
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
