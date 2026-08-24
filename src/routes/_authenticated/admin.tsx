@@ -14,11 +14,13 @@ import {
   LineChart,
   Tag,
   Home,
+  ScrollText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell, type AdminNavGroup } from "@/components/admin/admin-shell";
 import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
+import { KardexPanel } from "@/components/admin/kardex-panel";
 import {
   POSPanel,
   InventoryPanel,
@@ -80,6 +82,7 @@ function Admin() {
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
+            { key: "kardex", label: "Kardex", icon: ScrollText },
           ],
         },
       ]
@@ -144,6 +147,7 @@ function Admin() {
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
+      {activeKey === "kardex" ? <KardexPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}
     </AdminShell>
   );

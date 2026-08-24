@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          amount_cents: number | null
+          category: string
+          created_at: string
+          description: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json
+          subject_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          amount_cents?: number | null
+          category: string
+          created_at?: string
+          description?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          subject_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          amount_cents?: number | null
+          category?: string
+          created_at?: string
+          description?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          subject_user_id?: string | null
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           class_id: string
@@ -257,6 +299,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payroll_adjustments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_period_hours: {
+        Row: {
+          created_at: string
+          hours: number
+          id: string
+          period_end: string
+          period_start: string
+          source: string
+          staff_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end: string
+          period_start: string
+          source?: string
+          staff_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end?: string
+          period_start?: string
+          source?: string
+          staff_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_period_hours_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_profiles"
@@ -694,47 +777,6 @@ export type Database = {
         }
         Relationships: []
       }
-      payroll_period_hours: {
-        Row: {
-          created_at: string
-          hours: number
-          id: string
-          period_end: string
-          period_start: string
-          source: string
-          staff_id: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          hours?: number
-          id?: string
-          period_end: string
-          period_start: string
-          source?: string
-          staff_id: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          hours?: number
-          id?: string
-          period_end?: string
-          period_start?: string
-          source?: string
-          staff_id?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payroll_period_hours_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       transactions: {
         Row: {
           amount_cents: number
@@ -828,6 +870,7 @@ export type Database = {
         Returns: {
           active: boolean
           category: string
+          cost_cents: number
           created_at: string
           expires_at: string | null
           id: string
@@ -837,6 +880,8 @@ export type Database = {
           price_cents: number
           sku: string | null
           stock: number
+          unit: string
+          unit_size: string
         }
         SetofOptions: {
           from: "*"
@@ -849,8 +894,8 @@ export type Database = {
         Args: { _delta: number; _reason: string; _user_id: string }
         Returns: number
       }
-      book_class: {
-        Args: { _class_id: string; _seat?: number | null }
+      admin_book_class: {
+        Args: { _class_id: string; _seat?: number; _user_id: string }
         Returns: {
           class_id: string
           created_at: string
@@ -868,6 +913,79 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_purchase_plan: {
+        Args: { _payment_method: string; _plan_id: string; _user_id: string }
+        Returns: string
+      }
+      book_class:
+        | {
+            Args: { _class_id: string }
+            Returns: {
+              class_id: string
+              created_at: string
+              id: string
+              seat_number: number | null
+              status: string
+              tokens_spent: number
+              user_id: string
+              waitlisted_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "bookings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { _class_id: string; _seat?: number }
+            Returns: {
+              class_id: string
+              created_at: string
+              id: string
+              seat_number: number | null
+              status: string
+              tokens_spent: number
+              user_id: string
+              waitlisted_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "bookings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      cancel_booking: {
+        Args: { _booking_id: string }
+        Returns: {
+          class_id: string
+          created_at: string
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      class_seats_taken: { Args: { _class_id: string }; Returns: number }
+      class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
+      class_waitlist_count: { Args: { _class_id: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
       join_waitlist: {
         Args: { _class_id: string }
         Returns: {
@@ -906,66 +1024,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      class_waitlist_count: {
-        Args: { _class_id: string }
-        Returns: number
-      }
-      class_taken_seats: {
-        Args: { _class_id: string }
-        Returns: number[]
-      }
-      cancel_booking: {
-        Args: { _booking_id: string }
-        Returns: {
-          class_id: string
-          created_at: string
-          id: string
-          status: string
-          tokens_spent: number
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "bookings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      class_seats_taken: { Args: { _class_id: string }; Returns: number }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_staff: { Args: { _user_id: string }; Returns: boolean }
       link_existing_staff_accounts: { Args: never; Returns: undefined }
-      admin_purchase_plan: {
-        Args: { _plan_id: string; _payment_method: string; _user_id: string }
-        Returns: string
-      }
-      admin_book_class: {
-        Args: { _class_id: string; _seat?: number | null; _user_id: string }
-        Returns: {
-          class_id: string
-          created_at: string
-          id: string
-          seat_number: number | null
-          status: string
-          tokens_spent: number
-          user_id: string
-          waitlisted_at: string | null
+      log_activity: {
+        Args: {
+          _action: string
+          _amount_cents?: number
+          _category: string
+          _description: string
+          _entity_id?: string
+          _entity_type?: string
+          _metadata?: Json
+          _subject?: string
         }
-        SetofOptions: {
-          from: "*"
-          to: "bookings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      refund_booking_credit: {
-        Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
       }
       mark_no_show: {
@@ -984,6 +1054,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      person_label: { Args: { _user_id: string }; Returns: string }
       pos_checkout: {
         Args: { _items: Json; _payment_method: string; _user_id: string }
         Returns: string
@@ -991,6 +1062,10 @@ export type Database = {
       purchase_plan: {
         Args: { _payment_method: string; _plan_id: string }
         Returns: string
+      }
+      refund_booking_credit: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: undefined
       }
       staff_worked_seconds: {
         Args: { _from: string; _staff_id: string; _to: string }
