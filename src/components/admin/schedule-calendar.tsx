@@ -447,6 +447,11 @@ function statusLabel(booking: BookingRow, checkin: { status: string } | undefine
   return { label: "Reservado", tone: "muted" as const };
 }
 
+const actionBtn =
+  "flex min-h-[3.25rem] items-center justify-center border border-input px-3 py-2 text-center text-[0.65rem] uppercase leading-tight tracking-[0.1em] transition-colors hover:bg-muted";
+const actionBtnPrimary =
+  "flex min-h-[3.25rem] items-center justify-center bg-foreground px-3 py-2 text-center text-[0.65rem] uppercase leading-tight tracking-[0.1em] text-background";
+
 function ClassDetailDrawer({
   classId,
   onClose,
@@ -577,15 +582,26 @@ function ClassDetailDrawer({
   });
 
   const assignSeat = useMutation({
-    mutationFn: async ({ bookingId, seat }: { bookingId: string; seat: number }) => {
-      const { error } = await supabase
+    mutationFn: async ({ bookingId, seat }: { bookingId: string; seat: number | null }) => {
+      const { data, error } = await supabase
         .from("bookings")
         .update({ seat_number: seat })
-        .eq("id", bookingId);
+        .eq("id", bookingId)
+        .select("id, seat_number");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("SIN_PERMISO");
+      return data[0];
     },
-    onSuccess: invalidate,
-    onError: () => toast.error("Ese lugar ya está ocupado."),
+    onSuccess: (row) => {
+      toast.success(row?.seat_number ? `Lugar ${row.seat_number} asignado.` : "Lugar liberado.");
+      invalidate();
+    },
+    onError: (e) =>
+      toast.error(
+        e instanceof Error && e.message === "SIN_PERMISO"
+          ? "No tienes permisos para asignar lugares."
+          : "Ese lugar ya está ocupado.",
+      ),
   });
 
   const [showSpotList, setShowSpotList] = useState(true);
@@ -712,7 +728,7 @@ function ClassDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <div
-        className="h-full w-full max-w-2xl overflow-y-auto bg-background p-6"
+        className="h-full w-full max-w-[min(60rem,96vw)] overflow-y-auto bg-background p-6 lg:p-9"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between border-b border-border pb-4">
@@ -747,33 +763,24 @@ function ClassDetailDrawer({
           </div>
         </div>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <div className="mb-7 grid gap-5 sm:grid-cols-2">
           <div>
             <p className="eyebrow mb-2">Acciones de la clase</p>
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowBookMember((v) => !v)}
-                className="bg-foreground px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-background"
-              >
+              <button onClick={() => setShowBookMember((v) => !v)} className={actionBtnPrimary}>
                 + Registrar miembro
               </button>
-              <button
-                onClick={() => setShowEdit((v) => !v)}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={() => setShowEdit((v) => !v)} className={actionBtn}>
                 Editar clase
               </button>
-              <button
-                onClick={() => setShowSpotList((v) => !v)}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={() => setShowSpotList((v) => !v)} className={actionBtn}>
                 {showSpotList ? "Ocultar spot list" : "Mostrar spot list"}
               </button>
               <button
                 onClick={() => {
                   if (confirm("¿Borrar esta clase? No se puede deshacer.")) deleteClass.mutate();
                 }}
-                className="border border-destructive/40 px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-destructive"
+                className={cn(actionBtn, "border-destructive/40 text-destructive")}
               >
                 Borrar
               </button>
@@ -785,26 +792,23 @@ function ClassDetailDrawer({
               <button
                 onClick={() => checkInEveryone.mutate()}
                 disabled={checkInEveryone.isPending}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] disabled:opacity-50"
+                className={cn(actionBtn, "disabled:opacity-50")}
               >
                 Check-in a todos
               </button>
               <button
                 onClick={() => toast("Carga de asistencia por Excel: próximamente.")}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+                className={actionBtn}
               >
                 Subir asistencia
               </button>
               <button
                 onClick={() => toast("Mensajes grupales: próximamente.")}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+                className={actionBtn}
               >
                 Mensaje grupal
               </button>
-              <button
-                onClick={downloadList}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={downloadList} className={actionBtn}>
                 Descargar lista
               </button>
             </div>
@@ -898,15 +902,15 @@ function ClassDetailDrawer({
               {reserved.map((r) => {
                 const { label, tone } = statusLabel(r, r.checkin);
                 return (
-                  <div key={r.id} className="border border-border p-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 truncate">
+                  <div key={r.id} className="border border-border p-2.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 truncate">
                         {r.seat_number ? (
                           <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
                             {r.seat_number}
                           </span>
                         ) : null}
-                        {r.profile?.full_name || r.profile?.email}
+                        <span className="truncate">{r.profile?.full_name || r.profile?.email}</span>
                       </span>
                       <span
                         className={cn(
@@ -919,23 +923,42 @@ function ClassDetailDrawer({
                         {label}
                       </span>
                     </div>
+                    {r.seat_number ? (
+                      <p className="mt-1 text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">
+                        Lugar {r.seat_number}
+                      </p>
+                    ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {!r.seat_number ? (
-                        <button
-                          onClick={() =>
-                            setAssigningFor({
-                              id: r.id,
-                              name: r.profile?.full_name || r.profile?.email || "",
-                            })
-                          }
-                          className={cn(
-                            "border px-2 py-1 text-[0.6rem] uppercase",
+                      <button
+                        onClick={() =>
+                          setAssigningFor(
                             assigningFor?.id === r.id
-                              ? "border-foreground bg-foreground text-background"
-                              : "border-input",
-                          )}
+                              ? null
+                              : {
+                                  id: r.id,
+                                  name: r.profile?.full_name || r.profile?.email || "",
+                                },
+                          )
+                        }
+                        className={cn(
+                          "border px-2 py-1 text-[0.6rem] uppercase",
+                          assigningFor?.id === r.id
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-input",
+                        )}
+                      >
+                        {assigningFor?.id === r.id
+                          ? "Elige un lugar…"
+                          : r.seat_number
+                            ? "Cambiar lugar"
+                            : "Asignar lugar"}
+                      </button>
+                      {r.seat_number ? (
+                        <button
+                          onClick={() => assignSeat.mutate({ bookingId: r.id, seat: null })}
+                          className="border border-input px-2 py-1 text-[0.6rem] uppercase"
                         >
-                          {assigningFor?.id === r.id ? "Elige un lugar…" : "Asignar lugar"}
+                          Quitar lugar
                         </button>
                       ) : null}
                       {!r.checkin ? (
@@ -1031,40 +1054,48 @@ function ClassDetailDrawer({
           >
             {seats.map((seat) => {
               const owner = takenBy(seat);
-              const clickable = owner ? false : Boolean(assigningFor);
+              const clickable = Boolean(assigningFor) && (!owner || owner.id === assigningFor?.id);
               return (
                 <button
                   key={seat}
                   type="button"
-                  disabled={!owner && !assigningFor}
+                  disabled={!clickable && !owner}
                   onClick={() => {
-                    if (owner || !assigningFor) return;
+                    if (!assigningFor) return;
+                    if (owner && owner.id !== assigningFor.id) {
+                      toast.error("Ese lugar ya está ocupado.");
+                      return;
+                    }
                     assignSeat.mutate({ bookingId: assigningFor.id, seat });
                     setAssigningFor(null);
                   }}
                   title={owner ? owner.profile?.full_name || owner.profile?.email || "" : "Libre"}
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center gap-0.5 border p-1 text-center text-[0.6rem] leading-tight",
+                    "relative flex aspect-square flex-col items-center justify-center gap-0.5 border p-1 text-center text-[0.6rem] leading-tight transition-colors",
                     owner
                       ? "border-transparent bg-foreground text-background"
                       : clickable
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/25"
                         : "border-emerald-500/40 bg-emerald-500/5 text-emerald-700/70",
                   )}
                 >
                   <span className="text-[0.65rem] font-medium">{seat}</span>
                   {owner ? (
-                    <span className="line-clamp-1 w-full px-0.5">
-                      {(owner.profile?.full_name || owner.profile?.email || "").split(" ")[0]}
-                    </span>
+                    <>
+                      <span className="line-clamp-2 w-full px-0.5">
+                        {owner.profile?.full_name || owner.profile?.email || ""}
+                      </span>
+                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-background/80" />
+                    </>
                   ) : null}
                 </button>
               );
             })}
           </div>
           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            Cinco columnas · verde = libre · oscuro = ocupado (nombre en el recuadro). Para asignar
-            un lugar, dale clic a "Asignar lugar" junto a la persona en Reservaciones.
+            Verde = libre · oscuro con punto = ocupado (aparece el nombre). Dale clic a "Asignar
+            lugar" junto a la persona en Reservaciones y luego elige un recuadro verde; el número
+            queda guardado en su reservación.
           </p>
         </div>
       </div>

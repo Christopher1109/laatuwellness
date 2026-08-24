@@ -55,13 +55,7 @@ export function Wordmark({
   );
 }
 
-export function BrandLink({
-  className,
-  tone = "ink",
-}: {
-  className?: string;
-  tone?: Tone;
-}) {
+export function BrandLink({ className, tone = "ink" }: { className?: string; tone?: Tone }) {
   return (
     <Link
       to="/"
@@ -74,13 +68,7 @@ export function BrandLink({
 }
 
 /** Patrón de círculos del manual (1.4.1.2), como textura de fondo. */
-export function CirclePattern({
-  className,
-  tone = "ink",
-}: {
-  className?: string;
-  tone?: Tone;
-}) {
+export function CirclePattern({ className, tone = "ink" }: { className?: string; tone?: Tone }) {
   return (
     <img
       src={tone === "ivory" ? "/brand/laatu-patron-ivory.png" : patron.url}
@@ -96,13 +84,7 @@ export function CirclePattern({
 /**
  * Isotipo oficial Läätu (1.3.1.1): la grulla de origami en constelación.
  */
-export function BirdMark({
-  className,
-  tone = "ink",
-}: {
-  className?: string;
-  tone?: Tone;
-}) {
+export function BirdMark({ className, tone = "ink" }: { className?: string; tone?: Tone }) {
   return (
     <img
       src={tone === "ivory" ? iconoIvory.url : iconoInk.url}
@@ -152,9 +134,7 @@ export function BirdBadge({
     <span
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[2px] transition-colors",
-        dark
-          ? "bg-foreground group-hover:bg-secondary"
-          : "border border-current/25 bg-transparent",
+        dark ? "bg-foreground group-hover:bg-secondary" : "border border-current/25 bg-transparent",
         size === "sm" ? "h-12 w-12" : "h-16 w-16",
         className,
       )}
@@ -187,10 +167,7 @@ export function PatternField({
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        "pointer-events-none absolute overflow-hidden select-none",
-        className,
-      )}
+      className={cn("pointer-events-none absolute overflow-hidden select-none", className)}
       style={{ opacity }}
     >
       <CirclePattern tone={tone} className="h-full w-full" />
@@ -198,20 +175,13 @@ export function PatternField({
   );
 }
 
-
-
 /** Alias histórico. */
 export const ArrowMark = BirdMark;
-
-
 
 /** Separador de sección: línea + punto, lenguaje de constelación del manual. */
 export function Constellation({ className }: { className?: string }) {
   return (
-    <div
-      className={cn("flex items-center gap-4 text-current", className)}
-      aria-hidden="true"
-    >
+    <div className={cn("flex items-center gap-4 text-current", className)} aria-hidden="true">
       <span className="rule-line flex-1" />
       <span className="flex items-center gap-1.5">
         <span className="block h-1 w-1 rounded-full bg-current opacity-60" />
@@ -226,12 +196,7 @@ export function Constellation({ className }: { className?: string }) {
 /** Coordenadas del estudio, recurso gráfico recurrente del manual. */
 export function Coordinates({ className }: { className?: string }) {
   return (
-    <p
-      className={cn(
-        "font-mono text-[0.6rem] tracking-[0.24em] uppercase opacity-70",
-        className,
-      )}
-    >
+    <p className={cn("font-mono text-[0.6rem] tracking-[0.24em] uppercase opacity-70", className)}>
       25° 39′ 51″ N · 100° 24′ 06″ O
     </p>
   );

@@ -111,22 +111,44 @@ function Contacto() {
           ) : (
             <form onSubmit={onSubmit} className="space-y-6">
               <div>
-                <label htmlFor="name" className="eyebrow">Nombre</label>
+                <label htmlFor="name" className="eyebrow">
+                  Nombre
+                </label>
                 <input id="name" name="name" required maxLength={100} className={field} />
               </div>
               <div className="grid gap-6 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="email" className="eyebrow">Correo</label>
-                  <input id="email" name="email" type="email" required maxLength={255} className={field} />
+                  <label htmlFor="email" className="eyebrow">
+                    Correo
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    maxLength={255}
+                    className={field}
+                  />
                 </div>
                 <div>
-                  <label htmlFor="phone" className="eyebrow">Teléfono (opcional)</label>
+                  <label htmlFor="phone" className="eyebrow">
+                    Teléfono (opcional)
+                  </label>
                   <input id="phone" name="phone" maxLength={30} className={field} />
                 </div>
               </div>
               <div>
-                <label htmlFor="message" className="eyebrow">Mensaje</label>
-                <textarea id="message" name="message" rows={5} required maxLength={1000} className={field} />
+                <label htmlFor="message" className="eyebrow">
+                  Mensaje
+                </label>
+                <textarea
+                  id="message"
+                  name="message"
+                  rows={5}
+                  required
+                  maxLength={1000}
+                  className={field}
+                />
               </div>
               <button
                 type="submit"

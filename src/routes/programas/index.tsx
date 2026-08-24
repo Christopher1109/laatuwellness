@@ -19,8 +19,7 @@ export const Route = createFileRoute("/programas/")({
       { property: "og:title", content: "Programas — Läätu Wellness" },
       {
         property: "og:description",
-        content:
-          "Reformer, contraste, nutrición, psicología y rehabilitación en un mismo estudio.",
+        content: "Reformer, contraste, nutrición, psicología y rehabilitación en un mismo estudio.",
       },
     ],
   }),
@@ -53,10 +52,7 @@ function Programas() {
       />
 
       <section className="relative overflow-hidden border-b border-border">
-        <PatternField
-          opacity={0.09}
-          className="-right-40 -top-32 h-[30rem] w-[30rem]"
-        />
+        <PatternField opacity={0.09} className="-right-40 -top-32 h-[30rem] w-[30rem]" />
         <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Movimiento</p>
           <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -92,10 +88,7 @@ function Programas() {
       </section>
 
       <section className="relative overflow-hidden">
-        <PatternField
-          opacity={0.07}
-          className="-bottom-32 -left-40 h-[28rem] w-[28rem]"
-        />
+        <PatternField opacity={0.07} className="-bottom-32 -left-40 h-[28rem] w-[28rem]" />
         <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
           <p className="eyebrow">Recuperación y acompañamiento</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.7rem,4vw,2.6rem)]">
@@ -111,9 +104,7 @@ function Programas() {
               >
                 <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                 <h3 className="mt-6 text-xl">{m.name}</h3>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {m.description}
-                </p>
+                <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
                 <span className="mt-6 inline-block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground group-hover:text-foreground">
                   Ver horarios y sesiones →
                 </span>
