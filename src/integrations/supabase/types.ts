@@ -264,6 +264,47 @@ export type Database = {
           },
         ]
       }
+      payroll_period_hours: {
+        Row: {
+          created_at: string
+          hours: number
+          id: string
+          period_end: string
+          period_start: string
+          source: string
+          staff_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end: string
+          period_start: string
+          source?: string
+          staff_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end?: string
+          period_start?: string
+          source?: string
+          staff_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_period_hours_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_sale_items: {
         Row: {
           description: string
@@ -386,7 +427,6 @@ export type Database = {
       }
       profiles: {
         Row: {
-          admin_notes: string
           created_at: string
           email: string
           full_name: string
@@ -394,7 +434,6 @@ export type Database = {
           phone: string | null
         }
         Insert: {
-          admin_notes?: string
           created_at?: string
           email?: string
           full_name?: string
@@ -402,7 +441,6 @@ export type Database = {
           phone?: string | null
         }
         Update: {
-          admin_notes?: string
           created_at?: string
           email?: string
           full_name?: string
@@ -694,47 +732,6 @@ export type Database = {
         }
         Relationships: []
       }
-      payroll_period_hours: {
-        Row: {
-          created_at: string
-          hours: number
-          id: string
-          period_end: string
-          period_start: string
-          source: string
-          staff_id: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          hours?: number
-          id?: string
-          period_end: string
-          period_start: string
-          source?: string
-          staff_id: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          hours?: number
-          id?: string
-          period_end?: string
-          period_start?: string
-          source?: string
-          staff_id?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payroll_period_hours_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       transactions: {
         Row: {
           amount_cents: number
@@ -828,6 +825,7 @@ export type Database = {
         Returns: {
           active: boolean
           category: string
+          cost_cents: number
           created_at: string
           expires_at: string | null
           id: string
@@ -837,6 +835,8 @@ export type Database = {
           price_cents: number
           sku: string | null
           stock: number
+          unit: string
+          unit_size: string
         }
         SetofOptions: {
           from: "*"
@@ -849,8 +849,8 @@ export type Database = {
         Args: { _delta: number; _reason: string; _user_id: string }
         Returns: number
       }
-      book_class: {
-        Args: { _class_id: string; _seat?: number | null }
+      admin_book_class: {
+        Args: { _class_id: string; _seat?: number; _user_id: string }
         Returns: {
           class_id: string
           created_at: string
@@ -868,6 +868,79 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_purchase_plan: {
+        Args: { _payment_method: string; _plan_id: string; _user_id: string }
+        Returns: string
+      }
+      book_class:
+        | {
+            Args: { _class_id: string }
+            Returns: {
+              class_id: string
+              created_at: string
+              id: string
+              seat_number: number | null
+              status: string
+              tokens_spent: number
+              user_id: string
+              waitlisted_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "bookings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: { _class_id: string; _seat?: number }
+            Returns: {
+              class_id: string
+              created_at: string
+              id: string
+              seat_number: number | null
+              status: string
+              tokens_spent: number
+              user_id: string
+              waitlisted_at: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "bookings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      cancel_booking: {
+        Args: { _booking_id: string }
+        Returns: {
+          class_id: string
+          created_at: string
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      class_seats_taken: { Args: { _class_id: string }; Returns: number }
+      class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
+      class_waitlist_count: { Args: { _class_id: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
       join_waitlist: {
         Args: { _class_id: string }
         Returns: {
@@ -906,68 +979,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      class_waitlist_count: {
-        Args: { _class_id: string }
-        Returns: number
-      }
-      class_taken_seats: {
-        Args: { _class_id: string }
-        Returns: number[]
-      }
-      cancel_booking: {
-        Args: { _booking_id: string }
-        Returns: {
-          class_id: string
-          created_at: string
-          id: string
-          status: string
-          tokens_spent: number
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "bookings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      class_seats_taken: { Args: { _class_id: string }; Returns: number }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_staff: { Args: { _user_id: string }; Returns: boolean }
       link_existing_staff_accounts: { Args: never; Returns: undefined }
-      admin_purchase_plan: {
-        Args: { _plan_id: string; _payment_method: string; _user_id: string }
-        Returns: string
-      }
-      admin_book_class: {
-        Args: { _class_id: string; _seat?: number | null; _user_id: string }
-        Returns: {
-          class_id: string
-          created_at: string
-          id: string
-          seat_number: number | null
-          status: string
-          tokens_spent: number
-          user_id: string
-          waitlisted_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "bookings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      refund_booking_credit: {
-        Args: { p_booking_id: string; p_reason: string }
-        Returns: undefined
-      }
       mark_no_show: {
         Args: { _booking_id: string; _penalty_cents?: number }
         Returns: {
@@ -991,6 +1003,10 @@ export type Database = {
       purchase_plan: {
         Args: { _payment_method: string; _plan_id: string }
         Returns: string
+      }
+      refund_booking_credit: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: undefined
       }
       staff_worked_seconds: {
         Args: { _from: string; _staff_id: string; _to: string }
