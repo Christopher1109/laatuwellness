@@ -1095,8 +1095,9 @@ function ClassDetailDrawer({
             })}
           </div>
           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            Cinco columnas · verde = libre · oscuro = ocupado (nombre en el recuadro). Para asignar
-            un lugar, dale clic a "Asignar lugar" junto a la persona en Reservaciones.
+            Verde = libre · oscuro con punto = ocupado (aparece el nombre). Dale clic a "Asignar
+            lugar" junto a la persona en Reservaciones y luego elige un recuadro verde; el número
+            queda guardado en su reservación.
           </p>
         </div>
       </div>
