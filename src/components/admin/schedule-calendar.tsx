@@ -584,15 +584,26 @@ function ClassDetailDrawer({
   });
 
   const assignSeat = useMutation({
-    mutationFn: async ({ bookingId, seat }: { bookingId: string; seat: number }) => {
-      const { error } = await supabase
+    mutationFn: async ({ bookingId, seat }: { bookingId: string; seat: number | null }) => {
+      const { data, error } = await supabase
         .from("bookings")
         .update({ seat_number: seat })
-        .eq("id", bookingId);
+        .eq("id", bookingId)
+        .select("id, seat_number");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("SIN_PERMISO");
+      return data[0];
     },
-    onSuccess: invalidate,
-    onError: () => toast.error("Ese lugar ya está ocupado."),
+    onSuccess: (row) => {
+      toast.success(row?.seat_number ? `Lugar ${row.seat_number} asignado.` : "Lugar liberado.");
+      invalidate();
+    },
+    onError: (e) =>
+      toast.error(
+        e instanceof Error && e.message === "SIN_PERMISO"
+          ? "No tienes permisos para asignar lugares."
+          : "Ese lugar ya está ocupado.",
+      ),
   });
 
   const [showSpotList, setShowSpotList] = useState(true);
