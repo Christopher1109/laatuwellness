@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          amount_cents: number | null
+          category: string
+          created_at: string
+          description: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json
+          subject_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          amount_cents?: number | null
+          category: string
+          created_at?: string
+          description?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          subject_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          amount_cents?: number | null
+          category?: string
+          created_at?: string
+          description?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+          subject_user_id?: string | null
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           class_id: string
@@ -980,6 +1022,19 @@ export type Database = {
         }
       }
       link_existing_staff_accounts: { Args: never; Returns: undefined }
+      log_activity: {
+        Args: {
+          _action: string
+          _amount_cents?: number
+          _category: string
+          _description: string
+          _entity_id?: string
+          _entity_type?: string
+          _metadata?: Json
+          _subject?: string
+        }
+        Returns: undefined
+      }
       mark_no_show: {
         Args: { _booking_id: string; _penalty_cents?: number }
         Returns: {
@@ -996,6 +1051,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      person_label: { Args: { _user_id: string }; Returns: string }
       pos_checkout: {
         Args: { _items: Json; _payment_method: string; _user_id: string }
         Returns: string
