@@ -219,17 +219,9 @@ function Home() {
             ))}
           </div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-[1.4fr_1fr] sm:items-end">
-            <img
-              src={editorial3}
-              alt="Recuperación después de entrenar en Läätu"
-              className="aspect-[16/9] w-full object-cover"
-              loading="lazy"
-            />
-            <p className="font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
-              La barra vive dentro del estudio · se ordena y se paga ahí mismo
-            </p>
-          </div>
+          <p className="mt-10 max-w-xl font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
+            La barra vive dentro del estudio · se ordena y se paga ahí mismo
+          </p>
         </div>
       </section>
 
