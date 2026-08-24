@@ -35,13 +35,13 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5 sm:h-28 sm:px-8">
         <BrandLink />
 
-        <nav className="ml-4 hidden items-center gap-6 md:flex lg:ml-10 lg:gap-9">
+        <nav className="ml-4 hidden items-center gap-5 md:flex lg:ml-8 lg:gap-7">
           {NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className={cn(
-                "text-[0.78rem] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground",
+                "whitespace-nowrap text-[0.74rem] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground",
                 pathname === item.to && "text-foreground",
               )}
             >

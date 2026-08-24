@@ -183,29 +183,52 @@ function Home() {
       </section>
 
       {/* ---------- Recovery Bar ---------- */}
-      <section className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
-          <img
-            src={editorial3}
-            alt="Recuperación después de entrenar en Läätu"
-            className="aspect-[4/5] w-full object-cover"
-            loading="lazy"
-          />
-          <div>
-            <p className="eyebrow">Recovery Bar</p>
-            <h2 className="statement mt-4 text-[clamp(1.8rem,4vw,2.8rem)]">
-              Lo que tu cuerpo pide después.
-            </h2>
-            <p className="mt-6 text-muted-foreground">
-              Smoothies de proteína, shots, infusiones y café de especialidad. Nuestra barra vive
-              dentro del estudio y se ordena ahí mismo.
-            </p>
+      <section className="surface-dark grain relative overflow-hidden border-b border-border">
+        <PatternField
+          tone="ivory"
+          opacity={0.12}
+          className="-right-40 -top-32 h-[32rem] w-[32rem]"
+        />
+        <div className="relative z-[2] mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p className="eyebrow opacity-70">Recovery Bar</p>
+              <h2 className="statement mt-4 max-w-lg text-[clamp(1.8rem,4vw,2.8rem)]">
+                Lo que tu cuerpo pide después.
+              </h2>
+            </div>
             <Link
               to="/recovery-bar"
-              className="mt-8 inline-block border border-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
+              className="text-[0.7rem] uppercase tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100"
             >
-              Ver la barra
+              Ver la carta completa →
             </Link>
+          </div>
+
+          <div className="mt-12 grid gap-px bg-current/15 sm:mt-16 md:grid-cols-3">
+            {[
+              ["01", "Smoothies de proteína", "Recovery, verde y berry. Preparados al momento."],
+              ["02", "Café de especialidad", "Espresso de origen, latte de avena, cold brew."],
+              ["03", "Shots e infusiones", "Jengibre, electrolitos y mezclas para relajar."],
+            ].map(([num, titulo, desc]) => (
+              <div key={num} className="surface-dark p-6 sm:p-8">
+                <p className="font-mono text-[0.65rem] tracking-[0.24em] opacity-60">{num}</p>
+                <h3 className="mt-6 text-xl">{titulo}</h3>
+                <p className="mt-3 text-sm opacity-70">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-[1.4fr_1fr] sm:items-end">
+            <img
+              src={editorial3}
+              alt="Recuperación después de entrenar en Läätu"
+              className="aspect-[16/9] w-full object-cover"
+              loading="lazy"
+            />
+            <p className="font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
+              La barra vive dentro del estudio · se ordena y se paga ahí mismo
+            </p>
           </div>
         </div>
       </section>
