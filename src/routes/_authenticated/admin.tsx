@@ -80,6 +80,7 @@ function Admin() {
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
+            { key: "kardex", label: "Kardex", icon: ScrollText },
           ],
         },
       ]
