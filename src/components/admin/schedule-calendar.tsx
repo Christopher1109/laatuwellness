@@ -14,7 +14,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Users, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
@@ -345,51 +345,77 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               <p className="mb-2 text-xs capitalize text-muted-foreground">
                 {format(new Date(dayKey + "T00:00:00"), "EEEE d 'de' MMMM", { locale: es })}
               </p>
-              <div className={cn("space-y-2", view !== "day" && "space-y-1.5")}>
+              <div className={cn("grid gap-3", view === "day" ? "sm:grid-cols-2" : "grid-cols-1")}>
                 {items.map((c) => {
                   const counts = bookingCounts?.get(c.id) ?? { reservada: 0, lista_espera: 0 };
                   const full = counts.reservada >= c.capacity;
+                  const pct = Math.min(
+                    100,
+                    Math.round((counts.reservada / Math.max(c.capacity, 1)) * 100),
+                  );
                   const avatar = coachAvatar(c.instructor);
+                  const endTime = new Date(
+                    new Date(c.starts_at).getTime() + c.duration_min * 60000,
+                  );
                   return (
                     <button
                       type="button"
                       key={c.id}
                       onClick={() => setOpenClassId(c.id)}
                       className={cn(
-                        "flex w-full items-center gap-3 border border-border px-3 py-2.5 text-left hover:border-foreground/40",
-                        view !== "day" && "py-2",
+                        "flex flex-col gap-2.5 rounded-lg border border-border bg-background p-3.5 text-left shadow-sm transition-colors hover:border-foreground/30 hover:shadow",
+                        view !== "day" && "gap-1.5 p-2.5",
                       )}
                     >
-                      <span className="w-12 shrink-0 text-xs text-muted-foreground">
-                        {format(new Date(c.starts_at), "HH:mm")}
-                      </span>
-                      <Avatar className="h-7 w-7 shrink-0">
-                        {avatar ? <AvatarImage src={avatar} alt="" /> : null}
-                        <AvatarFallback className="text-[0.6rem]">
-                          {initials(c.instructor)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">
-                          {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground">
+                            {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·
+                            Clase
+                          </p>
+                          <p className="truncate text-sm font-semibold">
+                            {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
+                          </p>
+                        </div>
+                        <Avatar className="h-8 w-8 shrink-0">
+                          {avatar ? <AvatarImage src={avatar} alt="" /> : null}
+                          <AvatarFallback className="text-[0.6rem]">
+                            {initials(c.instructor)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3 w-3" /> {c.instructor}
                         </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {c.instructor} · {c.room}
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> {c.room}
                         </span>
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 px-2 py-0.5 text-[0.65rem]",
-                          full
-                            ? "bg-destructive/10 text-destructive"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {counts.reservada}/{c.capacity}
-                      </span>
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              full ? "bg-destructive" : "bg-emerald-500",
+                            )}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[0.68rem] tabular-nums",
+                            full ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {counts.reservada}/{c.capacity}
+                        </span>
+                      </div>
                       {counts.lista_espera > 0 ? (
-                        <span className="shrink-0 whitespace-nowrap bg-amber-500/10 px-2 py-0.5 text-[0.65rem] text-amber-700">
-                          +{counts.lista_espera} espera
+                        <span className="w-fit whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-[0.62rem] text-amber-700">
+                          +{counts.lista_espera} en espera
                         </span>
                       ) : null}
                     </button>
@@ -562,6 +588,112 @@ function ClassDetailDrawer({
     onError: () => toast.error("Ese lugar ya está ocupado."),
   });
 
+  const [showSpotList, setShowSpotList] = useState(true);
+  const [showBookMember, setShowBookMember] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
+
+  const { data: memberSuggestions } = useQuery({
+    queryKey: ["class-book-member-search", memberQuery],
+    enabled: memberQuery.trim().length > 1,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .or(`email.ilike.%${memberQuery.trim()}%,full_name.ilike.%${memberQuery.trim()}%`)
+        .limit(6);
+      return data ?? [];
+    },
+  });
+
+  const bookMember = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.rpc("admin_book_class", {
+        _user_id: userId,
+        _class_id: classId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Miembro registrado en la clase.");
+      setShowBookMember(false);
+      setMemberQuery("");
+      invalidate();
+    },
+    onError: (e: Error) =>
+      toast.error(
+        e.message.includes("CLASS_FULL")
+          ? "La clase ya está llena."
+          : e.message.includes("ALREADY_BOOKED")
+            ? "Esa persona ya tiene esta clase reservada."
+            : e.message.includes("INSUFFICIENT_TOKENS")
+              ? "No tiene créditos suficientes."
+              : "No se pudo registrar.",
+      ),
+  });
+
+  const editClass = useMutation({
+    mutationFn: async (patch: { room: string; instructor: string; capacity: number }) => {
+      const { error } = await supabase.from("classes").update(patch).eq("id", classId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Clase actualizada.");
+      setShowEdit(false);
+      invalidate();
+    },
+    onError: () => toast.error("No se pudo editar la clase."),
+  });
+
+  const deleteClass = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("classes").delete().eq("id", classId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Clase borrada.");
+      onClose();
+    },
+    onError: () => toast.error("No se pudo borrar (¿tiene reservaciones? Cancélalas primero)."),
+  });
+
+  const checkInEveryone = useMutation({
+    mutationFn: async () => {
+      const pending = reserved.filter((r) => !r.checkin);
+      for (const r of pending) {
+        await supabase
+          .from("check_ins")
+          .upsert({ booking_id: r.id, status: "a_tiempo" }, { onConflict: "booking_id" });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Check-in hecho para todos.");
+      invalidate();
+    },
+  });
+
+  const downloadList = () => {
+    const rowsCsv = [
+      ["Nombre", "Correo", "Lugar", "Estatus"],
+      ...reserved.map((r) => [
+        r.profile?.full_name ?? "",
+        r.profile?.email ?? "",
+        String(r.seat_number ?? ""),
+        statusLabel(r, r.checkin).label,
+      ]),
+    ];
+    const csv = rowsCsv
+      .map((row) => row.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lista-${classId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const reserved = (rows ?? []).filter((r) => r.status === "reservada");
   const waitlist = (rows ?? []).filter((r) => r.status === "lista_espera");
   const cancelled = (rows ?? []).filter((r) => r.status === "cancelada");
@@ -614,6 +746,148 @@ function ClassDetailDrawer({
             </button>
           </div>
         </div>
+
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="eyebrow mb-2">Acciones de la clase</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowBookMember((v) => !v)}
+                className="bg-foreground px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-background"
+              >
+                + Registrar miembro
+              </button>
+              <button
+                onClick={() => setShowEdit((v) => !v)}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+              >
+                Editar clase
+              </button>
+              <button
+                onClick={() => setShowSpotList((v) => !v)}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+              >
+                {showSpotList ? "Ocultar spot list" : "Mostrar spot list"}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("¿Borrar esta clase? No se puede deshacer.")) deleteClass.mutate();
+                }}
+                className="border border-destructive/40 px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-destructive"
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="eyebrow mb-2">Acciones de cliente</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => checkInEveryone.mutate()}
+                disabled={checkInEveryone.isPending}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] disabled:opacity-50"
+              >
+                Check-in a todos
+              </button>
+              <button
+                onClick={() => toast("Carga de asistencia por Excel: próximamente.")}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+              >
+                Subir asistencia
+              </button>
+              <button
+                onClick={() => toast("Mensajes grupales: próximamente.")}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+              >
+                Mensaje grupal
+              </button>
+              <button
+                onClick={downloadList}
+                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+              >
+                Descargar lista
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showBookMember ? (
+          <div className="relative mb-6 border border-border p-4">
+            <p className="eyebrow mb-2">Registrar miembro</p>
+            <input
+              value={memberQuery}
+              onChange={(e) => setMemberQuery(e.target.value)}
+              placeholder="Buscar por nombre o correo…"
+              className="w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
+            />
+            {(memberSuggestions ?? []).length > 0 ? (
+              <ul className="mt-2 divide-y divide-border border border-border">
+                {(memberSuggestions ?? []).map((m) => (
+                  <li key={m.id}>
+                    <button
+                      onClick={() => bookMember.mutate(m.id)}
+                      disabled={bookMember.isPending}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-muted disabled:opacity-50"
+                    >
+                      <span>
+                        {m.full_name || "Sin nombre"}{" "}
+                        <span className="text-muted-foreground">· {m.email}</span>
+                      </span>
+                      <span className="text-muted-foreground">Registrar</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showEdit && cls ? (
+          <form
+            className="mb-6 grid gap-3 border border-border p-4 sm:grid-cols-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              editClass.mutate({
+                room: String(f.get("room") || cls.room),
+                instructor: String(f.get("instructor") || cls.instructor),
+                capacity: Number(f.get("capacity") || cls.capacity),
+              });
+            }}
+          >
+            <label className="text-xs">
+              <span className="eyebrow">Salón</span>
+              <input
+                name="room"
+                defaultValue={cls.room}
+                className="mt-1 w-full border border-input bg-transparent px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Instructor</span>
+              <input
+                name="instructor"
+                defaultValue={cls.instructor}
+                className="mt-1 w-full border border-input bg-transparent px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Cupo</span>
+              <input
+                name="capacity"
+                type="number"
+                min={1}
+                defaultValue={cls.capacity}
+                className="mt-1 w-full border border-input bg-transparent px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="sm:col-span-3">
+              <button className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-background">
+                Guardar cambios
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
 

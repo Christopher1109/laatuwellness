@@ -969,6 +969,219 @@ export function StaffDirectoryPanel() {
 // ============================================================================
 // CLIENTES: perfil, historial, y análisis financiero/asistencia
 // ============================================================================
+// ============================================================================
+// DASHBOARD (Inicio) — resumen general con clases de hoy, nuevos clientes y
+// accesos rápidos.
+// ============================================================================
+export function DashboardPanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+  const todayBounds = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, []);
+
+  const { data: todayClasses } = useQuery({
+    queryKey: ["dashboard-today-classes", todayBounds.start.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .gte("starts_at", todayBounds.start.toISOString())
+        .lt("starts_at", todayBounds.end.toISOString())
+        .order("starts_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const classIds = useMemo(() => (todayClasses ?? []).map((c) => c.id), [todayClasses]);
+
+  const { data: counts } = useQuery({
+    queryKey: ["dashboard-today-counts", classIds.join(",")],
+    enabled: classIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("class_id, status")
+        .in("class_id", classIds);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      for (const b of data ?? []) {
+        if (b.status === "reservada") map.set(b.class_id, (map.get(b.class_id) ?? 0) + 1);
+      }
+      return map;
+    },
+  });
+
+  const { data: newSignups } = useQuery({
+    queryKey: ["dashboard-newest-signups"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, created_at")
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const monthStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const { data: monthBookings } = useQuery({
+    queryKey: ["dashboard-month-bookings", monthStart.toISOString()],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", monthStart.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const totalCapacityToday = (todayClasses ?? []).reduce((sum, c) => sum + c.capacity, 0);
+  const totalBookedToday = (todayClasses ?? []).reduce(
+    (sum, c) => sum + (counts?.get(c.id) ?? 0),
+    0,
+  );
+  const occupancyPct =
+    totalCapacityToday > 0 ? Math.round((totalBookedToday / totalCapacityToday) * 100) : 0;
+
+  const timeAgo = (iso: string) => {
+    const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (diffMin < 60) return `hace ${diffMin} min`;
+    const diffH = Math.round(diffMin / 60);
+    if (diffH < 24) return `hace ${diffH} h`;
+    return `hace ${Math.round(diffH / 24)} d`;
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="border border-border p-6">
+          <p className="eyebrow">Reservaciones del mes</p>
+          <p className="mt-2 text-3xl">{monthBookings ?? 0}</p>
+        </div>
+        <div className="border border-border p-6">
+          <p className="eyebrow">Ocupación de hoy</p>
+          <div className="mt-2 flex items-center gap-3">
+            <div className="relative h-14 w-14 shrink-0">
+              <svg viewBox="0 0 36 36" className="h-14 w-14 -rotate-90">
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className="text-muted"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeDasharray={`${occupancyPct * 0.974} 1000`}
+                  className="text-emerald-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                {occupancyPct}%
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {totalBookedToday}/{totalCapacityToday} lugares
+            </p>
+          </div>
+        </div>
+        <div className="border border-border p-6">
+          <p className="eyebrow">Clases hoy</p>
+          <p className="mt-2 text-3xl">{(todayClasses ?? []).length}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div>
+          <p className="mb-3 eyebrow">Clases de hoy</p>
+          <ul className="divide-y divide-border border-y border-border text-sm">
+            {(todayClasses ?? []).map((c) => {
+              const booked = counts?.get(c.id) ?? 0;
+              const full = booked >= c.capacity;
+              return (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+                  <div className="min-w-0">
+                    <p>
+                      {new Intl.DateTimeFormat("es-MX", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(c.starts_at))}{" "}
+                      · {c.instructor} · {c.room}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {booked}/{c.capacity} ocupado
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onGoTo("horarios-clases")}
+                    className={cn(
+                      "shrink-0 border px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.1em]",
+                      full ? "border-amber-500 text-amber-700" : "bg-foreground text-background",
+                    )}
+                  >
+                    {full ? "Lista de espera" : "Reservar"}
+                  </button>
+                </li>
+              );
+            })}
+            {(todayClasses ?? []).length === 0 ? (
+              <li className="py-6 text-muted-foreground">Sin clases hoy.</li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div>
+          <p className="mb-3 eyebrow">Nuevos clientes</p>
+          <ul className="divide-y divide-border border-y border-border text-sm">
+            {(newSignups ?? []).map((s) => (
+              <li key={s.id} className="flex items-center gap-3 py-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-muted text-[0.65rem] text-muted-foreground">
+                  {(s.full_name || s.email)
+                    .split(" ")
+                    .slice(0, 2)
+                    .map((p) => p[0]?.toUpperCase())
+                    .join("")}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">{s.full_name || "Sin nombre"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{s.email}</p>
+                </div>
+                <span className="shrink-0 text-[0.62rem] text-muted-foreground">
+                  {timeAgo(s.created_at)}
+                </span>
+              </li>
+            ))}
+            {(newSignups ?? []).length === 0 ? (
+              <li className="py-6 text-muted-foreground">Sin registros todavía.</li>
+            ) : null}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ClientsPanel() {
   const qc = useQueryClient();
 
@@ -1183,11 +1396,29 @@ const TONE_CLASSES: Record<string, string> = {
   muted: "bg-muted text-muted-foreground",
 };
 
+const PAYMENT_METHODS = [
+  { key: "saldo", label: "Saldo de cuenta" },
+  { key: "transferencia", label: "Transferencia" },
+  { key: "tarjeta", label: "Tarjeta" },
+  { key: "efectivo", label: "Efectivo" },
+  { key: "cortesia", label: "Cortesía" },
+];
+
+type ClientTab = "reservaciones" | "compras" | "creditos" | "notas";
+const CLIENT_TABS: { key: ClientTab; label: string }[] = [
+  { key: "reservaciones", label: "Reservaciones" },
+  { key: "compras", label: "Compras" },
+  { key: "creditos", label: "Créditos" },
+  { key: "notas", label: "Notas" },
+];
+
 function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<ClientTab>("reservaciones");
   const [showPackages, setShowPackages] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("efectivo");
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["client-detail-profile", clientId],
@@ -1205,13 +1436,12 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   const { data: reservations } = useQuery({
     queryKey: ["client-detail-bookings", clientId],
     queryFn: async () => {
-      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data: bookings, error } = await supabase
         .from("bookings")
         .select("*")
         .eq("user_id", clientId)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(60);
       if (error) throw error;
       const classIds = (bookings ?? []).map((b) => b.class_id);
       const { data: classes } = classIds.length
@@ -1300,163 +1530,279 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     onError: () => toast.error("No se pudo registrar la compra."),
   });
 
+  const saveNotes = useMutation({
+    mutationFn: async (notes: string) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ admin_notes: notes })
+        .eq("id", clientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Notas guardadas.");
+      void qc.invalidateQueries({ queryKey: ["client-detail-profile", clientId] });
+    },
+    onError: () => toast.error("No se pudieron guardar las notas."),
+  });
+
+  const initials = (profile?.full_name || profile?.email || "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
-      <div
-        className="h-full w-full max-w-3xl overflow-y-auto bg-background p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-5 flex items-start justify-between border-b border-border pb-4">
-          <div>
-            <p className="text-sm font-medium">{profile?.full_name || "Sin nombre"}</p>
-            <p className="text-xs text-muted-foreground">
-              {profile?.email}
-              {profile?.phone ? ` · ${profile.phone}` : ""}
-            </p>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <button
+          onClick={onClose}
+          className="mb-6 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+        >
+          ← Volver a clientes
+        </button>
+
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center bg-muted text-lg text-muted-foreground">
+              {initials}
+            </div>
+            <div>
+              <p className="text-lg font-medium">{profile?.full_name || "Sin nombre"}</p>
+              <p className="text-sm text-muted-foreground">
+                {profile?.email}
+                {profile?.phone ? ` · ${profile.phone}` : ""}
+              </p>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            ✕
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setTab("compras")}
+              className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+            >
+              Ver compras
+            </button>
+            <button
+              onClick={() => setTab("creditos")}
+              className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background"
+            >
+              Comprar créditos
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-3">
-          <div>
-            <p className="eyebrow mb-2">Reservaciones (últimos 30 días)</p>
-            <div className="space-y-1.5">
-              {(reservations ?? []).map((r) => {
-                const { label, tone } = bookingStatusTone(r.status, r.checkin?.status);
-                return (
-                  <div key={r.id} className="border border-border p-2 text-xs">
-                    <p className="truncate">
-                      {r.cls
-                        ? new Intl.DateTimeFormat("es-MX", {
-                            dateStyle: "short",
-                            timeStyle: "short",
-                          }).format(new Date(r.cls.starts_at))
-                        : ""}
-                    </p>
-                    <p className="truncate text-muted-foreground">
-                      {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
-                    </p>
-                    <span
-                      className={cn(
-                        "mt-1 inline-block px-1.5 py-0.5 text-[0.6rem]",
-                        TONE_CLASSES[tone],
-                      )}
+        <div className="mt-6 flex gap-6 border-b border-border">
+          {CLIENT_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "border-b-2 pb-3 text-[0.72rem] uppercase tracking-[0.12em]",
+                tab === t.key
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="py-8">
+          {tab === "reservaciones" ? (
+            <div>
+              <p className="mb-4 eyebrow">Historial de reservaciones</p>
+              <div className="space-y-1.5">
+                {(reservations ?? []).map((r) => {
+                  const { label, tone } = bookingStatusTone(r.status, r.checkin?.status);
+                  return (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
                     >
-                      {label}
+                      <div className="min-w-0">
+                        <p className="truncate">
+                          {r.cls
+                            ? new Intl.DateTimeFormat("es-MX", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              }).format(new Date(r.cls.starts_at))
+                            : ""}
+                          {r.seat_number ? (
+                            <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
+                              {r.seat_number}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
+                        </p>
+                      </div>
+                      <span className={cn("shrink-0 px-2 py-1 text-[0.62rem]", TONE_CLASSES[tone])}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(reservations ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin reservaciones todavía.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {tab === "compras" ? (
+            <div>
+              <p className="mb-4 eyebrow">Historial de compras</p>
+              <div className="space-y-1.5">
+                {(purchases ?? []).map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate">{t.plan?.name ?? "Compra"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                          new Date(t.created_at),
+                        )}{" "}
+                        · {t.payment_method}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-right text-xs text-muted-foreground">
+                      {money(t.amount_cents)}
+                      <br />+{t.tokens} créditos
                     </span>
                   </div>
-                );
-              })}
-              {(reservations ?? []).length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin reservaciones en este periodo.</p>
-              ) : null}
+                ))}
+                {(purchases ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin compras registradas.</p>
+                ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
 
-          <div>
-            <p className="eyebrow mb-2">Historial de compras</p>
-            <div className="space-y-1.5">
-              {(purchases ?? []).map((t) => (
-                <div key={t.id} className="border border-border p-2 text-xs">
-                  <p className="truncate">{t.plan?.name ?? "Compra"}</p>
-                  <p className="text-muted-foreground">
-                    {money(t.amount_cents)} · +{t.tokens} créditos ·{" "}
-                    {new Intl.DateTimeFormat("es-MX", { dateStyle: "short" }).format(
-                      new Date(t.created_at),
-                    )}
-                  </p>
+          {tab === "creditos" ? (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-4 border border-border p-6">
+                <div>
+                  <p className="eyebrow">Créditos activos</p>
+                  <p className="mt-1 text-4xl">{balance ?? 0}</p>
                 </div>
-              ))}
-              {(purchases ?? []).length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin compras registradas.</p>
+                <button
+                  onClick={() => setShowPackages((v) => !v)}
+                  className="bg-foreground px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-background"
+                >
+                  Comprar paquete
+                </button>
+              </div>
+
+              {showPackages ? (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {(plans ?? []).map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {money(p.price_cents)} · {p.tokens} créditos
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPendingPlan(p)}
+                        className="shrink-0 bg-foreground px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.1em] text-background"
+                      >
+                        Comprar
+                      </button>
+                    </div>
+                  ))}
+                  {(plans ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sin paquetes publicados.</p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
-          </div>
+          ) : null}
 
-          <div>
-            <p className="eyebrow mb-2">Créditos disponibles</p>
-            <div className="border border-border p-4 text-center">
-              <p className="text-3xl">{balance ?? 0}</p>
+          {tab === "notas" ? (
+            <div>
+              <p className="mb-4 eyebrow">Notas internas del staff</p>
+              <textarea
+                defaultValue={profile?.admin_notes ?? ""}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                rows={8}
+                placeholder="Alergias, preferencias, incidentes, lo que sea útil para el equipo…"
+                className={input}
+              />
               <button
-                onClick={() => setShowPackages(true)}
-                className="mt-3 w-full border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+                disabled={notesDraft === null || saveNotes.isPending}
+                onClick={() => notesDraft !== null && saveNotes.mutate(notesDraft)}
+                className="mt-3 bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-40"
               >
-                Agregar créditos
+                Guardar notas
               </button>
             </div>
-
-            {showPackages ? (
-              <div className="mt-3 space-y-2">
-                {(plans ?? []).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPendingPlan(p)}
-                    className="block w-full border border-input p-2.5 text-left text-xs hover:border-foreground/40"
-                  >
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-muted-foreground">
-                      {money(p.price_cents)} · {p.tokens} créditos
-                    </p>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          ) : null}
         </div>
+      </div>
 
-        {pendingPlan ? (
-          <Popout onClose={() => setPendingPlan(null)}>
-            <p className="mb-2 eyebrow">Confirmar venta</p>
-            <p className="text-sm">
-              ¿Vender <strong>{pendingPlan.name}</strong> ({pendingPlan.tokens} créditos) a{" "}
-              {profile?.full_name || profile?.email}?
-            </p>
-            <div className="mt-4 border border-border p-4">
-              <p className="text-xs text-muted-foreground">
-                Esto se registra como ingreso del estudio
-              </p>
-              <p className="mt-1 text-2xl">{money(pendingPlan.price_cents)}</p>
+      {pendingPlan ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-end bg-black/40"
+          onClick={() => setPendingPlan(null)}
+        >
+          <div
+            className="h-full w-full max-w-sm overflow-y-auto bg-background p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="eyebrow">Pago</p>
+            <div className="mt-3 flex items-center justify-between border-b border-border pb-3 text-sm">
+              <span>{pendingPlan.name}</span>
+              <span>{money(pendingPlan.price_cents)}</span>
             </div>
-            <label className="mt-4 block text-xs">
-              <span className="eyebrow">Forma de pago</span>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className={input}
-              >
-                <option value="efectivo">Efectivo</option>
-                <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
-              </select>
-            </label>
+            <div className="mt-3 flex items-center justify-between text-lg">
+              <span>Total</span>
+              <span>{money(pendingPlan.price_cents)}</span>
+            </div>
+
+            <div className="mt-6 space-y-2.5">
+              {PAYMENT_METHODS.map((m) => (
+                <label key={m.key} className="flex items-center gap-2.5 text-sm">
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    checked={paymentMethod === m.key}
+                    onChange={() => setPaymentMethod(m.key)}
+                  />
+                  {m.label}
+                </label>
+              ))}
+            </div>
+
             {pendingPlan.terms ? (
-              <p className="mt-3 text-xs text-muted-foreground">{pendingPlan.terms}</p>
+              <p className="mt-6 text-xs text-muted-foreground">{pendingPlan.terms}</p>
             ) : null}
-            <div className="mt-5 flex justify-end gap-2">
+
+            <div className="mt-8 flex gap-2">
               <button
                 onClick={() => setPendingPlan(null)}
-                className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em]"
+                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
               >
                 Cancelar
               </button>
               <button
                 disabled={buyPlan.isPending}
                 onClick={() => buyPlan.mutate({ planId: pendingPlan.id, paymentMethod })}
-                className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-50"
+                className="flex-1 bg-emerald-600 px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-white disabled:opacity-50"
               >
-                Confirmar venta ({paymentMethod})
+                {buyPlan.isPending ? "Procesando…" : "Pagar"}
               </button>
             </div>
-          </Popout>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
