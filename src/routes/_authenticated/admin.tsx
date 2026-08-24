@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell, type AdminNavGroup } from "@/components/admin/admin-shell";
 import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
+import { KardexPanel } from "@/components/admin/kardex-panel";
 import {
   POSPanel,
   InventoryPanel,
