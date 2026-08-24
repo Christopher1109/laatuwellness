@@ -747,33 +747,24 @@ function ClassDetailDrawer({
           </div>
         </div>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <div className="mb-7 grid gap-5 sm:grid-cols-2">
           <div>
             <p className="eyebrow mb-2">Acciones de la clase</p>
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowBookMember((v) => !v)}
-                className="bg-foreground px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-background"
-              >
+              <button onClick={() => setShowBookMember((v) => !v)} className={actionBtnPrimary}>
                 + Registrar miembro
               </button>
-              <button
-                onClick={() => setShowEdit((v) => !v)}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={() => setShowEdit((v) => !v)} className={actionBtn}>
                 Editar clase
               </button>
-              <button
-                onClick={() => setShowSpotList((v) => !v)}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={() => setShowSpotList((v) => !v)} className={actionBtn}>
                 {showSpotList ? "Ocultar spot list" : "Mostrar spot list"}
               </button>
               <button
                 onClick={() => {
                   if (confirm("¿Borrar esta clase? No se puede deshacer.")) deleteClass.mutate();
                 }}
-                className="border border-destructive/40 px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-destructive"
+                className={cn(actionBtn, "border-destructive/40 text-destructive")}
               >
                 Borrar
               </button>
@@ -785,26 +776,23 @@ function ClassDetailDrawer({
               <button
                 onClick={() => checkInEveryone.mutate()}
                 disabled={checkInEveryone.isPending}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em] disabled:opacity-50"
+                className={cn(actionBtn, "disabled:opacity-50")}
               >
                 Check-in a todos
               </button>
               <button
                 onClick={() => toast("Carga de asistencia por Excel: próximamente.")}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+                className={actionBtn}
               >
                 Subir asistencia
               </button>
               <button
                 onClick={() => toast("Mensajes grupales: próximamente.")}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
+                className={actionBtn}
               >
                 Mensaje grupal
               </button>
-              <button
-                onClick={downloadList}
-                className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.1em]"
-              >
+              <button onClick={downloadList} className={actionBtn}>
                 Descargar lista
               </button>
             </div>
