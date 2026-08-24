@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils";
 
 const ERRORS: Record<string, string> = {
   WAIVER_REQUIRED: "Necesitas firmar el waiver antes de reservar.",
-  INSUFFICIENT_TOKENS:
-    "No tienes tokens suficientes. Compra un paquete para continuar.",
+  INSUFFICIENT_TOKENS: "No tienes tokens suficientes. Compra un paquete para continuar.",
   CLASS_FULL: "Esta clase ya está llena.",
   ALREADY_BOOKED: "Ya tienes esta clase reservada.",
   CLASS_PAST: "Esta clase ya pasó.",
   AUTH_REQUIRED: "Inicia sesión para reservar.",
+  SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
+  NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
 };
 
 export type Rango = "hoy" | "semana" | "siguiente";
@@ -109,7 +110,6 @@ export function RangeTabs({
   );
 }
 
-
 type ClassRow = {
   id: string;
   room: string;
@@ -120,7 +120,99 @@ type ClassRow = {
   tokens_cost: number;
   module_key: string | null;
   taken: number;
+  waitlisted: number;
 };
+
+/** Ventanita para elegir lugar antes de confirmar la reserva. */
+function SeatPickerModal({
+  classItem,
+  onClose,
+  onConfirm,
+  pending,
+}: {
+  classItem: ClassRow;
+  onClose: () => void;
+  onConfirm: (seat: number | null) => void;
+  pending: boolean;
+}) {
+  const [seat, setSeat] = useState<number | null>(null);
+
+  const { data: takenSeats } = useQuery({
+    queryKey: ["class-taken-seats", classItem.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("class_taken_seats", {
+        _class_id: classItem.id,
+      });
+      if (error) throw error;
+      return (data as number[] | null) ?? [];
+    },
+  });
+
+  const cols = 5;
+  const rows = Math.ceil(classItem.capacity / cols);
+  const seats = Array.from({ length: rows * cols }, (_, i) => i + 1).filter(
+    (n) => n <= classItem.capacity,
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div className="w-full max-w-sm bg-background p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[0.7rem] uppercase tracking-[0.16em] text-muted-foreground">
+          {dayLabel(classItem.starts_at)} · {timeLabel(classItem.starts_at)}
+        </p>
+        <h3 className="mt-1 text-lg">Elige tu lugar</h3>
+        <div
+          className="mt-5 grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {seats.map((n) => {
+            const taken = (takenSeats ?? []).includes(n);
+            const selected = seat === n;
+            return (
+              <button
+                key={n}
+                type="button"
+                disabled={taken}
+                onClick={() => setSeat(n)}
+                className={cn(
+                  "flex aspect-square items-center justify-center border text-sm transition-colors",
+                  taken
+                    ? "border-transparent bg-foreground text-background opacity-60"
+                    : selected
+                      ? "border-secondary bg-secondary text-background"
+                      : "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20",
+                )}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
+          Verde = libre · oscuro = ocupado
+        </p>
+        <div className="mt-6 flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em]"
+          >
+            Cancelar
+          </button>
+          <button
+            disabled={!seat || pending}
+            onClick={() => onConfirm(seat)}
+            className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+          >
+            Confirmar lugar {seat ? `#${seat}` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Agenda de clases con reserva. Se segmenta por programa y cada programa
@@ -185,7 +277,14 @@ export function Schedule({
           const { data: taken } = await supabase.rpc("class_seats_taken", {
             _class_id: c.id,
           });
-          return { ...c, taken: (taken as number | null) ?? 0 };
+          const { data: waitlisted } = await supabase.rpc("class_waitlist_count", {
+            _class_id: c.id,
+          });
+          return {
+            ...c,
+            taken: (taken as number | null) ?? 0,
+            waitlisted: (waitlisted as number | null) ?? 0,
+          };
         }),
       );
     },
@@ -198,24 +297,33 @@ export function Schedule({
       const { data, error } = await supabase
         .from("bookings")
         .select("class_id, status")
-        .eq("status", "reservada");
+        .in("status", ["reservada", "lista_espera"]);
       if (error) throw error;
       return data;
     },
   });
 
   const bookedIds = useMemo(
-    () => new Set((myBookings ?? []).map((b) => b.class_id)),
+    () =>
+      new Set((myBookings ?? []).filter((b) => b.status === "reservada").map((b) => b.class_id)),
+    [myBookings],
+  );
+  const waitlistedIds = useMemo(
+    () =>
+      new Set((myBookings ?? []).filter((b) => b.status === "lista_espera").map((b) => b.class_id)),
     [myBookings],
   );
 
+  const [pickingSeatFor, setPickingSeatFor] = useState<ClassRow | null>(null);
+
   const book = useMutation({
-    mutationFn: async (classId: string) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId });
+    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
+      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Clase reservada. Nos vemos en el estudio.");
+      setPickingSeatFor(null);
       void qc.invalidateQueries({ queryKey: ["classes"] });
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       void qc.invalidateQueries({ queryKey: ["balance"] });
@@ -224,8 +332,27 @@ export function Schedule({
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
       toast.error(key ? ERRORS[key] : "No pudimos completar la reserva.");
       if (key === "WAIVER_REQUIRED" || key === "INSUFFICIENT_TOKENS") {
+        setPickingSeatFor(null);
         navigate({ to: "/cuenta" });
       }
+    },
+  });
+
+  const joinWaitlist = useMutation({
+    mutationFn: async (classId: string) => {
+      const { error } = await supabase.rpc("join_waitlist", { _class_id: classId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Estás en la lista de espera. Te avisamos si se libera un lugar.");
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+      void qc.invalidateQueries({ queryKey: ["my-bookings"] });
+      void qc.invalidateQueries({ queryKey: ["balance"] });
+    },
+    onError: (error: Error) => {
+      const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
+      toast.error(key ? ERRORS[key] : "No pudimos anotarte en la lista de espera.");
+      if (key === "WAIVER_REQUIRED" || key === "INSUFFICIENT_TOKENS") navigate({ to: "/cuenta" });
     },
   });
 
@@ -234,9 +361,7 @@ export function Schedule({
   /** Programas presentes en el rango, en el orden del catálogo. */
   const presentes = useMemo(() => {
     const keys = new Set(all.map((c) => c.module_key ?? "otros"));
-    const ordered = (modules ?? [])
-      .map((m) => m.key)
-      .filter((k) => keys.has(k));
+    const ordered = (modules ?? []).map((m) => m.key).filter((k) => keys.has(k));
     for (const k of keys) if (!ordered.includes(k)) ordered.push(k);
     return ordered;
   }, [all, modules]);
@@ -261,9 +386,7 @@ export function Schedule({
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
         {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
-        {showTabs && conFiltro ? (
-          <span className="hidden h-6 w-px bg-border sm:block" />
-        ) : null}
+        {showTabs && conFiltro ? <span className="hidden h-6 w-px bg-border sm:block" /> : null}
         {conFiltro ? (
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
             <button
@@ -295,21 +418,17 @@ export function Schedule({
         ) : null}
       </div>
 
-
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
       ) : total === 0 ? (
         <p className="mt-10 text-muted-foreground">
-          No hay clases publicadas en este rango. Escríbenos por WhatsApp y te
-          avisamos en cuanto se abra el horario.
+          No hay clases publicadas en este rango. Escríbenos por WhatsApp y te avisamos en cuanto se
+          abra el horario.
         </p>
       ) : (
         <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-6 lg:grid-cols-2">
           {grupos.map((g) => (
-            <section
-              key={g.key}
-              className="flex flex-col border border-border bg-background"
-            >
+            <section key={g.key} className="flex flex-col border border-border bg-background">
               <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 sm:px-5 sm:py-4">
                 <BirdBadge size="sm" variant={3} />
                 <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
@@ -330,6 +449,7 @@ export function Schedule({
                       {items.map((c) => {
                         const full = c.taken >= c.capacity;
                         const mine = bookedIds.has(c.id);
+                        const waiting = waitlistedIds.has(c.id);
                         const libres = Math.max(c.capacity - c.taken, 0);
                         return (
                           <li
@@ -346,26 +466,38 @@ export function Schedule({
                                 </span>
                               </div>
                               <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
-                                {libres} lugares · {c.duration_min} min ·{" "}
-                                {c.tokens_cost}{" "}
+                                {libres} lugares · {c.duration_min} min · {c.tokens_cost}{" "}
                                 {c.tokens_cost === 1 ? "token" : "tokens"}
+                                {c.waitlisted > 0 ? ` · ${c.waitlisted} en espera` : ""}
                               </p>
                             </div>
                             {mine ? (
                               <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-secondary">
                                 Reservada
                               </span>
+                            ) : waiting ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-amber-600">
+                                En lista de espera
+                              </span>
+                            ) : full ? (
+                              <button
+                                disabled={joinWaitlist.isPending}
+                                onClick={() =>
+                                  user ? joinWaitlist.mutate(c.id) : navigate({ to: "/auth" })
+                                }
+                                className="shrink-0 border border-input px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                              >
+                                Lista de espera
+                              </button>
                             ) : (
                               <button
-                                disabled={full || book.isPending}
+                                disabled={book.isPending}
                                 onClick={() =>
-                                  user
-                                    ? book.mutate(c.id)
-                                    : navigate({ to: "/auth" })
+                                  user ? setPickingSeatFor(c) : navigate({ to: "/auth" })
                                 }
                                 className="shrink-0 border border-foreground px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-35"
                               >
-                                {full ? "Lleno" : "Reservar"}
+                                Reservar
                               </button>
                             )}
                           </li>
@@ -388,6 +520,15 @@ export function Schedule({
           </Link>{" "}
           para reservar.
         </p>
+      ) : null}
+
+      {pickingSeatFor ? (
+        <SeatPickerModal
+          classItem={pickingSeatFor}
+          onClose={() => setPickingSeatFor(null)}
+          pending={book.isPending}
+          onConfirm={(seat) => book.mutate({ classId: pickingSeatFor.id, seat })}
+        />
       ) : null}
     </div>
   );

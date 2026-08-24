@@ -33,7 +33,7 @@ const MODULE_LABELS: Record<string, string> = {
   contraste: "Contraste",
   nutricion: "Nutrición",
   psicologia: "Psicología",
-  rehabilitacion: "Rehabilitación",
+  rehabilitacion: "DorisFisio",
 };
 
 function initials(name: string) {

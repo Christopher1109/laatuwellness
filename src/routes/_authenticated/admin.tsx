@@ -153,7 +153,7 @@ const MODULE_LABELS: Record<string, string> = {
   contraste: "Contrast Therapy",
   nutricion: "Nutrición",
   psicologia: "Psicología",
-  rehabilitacion: "Rehabilitación",
+  rehabilitacion: "DorisFisio",
 };
 
 function ClassesPanel({ modules, title }: { modules: string[]; title: string }) {
