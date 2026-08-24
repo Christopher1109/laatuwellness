@@ -14,6 +14,7 @@ import {
   LineChart,
   Tag,
   Home,
+  ScrollText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
