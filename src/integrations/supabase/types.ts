@@ -395,6 +395,7 @@ export type Database = {
           id: string
           payment_method: string
           sold_by: string | null
+          status: string
           total_cents: number
           user_id: string | null
         }
@@ -403,6 +404,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sold_by?: string | null
+          status?: string
           total_cents?: number
           user_id?: string | null
         }
@@ -411,6 +413,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sold_by?: string | null
+          status?: string
           total_cents?: number
           user_id?: string | null
         }
@@ -978,6 +981,7 @@ export type Database = {
       class_seats_taken: { Args: { _class_id: string }; Returns: number }
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
+      client_place_order: { Args: { _items: Json }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
