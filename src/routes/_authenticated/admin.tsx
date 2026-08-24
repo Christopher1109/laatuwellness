@@ -22,6 +22,7 @@ import {
   POSPanel,
   InventoryPanel,
   StaffDirectoryPanel,
+  CoachesPanel,
   ClientsPanel,
   PayrollPanel,
   PackagesPanel,
@@ -65,6 +66,7 @@ function Admin() {
           items: [
             { key: "clientes", label: "Clientes", icon: Contact },
             { key: "staff", label: "Staff", icon: UserCog },
+            { key: "coaches", label: "Coaches", icon: Users },
             { key: "nomina", label: "Nómina", icon: Wallet },
           ],
         },
@@ -132,6 +134,7 @@ function Admin() {
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
+      {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
