@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -49,6 +50,19 @@ export function POSPanel() {
   const [clientEmail, setClientEmail] = useState("");
   const [payment, setPayment] = useState("efectivo");
 
+  const { data: matchedClient, isFetching: isSearchingClient } = useQuery({
+    queryKey: ["pos-client-lookup", clientEmail.trim().toLowerCase()],
+    enabled: clientEmail.trim().length > 3,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .ilike("email", clientEmail.trim())
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const total = useMemo(() => {
     if (!products) return 0;
     return Object.entries(cart).reduce((sum, [id, qty]) => {
@@ -61,15 +75,7 @@ export function POSPanel() {
 
   const checkout = useMutation({
     mutationFn: async () => {
-      let userId: string | null = null;
-      if (clientEmail.trim()) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id")
-          .ilike("email", clientEmail.trim())
-          .maybeSingle();
-        userId = data?.id ?? null;
-      }
+      if (!matchedClient) throw new Error("Busca al cliente por correo antes de cobrar.");
       const items = Object.entries(cart)
         .filter(([, qty]) => qty > 0)
         .map(([id, qty]) => {
@@ -83,7 +89,7 @@ export function POSPanel() {
         });
       if (items.length === 0) throw new Error("Agrega al menos un producto");
       const { error } = await supabase.rpc("pos_checkout", {
-        _user_id: userId as string,
+        _user_id: matchedClient.id,
         _payment_method: payment,
         _items: items,
       });
@@ -157,13 +163,27 @@ export function POSPanel() {
           Cobro {itemCount > 0 ? `· ${itemCount} artículo${itemCount === 1 ? "" : "s"}` : ""}
         </p>
         <label className="block text-xs">
-          <span className="eyebrow">Correo del cliente (opcional)</span>
+          <span className="eyebrow">Correo del cliente (obligatorio)</span>
           <input
             value={clientEmail}
             onChange={(e) => setClientEmail(e.target.value)}
             className={input}
             placeholder="cliente@correo.com"
+            required
           />
+          {clientEmail.trim().length > 3 ? (
+            isSearchingClient ? (
+              <span className="mt-1 block text-[0.7rem] text-muted-foreground">Buscando…</span>
+            ) : matchedClient ? (
+              <span className="mt-1 block text-[0.7rem] text-emerald-600">
+                ✓ {matchedClient.full_name || matchedClient.email}
+              </span>
+            ) : (
+              <span className="mt-1 block text-[0.7rem] text-destructive">
+                No se encontró un cliente con ese correo.
+              </span>
+            )
+          ) : null}
         </label>
         <label className="block text-xs">
           <span className="eyebrow">Método de pago</span>
@@ -175,7 +195,7 @@ export function POSPanel() {
         </label>
         <p className="text-2xl">{money(total)}</p>
         <button
-          disabled={checkout.isPending || itemCount === 0}
+          disabled={checkout.isPending || itemCount === 0 || !matchedClient}
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
@@ -898,6 +918,8 @@ export function ClientsPanel() {
     return { totalRevenue, totalClients, totalAttended, totalNoShow, totalRefundEvents };
   }, [data]);
 
+  const [openClientId, setOpenClientId] = useState<string | null>(null);
+
   return (
     <div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -936,7 +958,11 @@ export function ClientsPanel() {
       <ul className="divide-y divide-border border-y border-border text-sm">
         {filtered.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
-            <div>
+            <button
+              type="button"
+              onClick={() => setOpenClientId(c.id)}
+              className="min-w-0 flex-1 text-left hover:opacity-70"
+            >
               <p>{c.full_name || "Sin nombre"}</p>
               <p className="text-muted-foreground">
                 {c.email}
@@ -948,7 +974,7 @@ export function ClientsPanel() {
                 {c.bookings.cancelled} canceladas
                 {c.refund_events > 0 ? ` · ${c.refund_events} reembolsos` : ""}
               </p>
-            </div>
+            </button>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => adjust.mutate({ userId: c.id, delta: -1 })}
@@ -972,6 +998,335 @@ export function ClientsPanel() {
           <li className="py-6 text-muted-foreground">Sin resultados.</li>
         ) : null}
       </ul>
+
+      {openClientId ? (
+        <ClientDetailDrawer
+          clientId={openClientId}
+          onClose={() => {
+            setOpenClientId(null);
+            void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function bookingStatusTone(status: string, checkin: string | undefined) {
+  if (status === "cancelada") return { label: "Canceló", tone: "amber" as const };
+  if (checkin === "a_tiempo" || checkin === "tarde") return { label: "Asistió", tone: "green" as const };
+  if (checkin === "no_show") return { label: "No asistió (token consumido)", tone: "red" as const };
+  if (status === "lista_espera") return { label: "Lista de espera", tone: "amber" as const };
+  return { label: "Reservada", tone: "muted" as const };
+}
+
+const TONE_CLASSES: Record<string, string> = {
+  green: "bg-green-500/10 text-green-700",
+  amber: "bg-amber-500/10 text-amber-700",
+  red: "bg-destructive/10 text-destructive",
+  muted: "bg-muted text-muted-foreground",
+};
+
+function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [showPackages, setShowPackages] = useState(false);
+
+  const { data: profile } = useQuery({
+    queryKey: ["client-detail-profile", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", clientId).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: reservations } = useQuery({
+    queryKey: ["client-detail-bookings", clientId],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: bookings, error } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("user_id", clientId)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const classIds = (bookings ?? []).map((b) => b.class_id);
+      const { data: classes } = classIds.length
+        ? await supabase.from("classes").select("id, starts_at, module_key, room").in("id", classIds)
+        : { data: [] as { id: string; starts_at: string; module_key: string | null; room: string }[] };
+      const { data: checks } = await supabase
+        .from("check_ins")
+        .select("*")
+        .in(
+          "booking_id",
+          (bookings ?? []).map((b) => b.id),
+        );
+      return (bookings ?? []).map((b) => ({
+        ...b,
+        cls: classes?.find((c) => c.id === b.class_id),
+        checkin: checks?.find((c) => c.booking_id === b.id),
+      }));
+    },
+  });
+
+  const { data: purchases } = useQuery({
+    queryKey: ["client-detail-purchases", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*, plan:token_plans(name)")
+        .eq("user_id", clientId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: balance } = useQuery({
+    queryKey: ["client-detail-balance", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("token_ledger").select("delta").eq("user_id", clientId);
+      if (error) throw error;
+      return (data ?? []).reduce((sum, r) => sum + r.delta, 0);
+    },
+  });
+
+  const { data: plans } = useQuery({
+    enabled: showPackages,
+    queryKey: ["client-detail-plans"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("token_plans")
+        .select("*")
+        .eq("active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const buyPlan = useMutation({
+    mutationFn: async (planId: string) => {
+      const { error } = await supabase.rpc("admin_purchase_plan", {
+        _user_id: clientId,
+        _plan_id: planId,
+        _payment_method: "efectivo",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Créditos agregados.");
+      setShowPackages(false);
+      void qc.invalidateQueries({ queryKey: ["client-detail-balance", clientId] });
+      void qc.invalidateQueries({ queryKey: ["client-detail-purchases", clientId] });
+    },
+    onError: () => toast.error("No se pudo registrar la compra."),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-3xl overflow-y-auto bg-background p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-5 flex items-start justify-between border-b border-border pb-4">
+          <div>
+            <p className="text-sm font-medium">{profile?.full_name || "Sin nombre"}</p>
+            <p className="text-xs text-muted-foreground">
+              {profile?.email}
+              {profile?.phone ? ` · ${profile.phone}` : ""}
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-3">
+          <div>
+            <p className="eyebrow mb-2">Reservaciones (últimos 30 días)</p>
+            <div className="space-y-1.5">
+              {(reservations ?? []).map((r) => {
+                const { label, tone } = bookingStatusTone(r.status, r.checkin?.status);
+                return (
+                  <div key={r.id} className="border border-border p-2 text-xs">
+                    <p className="truncate">
+                      {r.cls ? new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" }).format(new Date(r.cls.starts_at)) : ""}
+                    </p>
+                    <p className="truncate text-muted-foreground">
+                      {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
+                    </p>
+                    <span className={cn("mt-1 inline-block px-1.5 py-0.5 text-[0.6rem]", TONE_CLASSES[tone])}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
+              {(reservations ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin reservaciones en este periodo.</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div>
+            <p className="eyebrow mb-2">Historial de compras</p>
+            <div className="space-y-1.5">
+              {(purchases ?? []).map((t) => (
+                <div key={t.id} className="border border-border p-2 text-xs">
+                  <p className="truncate">{t.plan?.name ?? "Compra"}</p>
+                  <p className="text-muted-foreground">
+                    {money(t.amount_cents)} · +{t.tokens} créditos ·{" "}
+                    {new Intl.DateTimeFormat("es-MX", { dateStyle: "short" }).format(new Date(t.created_at))}
+                  </p>
+                </div>
+              ))}
+              {(purchases ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin compras registradas.</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div>
+            <p className="eyebrow mb-2">Créditos disponibles</p>
+            <div className="border border-border p-4 text-center">
+              <p className="text-3xl">{balance ?? 0}</p>
+              <button
+                onClick={() => setShowPackages(true)}
+                className="mt-3 w-full border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+              >
+                Agregar créditos
+              </button>
+            </div>
+
+            {showPackages ? (
+              <div className="mt-3 space-y-2">
+                {(plans ?? []).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={buyPlan.isPending}
+                    onClick={() => buyPlan.mutate(p.id)}
+                    className="block w-full border border-input p-2.5 text-left text-xs hover:border-foreground/40 disabled:opacity-50"
+                  >
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-muted-foreground">
+                      {money(p.price_cents)} · {p.tokens} créditos
+                    </p>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PAQUETES (token_plans) — class packages, memberships, Align, Contrast.
+// ============================================================================
+const CATEGORY_LABELS: Record<string, string> = {
+  clases_pilates: "Clases de Pilates",
+  membresia: "Membresías",
+  consulta: "Align (consulta)",
+  recuperacion: "Contrast (recuperación)",
+};
+
+export function PackagesPanel() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["admin-packages"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("token_plans").select("*").order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: TablesUpdate<"token_plans"> }) => {
+      const { error } = await supabase.from("token_plans").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Paquete actualizado.");
+      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
+    },
+  });
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, NonNullable<typeof data>>();
+    for (const p of data ?? []) {
+      groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
+    }
+    return Array.from(groups.entries());
+  }, [data]);
+
+  return (
+    <div className="space-y-8">
+      {grouped.map(([category, items]) => (
+        <div key={category}>
+          <p className="mb-3 eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {items.map((p) => (
+              <div key={p.id} className={`border p-5 ${p.active ? "border-border" : "border-border opacity-50"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.subtitle}</p>
+                  </div>
+                  <button
+                    onClick={() => update.mutate({ id: p.id, patch: { active: !p.active } })}
+                    className="shrink-0 border border-input px-2 py-1 text-[0.6rem] uppercase"
+                  >
+                    {p.active ? "Ocultar" : "Publicar"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{p.description}</p>
+                {p.includes ? (
+                  <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                    {p.includes.split("\n").map((line, i) => (
+                      <li key={i}>· {line}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="text-xs">
+                    <span className="eyebrow">Precio (MXN)</span>
+                    <input
+                      type="number"
+                      defaultValue={p.price_cents / 100}
+                      className={`${input} w-28`}
+                      onBlur={(e) =>
+                        update.mutate({
+                          id: p.id,
+                          patch: { price_cents: Math.round(Number(e.target.value) * 100) },
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs">
+                    <span className="eyebrow">Créditos</span>
+                    <input
+                      type="number"
+                      defaultValue={p.tokens}
+                      className={`${input} w-20`}
+                      onBlur={(e) => update.mutate({ id: p.id, patch: { tokens: Number(e.target.value) } })}
+                    />
+                  </label>
+                  {p.recurring ? (
+                    <span className="text-[0.65rem] text-muted-foreground">Cargo mensual recurrente</span>
+                  ) : null}
+                </div>
+                {p.terms ? <p className="mt-2 text-[0.65rem] text-muted-foreground">{p.terms}</p> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {grouped.length === 0 ? <p className="text-muted-foreground">Sin paquetes todavía.</p> : null}
     </div>
   );
 }
@@ -991,6 +1346,7 @@ export function PayrollPanel() {
   const qc = useQueryClient();
   const [from, setFrom] = useState(() => startOfWeek(new Date()).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [uploading, setUploading] = useState(false);
 
   const { data: staff } = useQuery({
     queryKey: ["payroll-staff"],
@@ -1005,39 +1361,102 @@ export function PayrollPanel() {
     },
   });
 
-  const { data: rows } = useQuery({
-    queryKey: ["payroll-calc", from, to, staff?.map((s) => s.id).join(",")],
-    enabled: Boolean(staff?.length),
+  const { data: hoursRows } = useQuery({
+    queryKey: ["payroll-hours", from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payroll_period_hours")
+        .select("*")
+        .eq("period_start", from)
+        .eq("period_end", to);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const rows = useMemo(() => {
+    return (staff ?? []).map((s) => {
+      const hoursRow = (hoursRows ?? []).find((h) => h.staff_id === s.id);
+      const hours = hoursRow?.hours ?? 0;
+      const base = Math.round(hours * s.hourly_rate_cents);
+      return { staff: s, hours, base, hasUpload: Boolean(hoursRow) };
+    });
+  }, [staff, hoursRows]);
+
+  const { data: adjustmentsByStaff } = useQuery({
+    queryKey: ["payroll-adjustments", from, to],
     queryFn: async () => {
       const fromIso = new Date(from).toISOString();
       const toIso = new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000).toISOString();
-      const results = [];
-      for (const s of staff ?? []) {
-        const { data: seconds } = await supabase.rpc("staff_worked_seconds", {
-          _staff_id: s.id,
-          _from: fromIso,
-          _to: toIso,
-        });
-        const { data: adjustments } = await supabase
-          .from("payroll_adjustments")
-          .select("*")
-          .eq("staff_id", s.id)
-          .gte("created_at", fromIso)
-          .lt("created_at", toIso);
-        const hours = (seconds ?? 0) / 3600;
-        const base = Math.round(hours * s.hourly_rate_cents);
-        const adjTotal = (adjustments ?? []).reduce((sum, a) => sum + a.amount_cents, 0);
-        results.push({
-          staff: s,
-          hours,
-          base,
-          adjustments: adjustments ?? [],
-          adjTotal,
-          total: base + adjTotal,
-        });
+      const { data, error } = await supabase
+        .from("payroll_adjustments")
+        .select("*")
+        .gte("created_at", fromIso)
+        .lt("created_at", toIso);
+      if (error) throw error;
+      const map = new Map<string, typeof data>();
+      for (const a of data ?? []) {
+        map.set(a.staff_id, [...(map.get(a.staff_id) ?? []), a]);
       }
-      return results;
+      return map;
     },
+  });
+
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
+    const sheetData = [
+      ["Nombre", "Correo", "Horas"],
+      ...(staff ?? []).map((s) => [s.full_name, s.email ?? "", ""]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws["!cols"] = [{ wch: 28 }, { wch: 30 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Horas");
+    XLSX.writeFile(wb, `laatu-horas_${from}_a_${to}.xlsx`);
+  };
+
+  const uploadTemplate = useMutation({
+    mutationFn: async (file: File) => {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const sheet = wb.Sheets[wb.SheetNames[0] ?? ""];
+      if (!sheet) throw new Error("El Excel no tiene hojas.");
+      const rows = XLSX.utils.sheet_to_json<{ Nombre?: string; Correo?: string; Horas?: number }>(
+        sheet,
+      );
+      const unmatched: string[] = [];
+      const upserts: { staff_id: string; period_start: string; period_end: string; hours: number }[] =
+        [];
+      for (const row of rows) {
+        const email = String(row.Correo ?? "").trim().toLowerCase();
+        const name = String(row.Nombre ?? "").trim().toLowerCase();
+        const hours = Number(row.Horas ?? 0);
+        const match = (staff ?? []).find(
+          (s) => (s.email ?? "").toLowerCase() === email || s.full_name.trim().toLowerCase() === name,
+        );
+        if (!match) {
+          if (email || name) unmatched.push(row.Nombre || row.Correo || "?");
+          continue;
+        }
+        upserts.push({ staff_id: match.id, period_start: from, period_end: to, hours });
+      }
+      if (upserts.length > 0) {
+        const { error } = await supabase
+          .from("payroll_period_hours")
+          .upsert(upserts, { onConflict: "staff_id,period_start,period_end" });
+        if (error) throw error;
+      }
+      return { matched: upserts.length, unmatched };
+    },
+    onSuccess: ({ matched, unmatched }) => {
+      toast.success(
+        `${matched} persona${matched === 1 ? "" : "s"} actualizadas.` +
+          (unmatched.length ? ` No se encontró: ${unmatched.join(", ")}.` : ""),
+      );
+      void qc.invalidateQueries({ queryKey: ["payroll-hours", from, to] });
+    },
+    onError: () => toast.error("No se pudo leer el Excel. Usa la plantilla descargada."),
   });
 
   const addAdjustment = useMutation({
@@ -1057,13 +1476,17 @@ export function PayrollPanel() {
     },
     onSuccess: () => {
       toast.success("Ajuste registrado.");
-      void qc.invalidateQueries({ queryKey: ["payroll-calc"] });
+      void qc.invalidateQueries({ queryKey: ["payroll-adjustments", from, to] });
     },
   });
 
-  const grandTotal = (rows ?? []).reduce((sum, r) => sum + r.total, 0);
-  const exampleRate = 8500; // MXN 85/h, solo para el ejemplo ilustrativo
-  const exampleHours = 42.5;
+  const rowsWithAdjustments = rows.map((r) => {
+    const adjustments = adjustmentsByStaff?.get(r.staff.id) ?? [];
+    const adjTotal = adjustments.reduce((sum, a) => sum + a.amount_cents, 0);
+    return { ...r, adjustments, adjTotal, total: r.base + adjTotal };
+  });
+
+  const grandTotal = rowsWithAdjustments.reduce((sum, r) => sum + r.total, 0);
 
   return (
     <div>
@@ -1073,34 +1496,22 @@ export function PayrollPanel() {
           <div className="border border-border p-4">
             <p className="eyebrow">1. Horas trabajadas</p>
             <p className="mt-1 text-muted-foreground">
-              Suma automática del checador (entrada/salida) en el rango de fechas.
+              Se capturan subiendo el Excel de horas del periodo (plantilla descargable abajo).
             </p>
-            <p className="mt-2 text-lg">{exampleHours.toFixed(1)} h</p>
           </div>
           <div className="border border-border p-4">
             <p className="eyebrow">2. Tarifa por hora</p>
             <p className="mt-1 text-muted-foreground">
               La capturada en el perfil de esa persona en Staff.
             </p>
-            <p className="mt-2 text-lg">{money(exampleRate)}/h</p>
           </div>
           <div className="border border-foreground p-4">
             <p className="eyebrow">3. Total del periodo</p>
             <p className="mt-1 text-muted-foreground">
-              {exampleHours.toFixed(1)} h × {money(exampleRate)} + ajustes (bonos, descuentos por
-              no-show, etc.) que agregues a mano.
-            </p>
-            <p className="mt-2 text-lg">
-              {money(Math.round(exampleHours * exampleRate))}{" "}
-              <span className="text-muted-foreground">+ ajustes</span>
+              Horas × tarifa + ajustes (bonos, descuentos por no-show, etc.) que agregues a mano.
             </p>
           </div>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Esto es solo un ejemplo ilustrativo (no es nómina real). Cada persona del equipo se
-          calcula así, individualmente, con su propia tarifa y sus propias horas checadas —lo ves
-          desglosado abajo, persona por persona, con espacio para agregar bonos o descuentos.
-        </p>
       </details>
 
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border border-border p-6">
@@ -1123,6 +1534,28 @@ export function PayrollPanel() {
               className={input}
             />
           </label>
+          <button
+            type="button"
+            onClick={() => void downloadTemplate()}
+            className="border border-input px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em]"
+          >
+            Descargar plantilla
+          </button>
+          <label className="border border-input px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] cursor-pointer">
+            {uploading ? "Subiendo…" : "Subir Excel de horas"}
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploading(true);
+                await uploadTemplate.mutateAsync(file).finally(() => setUploading(false));
+                e.target.value = "";
+              }}
+            />
+          </label>
         </div>
         <div className="text-right">
           <p className="eyebrow">Total del periodo</p>
@@ -1131,7 +1564,7 @@ export function PayrollPanel() {
       </div>
 
       <ul className="divide-y divide-border border-y border-border text-sm">
-        {(rows ?? []).map((r) => (
+        {rowsWithAdjustments.map((r) => (
           <li key={r.staff.id} className="space-y-3 py-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -1140,8 +1573,14 @@ export function PayrollPanel() {
                   <span className="text-muted-foreground">· {r.staff.role}</span>
                 </p>
                 <p className="text-muted-foreground">
-                  {r.hours.toFixed(1)} h trabajadas · {money(r.staff.hourly_rate_cents)}/h →{" "}
-                  {money(r.base)}
+                  {r.hasUpload ? (
+                    <>
+                      {r.hours.toFixed(1)} h capturadas · {money(r.staff.hourly_rate_cents)}/h →{" "}
+                      {money(r.base)}
+                    </>
+                  ) : (
+                    "Sin horas subidas para este periodo todavía."
+                  )}
                 </p>
               </div>
               <p className="text-lg">{money(r.total)}</p>
@@ -1918,6 +2357,13 @@ export function CoachProfilePanel() {
 // FINANZAS — solo administradores: ingresos del mes por categoría,
 // costo de nómina y margen resultante.
 // ============================================================================
+const TOKEN_CATEGORY_LABELS: Record<string, string> = {
+  clases_pilates: "Clases de Pilates",
+  membresia: "Membresías",
+  consulta: "Consulta (Align)",
+  recuperacion: "Recuperación (Contrast)",
+};
+
 export function FinancePanel() {
   const monthStart = useMemo(() => {
     const d = new Date();
@@ -1926,6 +2372,7 @@ export function FinancePanel() {
     return d;
   }, []);
   const now = new Date();
+  const [expanded, setExpanded] = useState<"tokens" | "merch" | "consumibles" | "nomina" | null>(null);
 
   const { data } = useQuery({
     queryKey: ["finance-month", monthStart.toISOString()],
@@ -1935,166 +2382,278 @@ export function FinancePanel() {
 
       const { data: transactions } = await supabase
         .from("transactions")
-        .select("amount_cents, status, created_at")
+        .select("amount_cents, status, created_at, user_id, plan:token_plans(category, name)")
+        .eq("status", "completed")
         .gte("created_at", fromIso)
         .lte("created_at", toIso);
-      const clasesRevenue = (transactions ?? [])
-        .filter((t) => t.status === "completed")
-        .reduce((sum, t) => sum + t.amount_cents, 0);
+
+      const tokensByCategory = new Map<string, number>();
+      const clientsByPlan = new Map<string, { user_id: string }[]>();
+      let clasesRevenue = 0;
+      for (const t of transactions ?? []) {
+        clasesRevenue += t.amount_cents;
+        const cat = t.plan?.category ?? "clases_pilates";
+        tokensByCategory.set(cat, (tokensByCategory.get(cat) ?? 0) + t.amount_cents);
+        clientsByPlan.set(cat, [...(clientsByPlan.get(cat) ?? []), { user_id: t.user_id }]);
+      }
 
       const { data: saleItems } = await supabase
         .from("pos_sale_items")
-        .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at)")
+        .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id)")
         .gte("sale.created_at", fromIso)
         .lte("sale.created_at", toIso);
       const productIds = Array.from(
         new Set((saleItems ?? []).map((i) => i.product_id).filter(Boolean)),
       ) as string[];
       const { data: products } = productIds.length
-        ? await supabase
-            .from("products")
-            .select("id, category, cost_cents, name")
-            .in("id", productIds)
+        ? await supabase.from("products").select("id, category, cost_cents, name").in("id", productIds)
         : { data: [] as { id: string; category: string; cost_cents: number; name: string }[] };
       const productById = new Map((products ?? []).map((p) => [p.id, p]));
 
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email");
+      const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
       let merchRevenue = 0;
       let consumibleRevenue = 0;
-      let otrosRevenue = 0;
-      let unitsSold = 0;
       let cogs = 0;
-      const topProducts = new Map<string, { name: string; units: number; revenue: number }>();
+      const topMerch = new Map<string, { name: string; units: number; revenue: number }>();
+      const topConsumibles = new Map<string, { name: string; units: number; revenue: number }>();
+      const clientsMerch = new Map<string, { name: string; revenue: number }>();
+      const clientsConsumibles = new Map<string, { name: string; revenue: number }>();
       for (const item of saleItems ?? []) {
         const amount = item.qty * item.unit_price_cents;
         const product = item.product_id ? productById.get(item.product_id) : undefined;
         const cat = product?.category;
-        if (cat === "merch") merchRevenue += amount;
-        else if (cat === "consumible" || cat === "suplemento") consumibleRevenue += amount;
-        else otrosRevenue += amount;
-        unitsSold += item.qty;
         cogs += item.qty * (product?.cost_cents ?? 0);
-        if (product) {
-          const acc = topProducts.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
-          acc.units += item.qty;
-          acc.revenue += amount;
-          topProducts.set(product.id, acc);
+        const clientId = item.sale?.user_id;
+        const clientName = clientId
+          ? profileById.get(clientId)?.full_name || profileById.get(clientId)?.email || "Cliente"
+          : "Sin cliente";
+        if (cat === "merch") {
+          merchRevenue += amount;
+          if (product) {
+            const acc = topMerch.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
+            acc.units += item.qty;
+            acc.revenue += amount;
+            topMerch.set(product.id, acc);
+          }
+          if (clientId) {
+            const acc = clientsMerch.get(clientId) ?? { name: clientName, revenue: 0 };
+            acc.revenue += amount;
+            clientsMerch.set(clientId, acc);
+          }
+        } else if (cat === "consumible" || cat === "suplemento") {
+          consumibleRevenue += amount;
+          if (product) {
+            const acc = topConsumibles.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
+            acc.units += item.qty;
+            acc.revenue += amount;
+            topConsumibles.set(product.id, acc);
+          }
+          if (clientId) {
+            const acc = clientsConsumibles.get(clientId) ?? { name: clientName, revenue: 0 };
+            acc.revenue += amount;
+            clientsConsumibles.set(clientId, acc);
+          }
         }
       }
-      const posRevenue = merchRevenue + consumibleRevenue + otrosRevenue;
-      const posGrossMargin = posRevenue - cogs;
-      const topProductsSorted = Array.from(topProducts.values())
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
+      const sortTop = (m: Map<string, { name: string; units: number; revenue: number }>) =>
+        Array.from(m.values())
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+      const sortClients = (m: Map<string, { name: string; revenue: number }>) =>
+        Array.from(m.values()).sort((a, b) => b.revenue - a.revenue);
 
       const { data: staff } = await supabase.from("staff_profiles").select("*").eq("active", true);
-      let payrollCost = 0;
-      for (const s of staff ?? []) {
-        const { data: seconds } = await supabase.rpc("staff_worked_seconds", {
-          _staff_id: s.id,
-          _from: fromIso,
-          _to: toIso,
-        });
-        payrollCost += ((seconds ?? 0) / 3600) * s.hourly_rate_cents;
-      }
+      const { data: hoursRows } = await supabase
+        .from("payroll_period_hours")
+        .select("*")
+        .gte("period_start", fromIso.slice(0, 10))
+        .lte("period_end", toIso.slice(0, 10));
       const { data: adjustments } = await supabase
         .from("payroll_adjustments")
-        .select("amount_cents")
+        .select("staff_id, amount_cents")
         .gte("created_at", fromIso)
         .lte("created_at", toIso);
-      payrollCost += (adjustments ?? []).reduce((sum, a) => sum + a.amount_cents, 0);
+      const payrollByStaff = new Map<string, { name: string; cost: number }>();
+      let payrollCost = 0;
+      for (const s of staff ?? []) {
+        const hours = (hoursRows ?? [])
+          .filter((h) => h.staff_id === s.id)
+          .reduce((sum, h) => sum + h.hours, 0);
+        const adjTotal = (adjustments ?? [])
+          .filter((a) => a.staff_id === s.id)
+          .reduce((sum, a) => sum + a.amount_cents, 0);
+        const cost = hours * s.hourly_rate_cents + adjTotal;
+        payrollCost += cost;
+        payrollByStaff.set(s.id, { name: s.full_name, cost });
+      }
 
-      const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue + otrosRevenue;
+      const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue;
       return {
         clasesRevenue,
+        tokensByCategory,
         merchRevenue,
         consumibleRevenue,
-        otrosRevenue,
-        posRevenue,
         cogs,
-        posGrossMargin,
-        unitsSold,
-        topProductsSorted,
-        totalRevenue,
+        topMerch: sortTop(topMerch),
+        topConsumibles: sortTop(topConsumibles),
+        clientsMerch: sortClients(clientsMerch),
+        clientsConsumibles: sortClients(clientsConsumibles),
         payrollCost,
-        margin: totalRevenue - cogs - payrollCost,
+        payrollByStaff: Array.from(payrollByStaff.values()).sort((a, b) => b.cost - a.cost),
+        totalRevenue,
+        margin: totalRevenue - payrollCost,
       };
     },
   });
 
   const marginPositive = (data?.margin ?? 0) >= 0;
+  const toggle = (key: "tokens" | "merch" | "consumibles" | "nomina") =>
+    setExpanded((e) => (e === key ? null : key));
 
   return (
     <div className="space-y-8">
       <p className="text-sm text-muted-foreground">
-        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy.
-        Ingresos por venta de tokens/créditos y por ventas de mostrador (Recovery Bar/merch); costo
-        de mercancía y de nómina descontados para el margen real del negocio.
+        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy. Toca
+        una tarjeta para ver el desglose.
       </p>
 
-      <div>
-        <p className="mb-3 eyebrow">Qué se vende</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="border border-border p-5">
-            <p className="eyebrow">Tokens / créditos (paquetes)</p>
-            <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
-          </div>
-          <div className="border border-border p-5">
-            <p className="eyebrow">Merch</p>
-            <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
-          </div>
-          <div className="border border-border p-5">
-            <p className="eyebrow">Recovery Bar / consumibles</p>
-            <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
-          </div>
-          <div className="border border-border p-5">
-            <p className="eyebrow">Otros</p>
-            <p className="mt-1 text-xl">{money(data?.otrosRevenue ?? 0)}</p>
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => toggle("tokens")}
+          className={`border p-5 text-left ${expanded === "tokens" ? "border-foreground" : "border-border"}`}
+        >
+          <p className="eyebrow">Tokens / créditos</p>
+          <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => toggle("merch")}
+          className={`border p-5 text-left ${expanded === "merch" ? "border-foreground" : "border-border"}`}
+        >
+          <p className="eyebrow">Merch</p>
+          <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => toggle("consumibles")}
+          className={`border p-5 text-left ${expanded === "consumibles" ? "border-foreground" : "border-border"}`}
+        >
+          <p className="eyebrow">Consumibles (Recovery Bar)</p>
+          <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
+        </button>
       </div>
 
-      <div>
-        <p className="mb-3 eyebrow">Qué se compra (costo de mercancía vendida)</p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="border border-border p-5">
-            <p className="eyebrow">Unidades vendidas (punto de venta)</p>
-            <p className="mt-1 text-xl">{data?.unitsSold ?? 0}</p>
-          </div>
-          <div className="border border-border p-5">
-            <p className="eyebrow">Costo de esa mercancía</p>
-            <p className="mt-1 text-xl">{money(data?.cogs ?? 0)}</p>
-          </div>
-          <div className="border border-border p-5">
-            <p className="eyebrow">Margen bruto de mostrador</p>
-            <p className="mt-1 text-xl">{money(data?.posGrossMargin ?? 0)}</p>
+      {expanded === "tokens" ? (
+        <div className="border border-border p-6">
+          <p className="mb-3 eyebrow">Desglose por tipo de crédito</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
+              <div key={key} className="border border-border p-4">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="mt-1 text-lg">{money(data?.tokensByCategory.get(key) ?? 0)}</p>
+              </div>
+            ))}
           </div>
         </div>
-        {data && data.topProductsSorted.length > 0 ? (
-          <div className="mt-4 border border-border">
-            <p className="border-b border-border px-4 py-2 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              Top 5 productos del mes
-            </p>
+      ) : null}
+
+      {expanded === "merch" ? (
+        <div className="grid gap-6 border border-border p-6 sm:grid-cols-2">
+          <div>
+            <p className="mb-3 eyebrow">Producto más vendido</p>
             <ul className="divide-y divide-border text-sm">
-              {data.topProductsSorted.map((p) => (
-                <li key={p.name} className="flex items-center justify-between px-4 py-2.5">
+              {(data?.topMerch ?? []).map((p) => (
+                <li key={p.name} className="flex items-center justify-between py-2">
                   <span>{p.name}</span>
                   <span className="text-muted-foreground">
                     {p.units} uds · {money(p.revenue)}
                   </span>
                 </li>
               ))}
+              {(data?.topMerch ?? []).length === 0 ? (
+                <li className="py-2 text-muted-foreground">Sin ventas de merch este mes.</li>
+              ) : null}
             </ul>
           </div>
-        ) : null}
-      </div>
-
-      <div>
-        <p className="mb-3 eyebrow">Qué se paga en nómina</p>
-        <div className="border border-border p-5">
-          <p className="eyebrow">Costo de nómina del mes (checador × tarifa + ajustes)</p>
-          <p className="mt-1 text-xl">{money(data?.payrollCost ?? 0)}</p>
+          <div>
+            <p className="mb-3 eyebrow">Cliente que más ha comprado</p>
+            <ul className="divide-y divide-border text-sm">
+              {(data?.clientsMerch ?? []).slice(0, 5).map((c) => (
+                <li key={c.name} className="flex items-center justify-between py-2">
+                  <span>{c.name}</span>
+                  <span className="text-muted-foreground">{money(c.revenue)}</span>
+                </li>
+              ))}
+              {(data?.clientsMerch ?? []).length === 0 ? (
+                <li className="py-2 text-muted-foreground">Sin datos todavía.</li>
+              ) : null}
+            </ul>
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {expanded === "consumibles" ? (
+        <div className="grid gap-6 border border-border p-6 sm:grid-cols-2">
+          <div>
+            <p className="mb-3 eyebrow">Producto más vendido</p>
+            <ul className="divide-y divide-border text-sm">
+              {(data?.topConsumibles ?? []).map((p) => (
+                <li key={p.name} className="flex items-center justify-between py-2">
+                  <span>{p.name}</span>
+                  <span className="text-muted-foreground">
+                    {p.units} uds · {money(p.revenue)}
+                  </span>
+                </li>
+              ))}
+              {(data?.topConsumibles ?? []).length === 0 ? (
+                <li className="py-2 text-muted-foreground">Sin ventas de consumibles este mes.</li>
+              ) : null}
+            </ul>
+          </div>
+          <div>
+            <p className="mb-3 eyebrow">Cliente que más ha comprado</p>
+            <ul className="divide-y divide-border text-sm">
+              {(data?.clientsConsumibles ?? []).slice(0, 5).map((c) => (
+                <li key={c.name} className="flex items-center justify-between py-2">
+                  <span>{c.name}</span>
+                  <span className="text-muted-foreground">{money(c.revenue)}</span>
+                </li>
+              ))}
+              {(data?.clientsConsumibles ?? []).length === 0 ? (
+                <li className="py-2 text-muted-foreground">Sin datos todavía.</li>
+              ) : null}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => toggle("nomina")}
+        className={`block w-full border p-5 text-left ${expanded === "nomina" ? "border-foreground" : "border-border"}`}
+      >
+        <p className="eyebrow">Nómina del mes</p>
+        <p className="mt-1 text-xl">{money(data?.payrollCost ?? 0)}</p>
+      </button>
+      {expanded === "nomina" ? (
+        <div className="border border-border p-6">
+          <p className="mb-3 eyebrow">Desglose por coach / staff</p>
+          <ul className="divide-y divide-border text-sm">
+            {(data?.payrollByStaff ?? []).map((s) => (
+              <li key={s.name} className="flex items-center justify-between py-2">
+                <span>{s.name}</span>
+                <span className="text-muted-foreground">{money(s.cost)}</span>
+              </li>
+            ))}
+            {(data?.payrollByStaff ?? []).length === 0 ? (
+              <li className="py-2 text-muted-foreground">Sin staff activo.</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="border border-border p-6">
@@ -2102,8 +2661,8 @@ export function FinancePanel() {
           <p className="mt-2 text-2xl">{money(data?.totalRevenue ?? 0)}</p>
         </div>
         <div className="border border-border p-6">
-          <p className="eyebrow">Costo total (mercancía + nómina)</p>
-          <p className="mt-2 text-2xl">{money((data?.cogs ?? 0) + (data?.payrollCost ?? 0))}</p>
+          <p className="eyebrow">Costo total (nómina)</p>
+          <p className="mt-2 text-2xl">{money(data?.payrollCost ?? 0)}</p>
         </div>
         <div
           className={`border p-6 ${marginPositive ? "border-emerald-500" : "border-destructive"}`}
@@ -2119,9 +2678,9 @@ export function FinancePanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nota: el margen ya resta costo de mercancía vendida (según el costo de compra capturado en
-        Inventario) y costo de nómina (checador × tarifa + ajustes). No incluye renta ni otros
-        gastos fijos del estudio — dime si quieres que también los sumemos.
+        Nota: el margen resta solo el costo de nómina (horas capturadas por Excel × tarifa +
+        ajustes) a los ingresos totales del mes. No incluye renta, costo de mercancía ni otros
+        gastos fijos — dime si quieres que también los sumemos.
       </p>
     </div>
   );

@@ -640,44 +640,97 @@ export type Database = {
       token_plans: {
         Row: {
           active: boolean
+          category: string
           created_at: string
           currency: string
           description: string
           id: string
+          includes: string
           name: string
           price_cents: number
           recurring: boolean
           sort_order: number
+          subtitle: string
+          terms: string
           tokens: number
           validity_days: number | null
         }
         Insert: {
           active?: boolean
+          category?: string
           created_at?: string
           currency?: string
           description?: string
           id?: string
+          includes?: string
           name: string
           price_cents: number
           recurring?: boolean
           sort_order?: number
+          subtitle?: string
+          terms?: string
           tokens: number
           validity_days?: number | null
         }
         Update: {
           active?: boolean
+          category?: string
           created_at?: string
           currency?: string
           description?: string
           id?: string
+          includes?: string
           name?: string
           price_cents?: number
           recurring?: boolean
           sort_order?: number
+          subtitle?: string
+          terms?: string
           tokens?: number
           validity_days?: number | null
         }
         Relationships: []
+      }
+      payroll_period_hours: {
+        Row: {
+          created_at: string
+          hours: number
+          id: string
+          period_end: string
+          period_start: string
+          source: string
+          staff_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end: string
+          period_start: string
+          source?: string
+          staff_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          hours?: number
+          id?: string
+          period_end?: string
+          period_start?: string
+          source?: string
+          staff_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_period_hours_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -837,6 +890,10 @@ export type Database = {
       }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       link_existing_staff_accounts: { Args: never; Returns: undefined }
+      admin_purchase_plan: {
+        Args: { _plan_id: string; _payment_method: string; _user_id: string }
+        Returns: string
+      }
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
