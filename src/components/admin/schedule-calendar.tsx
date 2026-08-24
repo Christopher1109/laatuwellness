@@ -1056,32 +1056,39 @@ function ClassDetailDrawer({
           >
             {seats.map((seat) => {
               const owner = takenBy(seat);
-              const clickable = owner ? false : Boolean(assigningFor);
+              const clickable = Boolean(assigningFor) && (!owner || owner.id === assigningFor?.id);
               return (
                 <button
                   key={seat}
                   type="button"
-                  disabled={!owner && !assigningFor}
+                  disabled={!clickable && !owner}
                   onClick={() => {
-                    if (owner || !assigningFor) return;
+                    if (!assigningFor) return;
+                    if (owner && owner.id !== assigningFor.id) {
+                      toast.error("Ese lugar ya está ocupado.");
+                      return;
+                    }
                     assignSeat.mutate({ bookingId: assigningFor.id, seat });
                     setAssigningFor(null);
                   }}
                   title={owner ? owner.profile?.full_name || owner.profile?.email || "" : "Libre"}
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center gap-0.5 border p-1 text-center text-[0.6rem] leading-tight",
+                    "relative flex aspect-square flex-col items-center justify-center gap-0.5 border p-1 text-center text-[0.6rem] leading-tight transition-colors",
                     owner
                       ? "border-transparent bg-foreground text-background"
                       : clickable
-                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/25"
                         : "border-emerald-500/40 bg-emerald-500/5 text-emerald-700/70",
                   )}
                 >
                   <span className="text-[0.65rem] font-medium">{seat}</span>
                   {owner ? (
-                    <span className="line-clamp-1 w-full px-0.5">
-                      {(owner.profile?.full_name || owner.profile?.email || "").split(" ")[0]}
-                    </span>
+                    <>
+                      <span className="line-clamp-2 w-full px-0.5">
+                        {owner.profile?.full_name || owner.profile?.email || ""}
+                      </span>
+                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-background/80" />
+                    </>
                   ) : null}
                 </button>
               );
