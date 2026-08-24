@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
@@ -9,6 +9,31 @@ import { useAuth } from "@/hooks/useAuth";
 
 export const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
+
+// Popout genérico reutilizado por Paquetes, Nómina y Finanzas.
+export function Popout({
+  onClose,
+  children,
+  wide,
+}: {
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className={`max-h-[85vh] w-full ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto bg-background p-6`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 const money = (cents: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format((cents ?? 0) / 100);
@@ -48,18 +73,24 @@ export function POSPanel() {
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [clientEmail, setClientEmail] = useState("");
+  const [matchedClient, setMatchedClient] = useState<{
+    id: string;
+    full_name: string;
+    email: string;
+  } | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [payment, setPayment] = useState("efectivo");
 
-  const { data: matchedClient, isFetching: isSearchingClient } = useQuery({
-    queryKey: ["pos-client-lookup", clientEmail.trim().toLowerCase()],
-    enabled: clientEmail.trim().length > 3,
+  const { data: suggestions } = useQuery({
+    queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
+    enabled: clientEmail.trim().length > 1 && !matchedClient,
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
         .select("id, full_name, email")
-        .ilike("email", clientEmail.trim())
-        .maybeSingle();
-      return data;
+        .or(`email.ilike.%${clientEmail.trim()}%,full_name.ilike.%${clientEmail.trim()}%`)
+        .limit(6);
+      return data ?? [];
     },
   });
 
@@ -99,6 +130,7 @@ export function POSPanel() {
       toast.success("Venta registrada.");
       setCart({});
       setClientEmail("");
+      setMatchedClient(null);
       void qc.invalidateQueries({ queryKey: ["pos-products"] });
       void qc.invalidateQueries({ queryKey: ["admin-products"] });
     },
@@ -162,27 +194,59 @@ export function POSPanel() {
         <p className="eyebrow">
           Cobro {itemCount > 0 ? `· ${itemCount} artículo${itemCount === 1 ? "" : "s"}` : ""}
         </p>
-        <label className="block text-xs">
-          <span className="eyebrow">Correo del cliente (obligatorio)</span>
+        <label className="relative block text-xs">
+          <span className="eyebrow">Correo o nombre del cliente (obligatorio)</span>
           <input
-            value={clientEmail}
-            onChange={(e) => setClientEmail(e.target.value)}
+            value={
+              matchedClient ? `${matchedClient.full_name || matchedClient.email}` : clientEmail
+            }
+            onChange={(e) => {
+              setMatchedClient(null);
+              setClientEmail(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => setShowSuggestions(true)}
             className={input}
             placeholder="cliente@correo.com"
+            autoComplete="off"
             required
           />
-          {clientEmail.trim().length > 3 ? (
-            isSearchingClient ? (
-              <span className="mt-1 block text-[0.7rem] text-muted-foreground">Buscando…</span>
-            ) : matchedClient ? (
-              <span className="mt-1 block text-[0.7rem] text-emerald-600">
-                ✓ {matchedClient.full_name || matchedClient.email}
-              </span>
-            ) : (
-              <span className="mt-1 block text-[0.7rem] text-destructive">
-                No se encontró un cliente con ese correo.
-              </span>
-            )
+          {matchedClient ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMatchedClient(null);
+                setClientEmail("");
+              }}
+              className="absolute right-2 top-7 text-muted-foreground hover:text-foreground"
+              aria-label="Quitar cliente"
+            >
+              ×
+            </button>
+          ) : null}
+          {showSuggestions && !matchedClient && (suggestions ?? []).length > 0 ? (
+            <ul className="absolute z-10 mt-1 w-full border border-border bg-background shadow-lg">
+              {(suggestions ?? []).map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMatchedClient(c);
+                      setShowSuggestions(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-xs hover:bg-muted"
+                  >
+                    <span className="block">{c.full_name || "Sin nombre"}</span>
+                    <span className="block text-muted-foreground">{c.email}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {matchedClient ? (
+            <span className="mt-1 block text-[0.7rem] text-emerald-600">
+              ✓ {matchedClient.email}
+            </span>
           ) : null}
         </label>
         <label className="block text-xs">
@@ -669,7 +733,11 @@ export function StaffDirectoryPanel() {
   const { data } = useQuery({
     queryKey: ["admin-staff"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff_profiles").select("*").order("full_name");
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("*")
+        .neq("role", "coach")
+        .order("full_name");
       if (error) throw error;
       return data;
     },
@@ -704,6 +772,10 @@ export function StaffDirectoryPanel() {
 
   return (
     <div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Aquí ves staff y administración. Los coaches viven en su propio módulo (Coaches), donde ves
+        sus clases y reservaciones.
+      </p>
       <details className="mb-6 border border-border p-6">
         <summary className="cursor-pointer eyebrow">Dar de alta a alguien del equipo</summary>
         <form
@@ -1014,7 +1086,8 @@ export function ClientsPanel() {
 
 function bookingStatusTone(status: string, checkin: string | undefined) {
   if (status === "cancelada") return { label: "Canceló", tone: "amber" as const };
-  if (checkin === "a_tiempo" || checkin === "tarde") return { label: "Asistió", tone: "green" as const };
+  if (checkin === "a_tiempo" || checkin === "tarde")
+    return { label: "Asistió", tone: "green" as const };
   if (checkin === "no_show") return { label: "No asistió (token consumido)", tone: "red" as const };
   if (status === "lista_espera") return { label: "Lista de espera", tone: "amber" as const };
   return { label: "Reservada", tone: "muted" as const };
@@ -1030,11 +1103,16 @@ const TONE_CLASSES: Record<string, string> = {
 function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [showPackages, setShowPackages] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["client-detail-profile", clientId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", clientId).single();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", clientId)
+        .single();
       if (error) throw error;
       return data;
     },
@@ -1053,8 +1131,18 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
       if (error) throw error;
       const classIds = (bookings ?? []).map((b) => b.class_id);
       const { data: classes } = classIds.length
-        ? await supabase.from("classes").select("id, starts_at, module_key, room").in("id", classIds)
-        : { data: [] as { id: string; starts_at: string; module_key: string | null; room: string }[] };
+        ? await supabase
+            .from("classes")
+            .select("id, starts_at, module_key, room")
+            .in("id", classIds)
+        : {
+            data: [] as {
+              id: string;
+              starts_at: string;
+              module_key: string | null;
+              room: string;
+            }[],
+          };
       const { data: checks } = await supabase
         .from("check_ins")
         .select("*")
@@ -1086,7 +1174,10 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   const { data: balance } = useQuery({
     queryKey: ["client-detail-balance", clientId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("token_ledger").select("delta").eq("user_id", clientId);
+      const { data, error } = await supabase
+        .from("token_ledger")
+        .select("delta")
+        .eq("user_id", clientId);
       if (error) throw error;
       return (data ?? []).reduce((sum, r) => sum + r.delta, 0);
     },
@@ -1118,6 +1209,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     onSuccess: () => {
       toast.success("Créditos agregados.");
       setShowPackages(false);
+      setPendingPlan(null);
       void qc.invalidateQueries({ queryKey: ["client-detail-balance", clientId] });
       void qc.invalidateQueries({ queryKey: ["client-detail-purchases", clientId] });
     },
@@ -1138,7 +1230,11 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
               {profile?.phone ? ` · ${profile.phone}` : ""}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="text-muted-foreground hover:text-foreground"
+          >
             ✕
           </button>
         </div>
@@ -1152,12 +1248,22 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
                 return (
                   <div key={r.id} className="border border-border p-2 text-xs">
                     <p className="truncate">
-                      {r.cls ? new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" }).format(new Date(r.cls.starts_at)) : ""}
+                      {r.cls
+                        ? new Intl.DateTimeFormat("es-MX", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          }).format(new Date(r.cls.starts_at))
+                        : ""}
                     </p>
                     <p className="truncate text-muted-foreground">
                       {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
                     </p>
-                    <span className={cn("mt-1 inline-block px-1.5 py-0.5 text-[0.6rem]", TONE_CLASSES[tone])}>
+                    <span
+                      className={cn(
+                        "mt-1 inline-block px-1.5 py-0.5 text-[0.6rem]",
+                        TONE_CLASSES[tone],
+                      )}
+                    >
                       {label}
                     </span>
                   </div>
@@ -1177,7 +1283,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
                   <p className="truncate">{t.plan?.name ?? "Compra"}</p>
                   <p className="text-muted-foreground">
                     {money(t.amount_cents)} · +{t.tokens} créditos ·{" "}
-                    {new Intl.DateTimeFormat("es-MX", { dateStyle: "short" }).format(new Date(t.created_at))}
+                    {new Intl.DateTimeFormat("es-MX", { dateStyle: "short" }).format(
+                      new Date(t.created_at),
+                    )}
                   </p>
                 </div>
               ))}
@@ -1205,9 +1313,8 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
                   <button
                     key={p.id}
                     type="button"
-                    disabled={buyPlan.isPending}
-                    onClick={() => buyPlan.mutate(p.id)}
-                    className="block w-full border border-input p-2.5 text-left text-xs hover:border-foreground/40 disabled:opacity-50"
+                    onClick={() => setPendingPlan(p)}
+                    className="block w-full border border-input p-2.5 text-left text-xs hover:border-foreground/40"
                   >
                     <p className="font-medium">{p.name}</p>
                     <p className="text-muted-foreground">
@@ -1219,6 +1326,34 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
             ) : null}
           </div>
         </div>
+
+        {pendingPlan ? (
+          <Popout onClose={() => setPendingPlan(null)}>
+            <p className="mb-2 eyebrow">Confirmar compra</p>
+            <p className="text-sm">
+              ¿Agregar <strong>{pendingPlan.name}</strong> ({pendingPlan.tokens} créditos,{" "}
+              {money(pendingPlan.price_cents)}) a {profile?.full_name || profile?.email}?
+            </p>
+            {pendingPlan.terms ? (
+              <p className="mt-2 text-xs text-muted-foreground">{pendingPlan.terms}</p>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setPendingPlan(null)}
+                className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em]"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={buyPlan.isPending}
+                onClick={() => buyPlan.mutate(pendingPlan.id)}
+                className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-50"
+              >
+                Confirmar y cobrar
+              </button>
+            </div>
+          </Popout>
+        ) : null}
       </div>
     </div>
   );
@@ -1236,23 +1371,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function PackagesPanel() {
   const qc = useQueryClient();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
   const { data } = useQuery({
     queryKey: ["admin-packages"],
     queryFn: async () => {
       const { data, error } = await supabase.from("token_plans").select("*").order("sort_order");
       if (error) throw error;
       return data;
-    },
-  });
-
-  const update = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: TablesUpdate<"token_plans"> }) => {
-      const { error } = await supabase.from("token_plans").update(patch).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Paquete actualizado.");
-      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
     },
   });
 
@@ -1264,70 +1391,234 @@ export function PackagesPanel() {
     return Array.from(groups.entries());
   }, [data]);
 
+  const openPlan = data?.find((p) => p.id === openId);
+
   return (
     <div className="space-y-8">
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+      >
+        + Agregar paquete
+      </button>
+
       {grouped.map(([category, items]) => (
         <div key={category}>
           <p className="mb-3 eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((p) => (
-              <div key={p.id} className={`border p-5 ${p.active ? "border-border" : "border-border opacity-50"}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.subtitle}</p>
-                  </div>
-                  <button
-                    onClick={() => update.mutate({ id: p.id, patch: { active: !p.active } })}
-                    className="shrink-0 border border-input px-2 py-1 text-[0.6rem] uppercase"
-                  >
-                    {p.active ? "Ocultar" : "Publicar"}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">{p.description}</p>
-                {p.includes ? (
-                  <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                    {p.includes.split("\n").map((line, i) => (
-                      <li key={i}>· {line}</li>
-                    ))}
-                  </ul>
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setOpenId(p.id)}
+                className={`border p-4 text-left hover:border-foreground/40 ${p.active ? "border-border" : "border-border opacity-45"}`}
+              >
+                <p className="truncate text-sm font-medium">{p.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {money(p.price_cents)} · {p.tokens} créditos
+                </p>
+                {!p.active ? (
+                  <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
                 ) : null}
-                <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <label className="text-xs">
-                    <span className="eyebrow">Precio (MXN)</span>
-                    <input
-                      type="number"
-                      defaultValue={p.price_cents / 100}
-                      className={`${input} w-28`}
-                      onBlur={(e) =>
-                        update.mutate({
-                          id: p.id,
-                          patch: { price_cents: Math.round(Number(e.target.value) * 100) },
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="text-xs">
-                    <span className="eyebrow">Créditos</span>
-                    <input
-                      type="number"
-                      defaultValue={p.tokens}
-                      className={`${input} w-20`}
-                      onBlur={(e) => update.mutate({ id: p.id, patch: { tokens: Number(e.target.value) } })}
-                    />
-                  </label>
-                  {p.recurring ? (
-                    <span className="text-[0.65rem] text-muted-foreground">Cargo mensual recurrente</span>
-                  ) : null}
-                </div>
-                {p.terms ? <p className="mt-2 text-[0.65rem] text-muted-foreground">{p.terms}</p> : null}
-              </div>
+              </button>
             ))}
           </div>
         </div>
       ))}
       {grouped.length === 0 ? <p className="text-muted-foreground">Sin paquetes todavía.</p> : null}
+
+      {openPlan ? <PackageEditPopout plan={openPlan} onClose={() => setOpenId(null)} /> : null}
+      {creating ? <PackageEditPopout plan={null} onClose={() => setCreating(false)} /> : null}
     </div>
+  );
+}
+
+function PackageEditPopout({
+  plan,
+  onClose,
+}: {
+  plan: Tables<"token_plans"> | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const isNew = !plan;
+
+  const save = useMutation({
+    mutationFn: async (payload: TablesInsert<"token_plans">) => {
+      if (plan) {
+        const { error } = await supabase.from("token_plans").update(payload).eq("id", plan.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("token_plans").insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(isNew ? "Paquete creado." : "Paquete actualizado.");
+      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
+      onClose();
+    },
+    onError: () => toast.error("No se pudo guardar el paquete."),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async () => {
+      if (!plan) return;
+      const { error } = await supabase
+        .from("token_plans")
+        .update({ active: !plan.active })
+        .eq("id", plan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Visibilidad actualizada.");
+      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
+      onClose();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!plan) return;
+      const { error } = await supabase.from("token_plans").delete().eq("id", plan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Paquete borrado.");
+      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
+      onClose();
+    },
+    onError: () => toast.error("No se pudo borrar (¿tiene compras asociadas? Mejor ocúltalo)."),
+  });
+
+  return (
+    <Popout onClose={onClose}>
+      <p className="mb-4 eyebrow">{isNew ? "Nuevo paquete" : "Editar paquete"}</p>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          save.mutate({
+            name: String(f.get("name") || ""),
+            subtitle: String(f.get("subtitle") || ""),
+            description: String(f.get("description") || ""),
+            category: String(f.get("category") || "clases_pilates"),
+            price_cents: Math.round(Number(f.get("price") || 0) * 100),
+            tokens: Number(f.get("tokens") || 1),
+            recurring: f.get("recurring") === "on",
+            validity_days: f.get("validity_days") ? Number(f.get("validity_days")) : null,
+            includes: String(f.get("includes") || ""),
+            terms: String(f.get("terms") || ""),
+            active: plan ? plan.active : true,
+            sort_order: plan?.sort_order ?? 0,
+          });
+        }}
+      >
+        <label className="block text-xs">
+          <span className="eyebrow">Nombre</span>
+          <input name="name" defaultValue={plan?.name} required className={input} />
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Subtítulo</span>
+          <input name="subtitle" defaultValue={plan?.subtitle} className={input} />
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Descripción</span>
+          <textarea
+            name="description"
+            defaultValue={plan?.description}
+            rows={2}
+            className={input}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="text-xs">
+            <span className="eyebrow">Categoría</span>
+            <select
+              name="category"
+              defaultValue={plan?.category ?? "clases_pilates"}
+              className={input}
+            >
+              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Vigencia (días)</span>
+            <input
+              name="validity_days"
+              type="number"
+              defaultValue={plan?.validity_days ?? ""}
+              className={input}
+            />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Precio (MXN)</span>
+            <input
+              name="price"
+              type="number"
+              step="0.01"
+              defaultValue={plan ? plan.price_cents / 100 : ""}
+              required
+              className={input}
+            />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Créditos</span>
+            <input
+              name="tokens"
+              type="number"
+              defaultValue={plan?.tokens ?? 1}
+              required
+              className={input}
+            />
+          </label>
+        </div>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" name="recurring" defaultChecked={plan?.recurring} />
+          Cargo mensual recurrente
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Incluye (una línea por elemento)</span>
+          <textarea name="includes" defaultValue={plan?.includes} rows={3} className={input} />
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Términos y condiciones</span>
+          <textarea name="terms" defaultValue={plan?.terms} rows={2} className={input} />
+        </label>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="flex gap-2">
+            {!isNew ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => toggleActive.mutate()}
+                  className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em]"
+                >
+                  {plan?.active ? "Ocultar" : "Publicar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove.mutate()}
+                  className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-destructive"
+                >
+                  Borrar
+                </button>
+              </>
+            ) : null}
+          </div>
+          <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Popout>
   );
 }
 
@@ -1426,14 +1717,23 @@ export function PayrollPanel() {
         sheet,
       );
       const unmatched: string[] = [];
-      const upserts: { staff_id: string; period_start: string; period_end: string; hours: number }[] =
-        [];
+      const upserts: {
+        staff_id: string;
+        period_start: string;
+        period_end: string;
+        hours: number;
+      }[] = [];
       for (const row of rows) {
-        const email = String(row.Correo ?? "").trim().toLowerCase();
-        const name = String(row.Nombre ?? "").trim().toLowerCase();
+        const email = String(row.Correo ?? "")
+          .trim()
+          .toLowerCase();
+        const name = String(row.Nombre ?? "")
+          .trim()
+          .toLowerCase();
         const hours = Number(row.Horas ?? 0);
         const match = (staff ?? []).find(
-          (s) => (s.email ?? "").toLowerCase() === email || s.full_name.trim().toLowerCase() === name,
+          (s) =>
+            (s.email ?? "").toLowerCase() === email || s.full_name.trim().toLowerCase() === name,
         );
         if (!match) {
           if (email || name) unmatched.push(row.Nombre || row.Correo || "?");
@@ -1486,7 +1786,15 @@ export function PayrollPanel() {
     return { ...r, adjustments, adjTotal, total: r.base + adjTotal };
   });
 
+  const [roleFilter, setRoleFilter] = useState<"todos" | "coach" | "staff">("todos");
+  const [openStaffId, setOpenStaffId] = useState<string | null>(null);
+
+  const filteredRows = rowsWithAdjustments.filter((r) =>
+    roleFilter === "todos" ? true : r.staff.role === roleFilter,
+  );
+
   const grandTotal = rowsWithAdjustments.reduce((sum, r) => sum + r.total, 0);
+  const openRow = filteredRows.find((r) => r.staff.id === openStaffId);
 
   return (
     <div>
@@ -1563,70 +1871,102 @@ export function PayrollPanel() {
         </div>
       </div>
 
-      <ul className="divide-y divide-border border-y border-border text-sm">
-        {rowsWithAdjustments.map((r) => (
-          <li key={r.staff.id} className="space-y-3 py-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p>
-                  {r.staff.full_name}{" "}
-                  <span className="text-muted-foreground">· {r.staff.role}</span>
-                </p>
-                <p className="text-muted-foreground">
-                  {r.hasUpload ? (
-                    <>
-                      {r.hours.toFixed(1)} h capturadas · {money(r.staff.hourly_rate_cents)}/h →{" "}
-                      {money(r.base)}
-                    </>
-                  ) : (
-                    "Sin horas subidas para este periodo todavía."
-                  )}
-                </p>
-              </div>
-              <p className="text-lg">{money(r.total)}</p>
-            </div>
-            {r.adjustments.length > 0 ? (
-              <ul className="ml-4 space-y-1 text-xs text-muted-foreground">
-                {r.adjustments.map((a) => (
-                  <li key={a.id}>
-                    {a.amount_cents >= 0 ? "+" : ""}
-                    {money(a.amount_cents)} — {a.reason}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <form
-              className="flex flex-wrap items-end gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                addAdjustment.mutate({
-                  staffId: r.staff.id,
-                  amount: Number(f.get("amount") || 0),
-                  reason: String(f.get("reason") || ""),
-                });
-                e.currentTarget.reset();
-              }}
-            >
-              <input
-                name="amount"
-                type="number"
-                step="0.01"
-                placeholder="+/- MXN"
-                className={`${input} w-32`}
-              />
-              <input
-                name="reason"
-                placeholder="Motivo (ej. no-show, bono)"
-                className={`${input} w-64`}
-              />
-              <button className="border border-input px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em]">
-                Agregar ajuste
-              </button>
-            </form>
-          </li>
+      <div className="mb-4 flex gap-1.5">
+        {(["todos", "coach", "staff"] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRoleFilter(r)}
+            className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${roleFilter === r ? "border-foreground bg-foreground text-background" : "border-input"}`}
+          >
+            {r === "todos" ? "Todos" : r === "coach" ? "Coaches" : "Staff"}
+          </button>
         ))}
-      </ul>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {filteredRows.map((r) => (
+          <button
+            key={r.staff.id}
+            type="button"
+            onClick={() => setOpenStaffId(r.staff.id)}
+            className="border border-border p-4 text-left hover:border-foreground/40"
+          >
+            <p className="truncate text-sm font-medium">{r.staff.full_name}</p>
+            <p className="text-xs text-muted-foreground">{r.staff.role}</p>
+            <p className="mt-2 text-lg">{money(r.total)}</p>
+            <p className="text-[0.65rem] text-muted-foreground">
+              {r.hasUpload ? `${r.hours.toFixed(1)} h` : "Sin horas subidas"}
+            </p>
+          </button>
+        ))}
+        {filteredRows.length === 0 ? (
+          <p className="col-span-full text-muted-foreground">Nadie en este filtro.</p>
+        ) : null}
+      </div>
+
+      {openRow ? (
+        <Popout onClose={() => setOpenStaffId(null)}>
+          <p className="mb-1 eyebrow">{openRow.staff.role}</p>
+          <p className="text-lg font-medium">{openRow.staff.full_name}</p>
+          <p className="text-sm text-muted-foreground">{openRow.staff.email}</p>
+
+          <div className="mt-4 border border-border p-4">
+            <p className="text-muted-foreground">
+              {openRow.hasUpload ? (
+                <>
+                  {openRow.hours.toFixed(1)} h capturadas · {money(openRow.staff.hourly_rate_cents)}
+                  /h → {money(openRow.base)}
+                </>
+              ) : (
+                "Sin horas subidas para este periodo todavía."
+              )}
+            </p>
+            <p className="mt-2 text-xl">{money(openRow.total)}</p>
+          </div>
+
+          {openRow.adjustments.length > 0 ? (
+            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+              {openRow.adjustments.map((a) => (
+                <li key={a.id}>
+                  {a.amount_cents >= 0 ? "+" : ""}
+                  {money(a.amount_cents)} — {a.reason}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <form
+            className="mt-4 flex flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              addAdjustment.mutate({
+                staffId: openRow.staff.id,
+                amount: Number(f.get("amount") || 0),
+                reason: String(f.get("reason") || ""),
+              });
+              e.currentTarget.reset();
+            }}
+          >
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              placeholder="+/- MXN"
+              className={`${input} w-28`}
+            />
+            <input
+              name="reason"
+              placeholder="Motivo (ej. no-show, bono)"
+              className={`${input} flex-1`}
+            />
+            <button className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em]">
+              Agregar ajuste
+            </button>
+          </form>
+        </Popout>
+      ) : null}
     </div>
   );
 }
@@ -2259,6 +2599,180 @@ export function TimeClockPanel() {
 // ============================================================================
 // PERFIL DE COACH
 // ============================================================================
+// ============================================================================
+// COACHES — vista admin: elige un coach y ve sus clases de hoy/semana/mes y
+// cuántas reservaciones ha tenido.
+// ============================================================================
+export function CoachesPanel() {
+  const { data: coaches } = useQuery({
+    queryKey: ["admin-coaches-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("*")
+        .eq("role", "coach")
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
+
+  useEffect(() => {
+    if (!selectedId && coaches && coaches.length > 0) setSelectedId(coaches[0]!.id);
+  }, [coaches, selectedId]);
+
+  const bounds = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    if (range === "hoy") end.setDate(end.getDate() + 1);
+    else if (range === "semana") end.setDate(end.getDate() + 7);
+    else end.setMonth(end.getMonth() + 1);
+    return { start, end };
+  }, [range]);
+
+  const { data: classes } = useQuery({
+    queryKey: [
+      "coaches-panel-classes",
+      selectedId,
+      bounds.start.toISOString(),
+      bounds.end.toISOString(),
+    ],
+    enabled: Boolean(selectedId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("coach_id", selectedId as string)
+        .gte("starts_at", bounds.start.toISOString())
+        .lt("starts_at", bounds.end.toISOString())
+        .order("starts_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: bookingCounts } = useQuery({
+    queryKey: ["coaches-panel-bookings", (classes ?? []).map((c) => c.id).join(",")],
+    enabled: Boolean(classes?.length),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("class_id, status")
+        .in(
+          "class_id",
+          (classes ?? []).map((c) => c.id),
+        );
+      if (error) throw error;
+      const counts = new Map<string, { reservada: number; total: number }>();
+      for (const b of data ?? []) {
+        const acc = counts.get(b.class_id) ?? { reservada: 0, total: 0 };
+        acc.total += 1;
+        if (b.status === "reservada") acc.reservada += 1;
+        counts.set(b.class_id, acc);
+      }
+      return counts;
+    },
+  });
+
+  const totalReservations = (classes ?? []).reduce(
+    (sum, c) => sum + (bookingCounts?.get(c.id)?.reservada ?? 0),
+    0,
+  );
+  const selectedCoach = coaches?.find((c) => c.id === selectedId);
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <label className="text-xs">
+          <span className="eyebrow">Coach</span>
+          <select
+            value={selectedId ?? ""}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className={`${input} w-64`}
+          >
+            {(coaches ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex gap-1.5">
+          {(["hoy", "semana", "mes"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRange(r)}
+              className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${range === r ? "border-foreground bg-foreground text-background" : "border-input"}`}
+            >
+              {r === "hoy" ? "Hoy" : r === "semana" ? "Semana" : "Mes"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {(coaches ?? []).length === 0 ? (
+        <p className="text-muted-foreground">
+          Sin coaches dados de alta todavía (asigna el rol "Coach" en Staff).
+        </p>
+      ) : (
+        <>
+          <div className="mb-6 grid gap-4 sm:grid-cols-3">
+            <div className="border border-border p-4">
+              <p className="eyebrow">Clases en el rango</p>
+              <p className="mt-1 text-xl">{(classes ?? []).length}</p>
+            </div>
+            <div className="border border-border p-4">
+              <p className="eyebrow">Reservaciones totales</p>
+              <p className="mt-1 text-xl">{totalReservations}</p>
+            </div>
+            <div className="border border-border p-4">
+              <p className="eyebrow">Tarifa por hora</p>
+              <p className="mt-1 text-xl">{money(selectedCoach?.hourly_rate_cents ?? 0)}</p>
+            </div>
+          </div>
+
+          <ul className="divide-y divide-border border-y border-border text-sm">
+            {(classes ?? []).map((c) => {
+              const counts = bookingCounts?.get(c.id) ?? { reservada: 0, total: 0 };
+              return (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <span>
+                    {new Intl.DateTimeFormat("es-MX", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(c.starts_at))}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {c.room} · {c.module_key}
+                  </span>
+                  <span
+                    className={
+                      counts.reservada >= c.capacity
+                        ? "bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
+                        : "bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                    }
+                  >
+                    {counts.reservada}/{c.capacity}
+                  </span>
+                </li>
+              );
+            })}
+            {(classes ?? []).length === 0 ? (
+              <li className="py-6 text-muted-foreground">Sin clases en este rango.</li>
+            ) : null}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function CoachProfilePanel() {
   const { staffProfile } = useAuth();
 
@@ -2365,48 +2879,73 @@ const TOKEN_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function FinancePanel() {
+  const now = useMemo(() => new Date(), []);
+  const [openCard, setOpenCard] = useState<"tokens" | "merch" | "consumibles" | "nomina" | null>(
+    null,
+  );
+  const [merchSort, setMerchSort] = useState<"top" | "bottom">("top");
+  const [consumibleSort, setConsumibleSort] = useState<"top" | "bottom">("top");
+
+  // Últimas 8 semanas + 2 semanas de proyección (promedio de las últimas 4).
+  const weeks = useMemo(() => {
+    const list: { start: Date; end: Date; label: string }[] = [];
+    for (let i = 7; i >= 0; i--) {
+      const end = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+      const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+      list.push({ start, end, label: `${start.getDate()}/${start.getMonth() + 1}` });
+    }
+    return list;
+  }, [now]);
+
   const monthStart = useMemo(() => {
     const d = new Date();
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
-  const now = new Date();
-  const [expanded, setExpanded] = useState<"tokens" | "merch" | "consumibles" | "nomina" | null>(null);
 
   const { data } = useQuery({
-    queryKey: ["finance-month", monthStart.toISOString()],
+    queryKey: ["finance-month", monthStart.toISOString(), weeks[0]?.start.toISOString()],
     queryFn: async () => {
       const fromIso = monthStart.toISOString();
       const toIso = now.toISOString();
+      const trendFromIso = weeks[0]!.start.toISOString();
 
       const { data: transactions } = await supabase
         .from("transactions")
         .select("amount_cents, status, created_at, user_id, plan:token_plans(category, name)")
         .eq("status", "completed")
-        .gte("created_at", fromIso)
+        .gte("created_at", trendFromIso)
         .lte("created_at", toIso);
 
       const tokensByCategory = new Map<string, number>();
-      const clientsByPlan = new Map<string, { user_id: string }[]>();
+      const tokensByPlan = new Map<string, { name: string; revenue: number; count: number }>();
       let clasesRevenue = 0;
       for (const t of transactions ?? []) {
+        if (new Date(t.created_at) < monthStart) continue;
         clasesRevenue += t.amount_cents;
         const cat = t.plan?.category ?? "clases_pilates";
         tokensByCategory.set(cat, (tokensByCategory.get(cat) ?? 0) + t.amount_cents);
-        clientsByPlan.set(cat, [...(clientsByPlan.get(cat) ?? []), { user_id: t.user_id }]);
+        const planName = t.plan?.name ?? "Otro";
+        const acc = tokensByPlan.get(planName) ?? { name: planName, revenue: 0, count: 0 };
+        acc.revenue += t.amount_cents;
+        acc.count += 1;
+        tokensByPlan.set(planName, acc);
       }
 
       const { data: saleItems } = await supabase
         .from("pos_sale_items")
         .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id)")
-        .gte("sale.created_at", fromIso)
+        .gte("sale.created_at", trendFromIso)
         .lte("sale.created_at", toIso);
       const productIds = Array.from(
         new Set((saleItems ?? []).map((i) => i.product_id).filter(Boolean)),
       ) as string[];
       const { data: products } = productIds.length
-        ? await supabase.from("products").select("id, category, cost_cents, name").in("id", productIds)
+        ? await supabase
+            .from("products")
+            .select("id, category, cost_cents, name")
+            .in("id", productIds)
         : { data: [] as { id: string; category: string; cost_cents: number; name: string }[] };
       const productById = new Map((products ?? []).map((p) => [p.id, p]));
 
@@ -2415,22 +2954,27 @@ export function FinancePanel() {
 
       let merchRevenue = 0;
       let consumibleRevenue = 0;
-      let cogs = 0;
       const topMerch = new Map<string, { name: string; units: number; revenue: number }>();
       const topConsumibles = new Map<string, { name: string; units: number; revenue: number }>();
       const clientsMerch = new Map<string, { name: string; revenue: number }>();
       const clientsConsumibles = new Map<string, { name: string; revenue: number }>();
+      const weeklyPos = weeks.map(() => 0);
+      const weeklyTokens = weeks.map(() => 0);
       for (const item of saleItems ?? []) {
         const amount = item.qty * item.unit_price_cents;
         const product = item.product_id ? productById.get(item.product_id) : undefined;
         const cat = product?.category;
-        cogs += item.qty * (product?.cost_cents ?? 0);
+        const createdAt = item.sale?.created_at ? new Date(item.sale.created_at) : null;
+        if (createdAt) {
+          const wi = weeks.findIndex((w) => createdAt >= w.start && createdAt < w.end);
+          if (wi >= 0) weeklyPos[wi]! += amount;
+        }
         const clientId = item.sale?.user_id;
         const clientName = clientId
           ? profileById.get(clientId)?.full_name || profileById.get(clientId)?.email || "Cliente"
           : "Sin cliente";
         if (cat === "merch") {
-          merchRevenue += amount;
+          if (createdAt && createdAt >= monthStart) merchRevenue += amount;
           if (product) {
             const acc = topMerch.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
             acc.units += item.qty;
@@ -2443,9 +2987,13 @@ export function FinancePanel() {
             clientsMerch.set(clientId, acc);
           }
         } else if (cat === "consumible" || cat === "suplemento") {
-          consumibleRevenue += amount;
+          if (createdAt && createdAt >= monthStart) consumibleRevenue += amount;
           if (product) {
-            const acc = topConsumibles.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
+            const acc = topConsumibles.get(product.id) ?? {
+              name: product.name,
+              units: 0,
+              revenue: 0,
+            };
             acc.units += item.qty;
             acc.revenue += amount;
             topConsumibles.set(product.id, acc);
@@ -2457,10 +3005,13 @@ export function FinancePanel() {
           }
         }
       }
-      const sortTop = (m: Map<string, { name: string; units: number; revenue: number }>) =>
-        Array.from(m.values())
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5);
+      for (const t of transactions ?? []) {
+        const createdAt = new Date(t.created_at);
+        const wi = weeks.findIndex((w) => createdAt >= w.start && createdAt < w.end);
+        if (wi >= 0) weeklyTokens[wi]! += t.amount_cents;
+      }
+      const sortMap = (m: Map<string, { name: string; units: number; revenue: number }>) =>
+        Array.from(m.values()).sort((a, b) => b.revenue - a.revenue);
       const sortClients = (m: Map<string, { name: string; revenue: number }>) =>
         Array.from(m.values()).sort((a, b) => b.revenue - a.revenue);
 
@@ -2468,192 +3019,106 @@ export function FinancePanel() {
       const { data: hoursRows } = await supabase
         .from("payroll_period_hours")
         .select("*")
-        .gte("period_start", fromIso.slice(0, 10))
+        .gte("period_start", monthStart.toISOString().slice(0, 10))
         .lte("period_end", toIso.slice(0, 10));
       const { data: adjustments } = await supabase
         .from("payroll_adjustments")
-        .select("staff_id, amount_cents")
-        .gte("created_at", fromIso)
+        .select("staff_id, amount_cents, created_at")
+        .gte("created_at", trendFromIso)
         .lte("created_at", toIso);
       const payrollByStaff = new Map<string, { name: string; cost: number }>();
       let payrollCost = 0;
+      const weeklyPayroll = weeks.map(() => 0);
       for (const s of staff ?? []) {
         const hours = (hoursRows ?? [])
           .filter((h) => h.staff_id === s.id)
           .reduce((sum, h) => sum + h.hours, 0);
-        const adjTotal = (adjustments ?? [])
-          .filter((a) => a.staff_id === s.id)
+        const monthAdjTotal = (adjustments ?? [])
+          .filter((a) => a.staff_id === s.id && new Date(a.created_at) >= monthStart)
           .reduce((sum, a) => sum + a.amount_cents, 0);
-        const cost = hours * s.hourly_rate_cents + adjTotal;
+        const cost = hours * s.hourly_rate_cents + monthAdjTotal;
         payrollCost += cost;
         payrollByStaff.set(s.id, { name: s.full_name, cost });
       }
+      for (const a of adjustments ?? []) {
+        const createdAt = new Date(a.created_at);
+        const wi = weeks.findIndex((w) => createdAt >= w.start && createdAt < w.end);
+        if (wi >= 0) weeklyPayroll[wi]! += a.amount_cents;
+      }
+      // La nómina real solo se sabe por periodo capturado, no por semana —
+      // repartimos el costo del mes entre las semanas del rango como estimado
+      // visual de tendencia, no como cifra contable exacta.
+      const weeksInMonth = weeks.filter((w) => w.end > monthStart).length || 1;
+      for (let i = 0; i < weeks.length; i++) {
+        if (weeks[i]!.end > monthStart) weeklyPayroll[i]! += payrollCost / weeksInMonth;
+      }
+
+      const trend = weeks.map((w, i) => ({
+        label: w.label,
+        revenue: weeklyPos[i]! + weeklyTokens[i]!,
+        cost: weeklyPayroll[i]!,
+        margin: weeklyPos[i]! + weeklyTokens[i]! - weeklyPayroll[i]!,
+        projected: false,
+      }));
+      const last4 = trend.slice(-4);
+      const avgRevenue = last4.reduce((s, t) => s + t.revenue, 0) / (last4.length || 1);
+      const avgCost = last4.reduce((s, t) => s + t.cost, 0) / (last4.length || 1);
+      const projected = [1, 2].map((i) => ({
+        label: `+${i}sem`,
+        revenue: avgRevenue,
+        cost: avgCost,
+        margin: avgRevenue - avgCost,
+        projected: true,
+      }));
 
       const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue;
       return {
         clasesRevenue,
         tokensByCategory,
+        tokensByPlan: Array.from(tokensByPlan.values()).sort((a, b) => b.revenue - a.revenue),
         merchRevenue,
         consumibleRevenue,
-        cogs,
-        topMerch: sortTop(topMerch),
-        topConsumibles: sortTop(topConsumibles),
+        topMerch: sortMap(topMerch),
+        topConsumibles: sortMap(topConsumibles),
         clientsMerch: sortClients(clientsMerch),
         clientsConsumibles: sortClients(clientsConsumibles),
         payrollCost,
         payrollByStaff: Array.from(payrollByStaff.values()).sort((a, b) => b.cost - a.cost),
         totalRevenue,
         margin: totalRevenue - payrollCost,
+        trend: [...trend, ...projected],
       };
     },
   });
 
   const marginPositive = (data?.margin ?? 0) >= 0;
-  const toggle = (key: "tokens" | "merch" | "consumibles" | "nomina") =>
-    setExpanded((e) => (e === key ? null : key));
+  const trend = data?.trend ?? [];
+  const maxVal = Math.max(1, ...trend.map((t) => Math.max(t.revenue, t.cost)));
+  const chartW = 640;
+  const chartH = 160;
+  const stepX = chartW / Math.max(1, trend.length - 1);
+  const solidCount = trend.filter((t) => !t.projected).length;
+
+  // linePath dibuja usando la posición ABSOLUTA (índice real dentro de
+  // `trend`) para que las series solidas y la proyectada queden alineadas.
+  const linePath = (key: "revenue" | "cost" | "margin", indices: number[]) =>
+    indices
+      .map(
+        (i, n) =>
+          `${n === 0 ? "M" : "L"} ${i * stepX} ${chartH - (trend[i]![key] / maxVal) * chartH}`,
+      )
+      .join(" ");
+
+  const solidIndices = trend.map((_, i) => i).filter((i) => i < solidCount);
+  // La línea punteada arranca en el último punto sólido para que se vea
+  // continua, y cubre desde ahí hasta el final (semanas proyectadas).
+  const projectedIndices = trend.map((_, i) => i).filter((i) => i >= solidCount - 1);
 
   return (
     <div className="space-y-8">
       <p className="text-sm text-muted-foreground">
-        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy. Toca
-        una tarjeta para ver el desglose.
+        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy.
       </p>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => toggle("tokens")}
-          className={`border p-5 text-left ${expanded === "tokens" ? "border-foreground" : "border-border"}`}
-        >
-          <p className="eyebrow">Tokens / créditos</p>
-          <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => toggle("merch")}
-          className={`border p-5 text-left ${expanded === "merch" ? "border-foreground" : "border-border"}`}
-        >
-          <p className="eyebrow">Merch</p>
-          <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => toggle("consumibles")}
-          className={`border p-5 text-left ${expanded === "consumibles" ? "border-foreground" : "border-border"}`}
-        >
-          <p className="eyebrow">Consumibles (Recovery Bar)</p>
-          <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
-        </button>
-      </div>
-
-      {expanded === "tokens" ? (
-        <div className="border border-border p-6">
-          <p className="mb-3 eyebrow">Desglose por tipo de crédito</p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
-              <div key={key} className="border border-border p-4">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 text-lg">{money(data?.tokensByCategory.get(key) ?? 0)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {expanded === "merch" ? (
-        <div className="grid gap-6 border border-border p-6 sm:grid-cols-2">
-          <div>
-            <p className="mb-3 eyebrow">Producto más vendido</p>
-            <ul className="divide-y divide-border text-sm">
-              {(data?.topMerch ?? []).map((p) => (
-                <li key={p.name} className="flex items-center justify-between py-2">
-                  <span>{p.name}</span>
-                  <span className="text-muted-foreground">
-                    {p.units} uds · {money(p.revenue)}
-                  </span>
-                </li>
-              ))}
-              {(data?.topMerch ?? []).length === 0 ? (
-                <li className="py-2 text-muted-foreground">Sin ventas de merch este mes.</li>
-              ) : null}
-            </ul>
-          </div>
-          <div>
-            <p className="mb-3 eyebrow">Cliente que más ha comprado</p>
-            <ul className="divide-y divide-border text-sm">
-              {(data?.clientsMerch ?? []).slice(0, 5).map((c) => (
-                <li key={c.name} className="flex items-center justify-between py-2">
-                  <span>{c.name}</span>
-                  <span className="text-muted-foreground">{money(c.revenue)}</span>
-                </li>
-              ))}
-              {(data?.clientsMerch ?? []).length === 0 ? (
-                <li className="py-2 text-muted-foreground">Sin datos todavía.</li>
-              ) : null}
-            </ul>
-          </div>
-        </div>
-      ) : null}
-
-      {expanded === "consumibles" ? (
-        <div className="grid gap-6 border border-border p-6 sm:grid-cols-2">
-          <div>
-            <p className="mb-3 eyebrow">Producto más vendido</p>
-            <ul className="divide-y divide-border text-sm">
-              {(data?.topConsumibles ?? []).map((p) => (
-                <li key={p.name} className="flex items-center justify-between py-2">
-                  <span>{p.name}</span>
-                  <span className="text-muted-foreground">
-                    {p.units} uds · {money(p.revenue)}
-                  </span>
-                </li>
-              ))}
-              {(data?.topConsumibles ?? []).length === 0 ? (
-                <li className="py-2 text-muted-foreground">Sin ventas de consumibles este mes.</li>
-              ) : null}
-            </ul>
-          </div>
-          <div>
-            <p className="mb-3 eyebrow">Cliente que más ha comprado</p>
-            <ul className="divide-y divide-border text-sm">
-              {(data?.clientsConsumibles ?? []).slice(0, 5).map((c) => (
-                <li key={c.name} className="flex items-center justify-between py-2">
-                  <span>{c.name}</span>
-                  <span className="text-muted-foreground">{money(c.revenue)}</span>
-                </li>
-              ))}
-              {(data?.clientsConsumibles ?? []).length === 0 ? (
-                <li className="py-2 text-muted-foreground">Sin datos todavía.</li>
-              ) : null}
-            </ul>
-          </div>
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => toggle("nomina")}
-        className={`block w-full border p-5 text-left ${expanded === "nomina" ? "border-foreground" : "border-border"}`}
-      >
-        <p className="eyebrow">Nómina del mes</p>
-        <p className="mt-1 text-xl">{money(data?.payrollCost ?? 0)}</p>
-      </button>
-      {expanded === "nomina" ? (
-        <div className="border border-border p-6">
-          <p className="mb-3 eyebrow">Desglose por coach / staff</p>
-          <ul className="divide-y divide-border text-sm">
-            {(data?.payrollByStaff ?? []).map((s) => (
-              <li key={s.name} className="flex items-center justify-between py-2">
-                <span>{s.name}</span>
-                <span className="text-muted-foreground">{money(s.cost)}</span>
-              </li>
-            ))}
-            {(data?.payrollByStaff ?? []).length === 0 ? (
-              <li className="py-2 text-muted-foreground">Sin staff activo.</li>
-            ) : null}
-          </ul>
-        </div>
-      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="border border-border p-6">
@@ -2677,10 +3142,268 @@ export function FinancePanel() {
         </div>
       </div>
 
+      <div className="border border-border p-6">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="eyebrow">Tendencia semanal (ingresos, costo, margen)</p>
+          <div className="flex items-center gap-3 text-[0.65rem] text-muted-foreground">
+            <span>— Ingresos</span>
+            <span>— Costo</span>
+            <span>— Margen</span>
+            <span>┄ Proyección</span>
+          </div>
+        </div>
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="h-40 w-full overflow-visible">
+          <path
+            d={linePath("revenue", solidIndices)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            className="text-foreground"
+          />
+          <path
+            d={linePath("cost", solidIndices)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="text-destructive"
+          />
+          <path
+            d={linePath("margin", solidIndices)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="text-emerald-600"
+          />
+          <path
+            d={linePath("revenue", projectedIndices)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            className="text-foreground/50"
+          />
+        </svg>
+        <div className="mt-1 flex justify-between text-[0.6rem] text-muted-foreground">
+          {trend.map((t, i) => (
+            <span key={i} className={t.projected ? "italic" : ""}>
+              {t.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => setOpenCard("tokens")}
+          className="border border-border p-5 text-left hover:border-foreground/40"
+        >
+          <p className="eyebrow">Tokens / créditos</p>
+          <p className="mt-1 text-xl">{money(data?.clasesRevenue ?? 0)}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpenCard("merch")}
+          className="border border-border p-5 text-left hover:border-foreground/40"
+        >
+          <p className="eyebrow">Merch</p>
+          <p className="mt-1 text-xl">{money(data?.merchRevenue ?? 0)}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpenCard("consumibles")}
+          className="border border-border p-5 text-left hover:border-foreground/40"
+        >
+          <p className="eyebrow">Consumibles (Recovery Bar)</p>
+          <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpenCard("nomina")}
+        className="block w-full border border-border p-5 text-left hover:border-foreground/40"
+      >
+        <p className="eyebrow">Nómina del mes</p>
+        <p className="mt-1 text-xl">{money(data?.payrollCost ?? 0)}</p>
+      </button>
+
+      {openCard === "tokens" ? (
+        <Popout onClose={() => setOpenCard(null)} wide>
+          <p className="mb-4 eyebrow">Tokens / créditos — análisis</p>
+          <p className="mb-2 text-xs text-muted-foreground">Por categoría</p>
+          <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
+              <div key={key} className="border border-border p-4">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="mt-1 text-lg">{money(data?.tokensByCategory.get(key) ?? 0)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Por paquete (de mejor a peor vendido)
+          </p>
+          <ul className="divide-y divide-border border-y border-border text-sm">
+            {(data?.tokensByPlan ?? []).map((p) => (
+              <li key={p.name} className="flex items-center justify-between py-2">
+                <span>{p.name}</span>
+                <span className="text-muted-foreground">
+                  {p.count} venta{p.count === 1 ? "" : "s"} · {money(p.revenue)}
+                </span>
+              </li>
+            ))}
+            {(data?.tokensByPlan ?? []).length === 0 ? (
+              <li className="py-2 text-muted-foreground">Sin ventas de paquetes este mes.</li>
+            ) : null}
+          </ul>
+        </Popout>
+      ) : null}
+
+      {openCard === "merch" ? (
+        <Popout onClose={() => setOpenCard(null)} wide>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="eyebrow">Merch — análisis</p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMerchSort("top")}
+                className={`border px-3 py-1 text-[0.6rem] uppercase ${merchSort === "top" ? "border-foreground bg-foreground text-background" : "border-input"}`}
+              >
+                Mejor a peor
+              </button>
+              <button
+                type="button"
+                onClick={() => setMerchSort("bottom")}
+                className={`border px-3 py-1 text-[0.6rem] uppercase ${merchSort === "bottom" ? "border-foreground bg-foreground text-background" : "border-input"}`}
+              >
+                Peor a mejor
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs text-muted-foreground">Productos</p>
+              <ul className="divide-y divide-border text-sm">
+                {(merchSort === "top"
+                  ? (data?.topMerch ?? [])
+                  : [...(data?.topMerch ?? [])].reverse()
+                ).map((p) => (
+                  <li key={p.name} className="flex items-center justify-between py-2">
+                    <span>{p.name}</span>
+                    <span className="text-muted-foreground">
+                      {p.units} uds · {money(p.revenue)}
+                    </span>
+                  </li>
+                ))}
+                {(data?.topMerch ?? []).length === 0 ? (
+                  <li className="py-2 text-muted-foreground">Sin ventas de merch.</li>
+                ) : null}
+              </ul>
+            </div>
+            <div>
+              <p className="mb-2 text-xs text-muted-foreground">Clientes</p>
+              <ul className="divide-y divide-border text-sm">
+                {(merchSort === "top"
+                  ? (data?.clientsMerch ?? [])
+                  : [...(data?.clientsMerch ?? [])].reverse()
+                ).map((c) => (
+                  <li key={c.name} className="flex items-center justify-between py-2">
+                    <span>{c.name}</span>
+                    <span className="text-muted-foreground">{money(c.revenue)}</span>
+                  </li>
+                ))}
+                {(data?.clientsMerch ?? []).length === 0 ? (
+                  <li className="py-2 text-muted-foreground">Sin datos.</li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        </Popout>
+      ) : null}
+
+      {openCard === "consumibles" ? (
+        <Popout onClose={() => setOpenCard(null)} wide>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="eyebrow">Consumibles (Recovery Bar) — análisis</p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setConsumibleSort("top")}
+                className={`border px-3 py-1 text-[0.6rem] uppercase ${consumibleSort === "top" ? "border-foreground bg-foreground text-background" : "border-input"}`}
+              >
+                Mejor a peor
+              </button>
+              <button
+                type="button"
+                onClick={() => setConsumibleSort("bottom")}
+                className={`border px-3 py-1 text-[0.6rem] uppercase ${consumibleSort === "bottom" ? "border-foreground bg-foreground text-background" : "border-input"}`}
+              >
+                Peor a mejor
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs text-muted-foreground">Productos</p>
+              <ul className="divide-y divide-border text-sm">
+                {(consumibleSort === "top"
+                  ? (data?.topConsumibles ?? [])
+                  : [...(data?.topConsumibles ?? [])].reverse()
+                ).map((p) => (
+                  <li key={p.name} className="flex items-center justify-between py-2">
+                    <span>{p.name}</span>
+                    <span className="text-muted-foreground">
+                      {p.units} uds · {money(p.revenue)}
+                    </span>
+                  </li>
+                ))}
+                {(data?.topConsumibles ?? []).length === 0 ? (
+                  <li className="py-2 text-muted-foreground">Sin ventas de consumibles.</li>
+                ) : null}
+              </ul>
+            </div>
+            <div>
+              <p className="mb-2 text-xs text-muted-foreground">Clientes</p>
+              <ul className="divide-y divide-border text-sm">
+                {(consumibleSort === "top"
+                  ? (data?.clientsConsumibles ?? [])
+                  : [...(data?.clientsConsumibles ?? [])].reverse()
+                ).map((c) => (
+                  <li key={c.name} className="flex items-center justify-between py-2">
+                    <span>{c.name}</span>
+                    <span className="text-muted-foreground">{money(c.revenue)}</span>
+                  </li>
+                ))}
+                {(data?.clientsConsumibles ?? []).length === 0 ? (
+                  <li className="py-2 text-muted-foreground">Sin datos.</li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        </Popout>
+      ) : null}
+
+      {openCard === "nomina" ? (
+        <Popout onClose={() => setOpenCard(null)}>
+          <p className="mb-4 eyebrow">Nómina del mes — desglose</p>
+          <ul className="divide-y divide-border text-sm">
+            {(data?.payrollByStaff ?? []).map((s) => (
+              <li key={s.name} className="flex items-center justify-between py-2">
+                <span>{s.name}</span>
+                <span className="text-muted-foreground">{money(s.cost)}</span>
+              </li>
+            ))}
+            {(data?.payrollByStaff ?? []).length === 0 ? (
+              <li className="py-2 text-muted-foreground">Sin staff activo.</li>
+            ) : null}
+          </ul>
+        </Popout>
+      ) : null}
+
       <p className="text-xs text-muted-foreground">
         Nota: el margen resta solo el costo de nómina (horas capturadas por Excel × tarifa +
-        ajustes) a los ingresos totales del mes. No incluye renta, costo de mercancía ni otros
-        gastos fijos — dime si quieres que también los sumemos.
+        ajustes) a los ingresos totales del mes. La línea punteada de la gráfica es una proyección
+        simple (promedio de las últimas 4 semanas), no un pronóstico financiero preciso.
       </p>
     </div>
   );
