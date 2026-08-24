@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell, type AdminNavGroup } from "@/components/admin/admin-shell";
+import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
 import {
   POSPanel,
   InventoryPanel,
@@ -137,10 +138,10 @@ function Admin() {
       subtitle={staffProfile?.role}
     >
       {activeKey === "horarios-clases" ? (
-        <ClassesPanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
+        <AdminSchedulePanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
       ) : null}
       {activeKey === "horarios-consultorio" ? (
-        <ClassesPanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
+        <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
       {activeKey === "checkin" ? <CheckInPanel /> : null}
       {activeKey === "pos" ? <POSPanel /> : null}

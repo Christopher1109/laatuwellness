@@ -19,25 +19,31 @@ export type Database = {
           class_id: string
           created_at: string
           id: string
+          seat_number: number | null
           status: string
           tokens_spent: number
           user_id: string
+          waitlisted_at: string | null
         }
         Insert: {
           class_id: string
           created_at?: string
           id?: string
+          seat_number?: number | null
           status?: string
           tokens_spent?: number
           user_id: string
+          waitlisted_at?: string | null
         }
         Update: {
           class_id?: string
           created_at?: string
           id?: string
+          seat_number?: number | null
           status?: string
           tokens_spent?: number
           user_id?: string
+          waitlisted_at?: string | null
         }
         Relationships: [
           {
@@ -831,6 +837,10 @@ export type Database = {
       }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       link_existing_staff_accounts: { Args: never; Returns: undefined }
+      refund_booking_credit: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: undefined
+      }
       mark_no_show: {
         Args: { _booking_id: string; _penalty_cents?: number }
         Returns: {
