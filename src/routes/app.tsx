@@ -1,9 +1,20 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarDays, ListChecks, Wallet, LogOut, ShoppingBag } from "lucide-react";
-import { Schedule } from "@/components/schedule";
+import {
+  BadgeCheck,
+  CalendarDays,
+  CalendarSearch,
+  ChevronLeft,
+  ChevronRight,
+  ListChecks,
+  LogOut,
+  ShoppingBag,
+  Wallet,
+  X,
+} from "lucide-react";
+import { dayLabel, timeLabel } from "@/components/schedule";
 import { Wordmark } from "@/components/brand";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
@@ -169,10 +180,503 @@ function AppTopBar() {
   );
 }
 
+const ERRORS: Record<string, string> = {
+  WAIVER_REQUIRED: "Necesitas firmar el waiver antes de reservar.",
+  INSUFFICIENT_TOKENS: "No tienes créditos suficientes. Compra un paquete para continuar.",
+  CLASS_FULL: "Esta clase ya está llena.",
+  ALREADY_BOOKED: "Ya tienes esta clase reservada.",
+  CLASS_PAST: "Esta clase ya pasó.",
+  AUTH_REQUIRED: "Inicia sesión para reservar.",
+  SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
+};
+
+type AppClassRow = {
+  id: string;
+  room: string;
+  instructor: string;
+  starts_at: string;
+  duration_min: number;
+  capacity: number;
+  tokens_cost: number;
+  module_key: string | null;
+  taken: number;
+  waitlisted: number;
+};
+
+function dayStripDays() {
+  const days: Date[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
 function HorariosTab() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+  const [openClass, setOpenClass] = useState<AppClassRow | null>(null);
+
+  const strip = useMemo(() => dayStripDays(), []);
+
+  const dayBounds = useMemo(() => {
+    const start = new Date(selectedDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, [selectedDate]);
+
+  const { data: modules } = useQuery({
+    queryKey: ["app-site-modules"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_modules")
+        .select("key, name")
+        .eq("enabled", true);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const moduleName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of modules ?? []) map.set(m.key, m.name);
+    return map;
+  }, [modules]);
+
+  const { data: classes, isLoading } = useQuery({
+    queryKey: ["app-day-classes", dayBounds.start.toISOString()],
+    queryFn: async (): Promise<AppClassRow[]> => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("active", true)
+        .gte("starts_at", dayBounds.start.toISOString())
+        .lt("starts_at", dayBounds.end.toISOString())
+        .order("starts_at");
+      if (error) throw error;
+      return Promise.all(
+        (data ?? []).map(async (c) => {
+          const { data: taken } = await supabase.rpc("class_seats_taken", { _class_id: c.id });
+          const { data: waitlisted } = await supabase.rpc("class_waitlist_count", {
+            _class_id: c.id,
+          });
+          return {
+            ...c,
+            taken: (taken as number | null) ?? 0,
+            waitlisted: (waitlisted as number | null) ?? 0,
+          };
+        }),
+      );
+    },
+  });
+
+  const { data: myBookings } = useQuery({
+    queryKey: ["app-my-booked-ids", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("class_id, status")
+        .in("status", ["reservada", "lista_espera"]);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const bookedIds = new Set(
+    (myBookings ?? []).filter((b) => b.status === "reservada").map((b) => b.class_id),
+  );
+  const waitlistedIds = new Set(
+    (myBookings ?? []).filter((b) => b.status === "lista_espera").map((b) => b.class_id),
+  );
+
+  const monthGrid = useMemo(() => {
+    const start = new Date(monthCursor);
+    const startDow = start.getDay();
+    const gridStart = new Date(start);
+    gridStart.setDate(gridStart.getDate() - startDow);
+    const days: Date[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [monthCursor]);
+
+  const invalidateAll = () => {
+    void qc.invalidateQueries({ queryKey: ["app-day-classes"] });
+    void qc.invalidateQueries({ queryKey: ["app-my-booked-ids"] });
+    void qc.invalidateQueries({ queryKey: ["app-my-orders"] });
+    void qc.invalidateQueries({ queryKey: ["app-balance"] });
+    void qc.invalidateQueries({ queryKey: ["app-bookings"] });
+    // Estas mismas tablas las lee el calendario admin y /horarios público —
+    // al refrescar cualquiera de esas vistas ya reflejan la reserva nueva.
+  };
+
+  const book = useMutation({
+    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
+      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Clase reservada. Nos vemos en el estudio.");
+      setOpenClass(null);
+      invalidateAll();
+    },
+    onError: (error: Error) => {
+      const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
+      toast.error(key ? ERRORS[key] : "No pudimos completar la reserva.");
+      if (key === "WAIVER_REQUIRED" || key === "INSUFFICIENT_TOKENS") navigate({ to: "/cuenta" });
+    },
+  });
+
+  const joinWaitlist = useMutation({
+    mutationFn: async (classId: string) => {
+      const { error } = await supabase.rpc("join_waitlist", { _class_id: classId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Estás en la lista de espera.");
+      setOpenClass(null);
+      invalidateAll();
+    },
+    onError: (error: Error) => {
+      const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
+      toast.error(key ? ERRORS[key] : "No pudimos anotarte.");
+    },
+  });
+
   return (
-    <div className="px-5 py-6">
-      <Schedule defaultRange="hoy" />
+    <div>
+      <div className="sticky top-[65px] z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 gap-1.5 overflow-x-auto">
+            {strip.map((d) => {
+              const isToday = sameDay(d, new Date());
+              const active = sameDay(d, selectedDate);
+              return (
+                <button
+                  key={d.toISOString()}
+                  onClick={() => setSelectedDate(d)}
+                  className={cn(
+                    "flex shrink-0 flex-col items-center gap-0.5 rounded-full px-3 py-1.5",
+                    active ? "bg-foreground text-background" : "text-muted-foreground",
+                  )}
+                >
+                  <span className="text-[0.55rem] uppercase tracking-[0.08em]">
+                    {isToday
+                      ? "Hoy"
+                      : new Intl.DateTimeFormat("es-MX", { weekday: "short" }).format(d)}
+                  </span>
+                  <span className="text-sm font-medium">{d.getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => setShowCalendar(true)}
+            aria-label="Elegir fecha"
+            className="shrink-0 border border-input p-2 text-muted-foreground hover:text-foreground"
+          >
+            <CalendarSearch className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2.5 px-5 py-5">
+        {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
+        {(classes ?? []).map((c) => {
+          const full = c.taken >= c.capacity;
+          const mine = bookedIds.has(c.id);
+          const waiting = waitlistedIds.has(c.id);
+          const libres = Math.max(c.capacity - c.taken, 0);
+          return (
+            <button
+              key={c.id}
+              onClick={() => setOpenClass(c)}
+              className="flex w-full items-center gap-3 rounded-lg border border-border p-3.5 text-left hover:border-foreground/30"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                {c.instructor
+                  .split(" ")
+                  .slice(0, 2)
+                  .map((p) => p[0]?.toUpperCase())
+                  .join("")}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {moduleName.get(c.module_key ?? "") ?? c.module_key}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {c.instructor} · {c.room} · {c.duration_min} min
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className="rounded-full bg-foreground px-2.5 py-1 text-[0.68rem] text-background">
+                  {timeLabel(c.starts_at)}
+                </span>
+                {mine ? (
+                  <span className="text-[0.6rem] uppercase tracking-[0.08em] text-emerald-600">
+                    Reservada
+                  </span>
+                ) : waiting ? (
+                  <span className="text-[0.6rem] uppercase tracking-[0.08em] text-amber-600">
+                    En espera
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      "text-[0.6rem] uppercase tracking-[0.08em]",
+                      full ? "text-amber-600" : "text-muted-foreground",
+                    )}
+                  >
+                    {full ? "Lista de espera" : `${libres} lugares`}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+        {!isLoading && (classes ?? []).length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">Sin clases este día.</p>
+        ) : null}
+      </div>
+
+      {showCalendar ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+          onClick={() => setShowCalendar(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-2xl bg-background p-6 sm:rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-lg">Elige una fecha</p>
+              <button onClick={() => setShowCalendar(false)} aria-label="Cerrar">
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="mb-3 flex items-center justify-between">
+              <button
+                onClick={() =>
+                  setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))
+                }
+                className="p-1 text-muted-foreground"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <p className="text-sm capitalize">
+                {new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(
+                  monthCursor,
+                )}
+              </p>
+              <button
+                onClick={() =>
+                  setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))
+                }
+                className="p-1 text-muted-foreground"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center text-[0.6rem] text-muted-foreground">
+              {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+                <span key={i}>{d}</span>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {monthGrid.map((d) => {
+                const inMonth = d.getMonth() === monthCursor.getMonth();
+                const active = sameDay(d, selectedDate);
+                return (
+                  <button
+                    key={d.toISOString()}
+                    onClick={() => setSelectedDate(d)}
+                    className={cn(
+                      "py-2 text-sm",
+                      !inMonth && "text-muted-foreground/30",
+                      active && "bg-foreground text-background",
+                    )}
+                  >
+                    {d.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setShowCalendar(false)}
+              className="mt-5 w-full bg-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] text-background"
+            >
+              Ver resultados
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {openClass ? (
+        <AppClassDetail
+          classItem={openClass}
+          moduleLabel={moduleName.get(openClass.module_key ?? "") ?? openClass.module_key ?? ""}
+          mine={bookedIds.has(openClass.id)}
+          waiting={waitlistedIds.has(openClass.id)}
+          onClose={() => setOpenClass(null)}
+          onReserve={(seat) => book.mutate({ classId: openClass.id, seat })}
+          onJoinWaitlist={() => joinWaitlist.mutate(openClass.id)}
+          pending={book.isPending || joinWaitlist.isPending}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AppClassDetail({
+  classItem,
+  moduleLabel,
+  mine,
+  waiting,
+  onClose,
+  onReserve,
+  onJoinWaitlist,
+  pending,
+}: {
+  classItem: AppClassRow;
+  moduleLabel: string;
+  mine: boolean;
+  waiting: boolean;
+  onClose: () => void;
+  onReserve: (seat: number | null) => void;
+  onJoinWaitlist: () => void;
+  pending: boolean;
+}) {
+  const [seat, setSeat] = useState<number | null>(null);
+  const full = classItem.taken >= classItem.capacity;
+
+  const { data: takenSeats } = useQuery({
+    queryKey: ["app-class-taken-seats", classItem.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("class_taken_seats", { _class_id: classItem.id });
+      if (error) throw error;
+      return (data as number[] | null) ?? [];
+    },
+  });
+
+  const cols = 5;
+  const rows = Math.ceil(classItem.capacity / cols);
+  const seats = Array.from({ length: rows * cols }, (_, i) => i + 1).filter(
+    (n) => n <= classItem.capacity,
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
+      <div className="mx-auto max-w-md px-5 py-6">
+        <button
+          onClick={onClose}
+          className="mb-5 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+        >
+          ← Cerrar
+        </button>
+
+        <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
+          {dayLabel(classItem.starts_at)} · {timeLabel(classItem.starts_at)}
+        </p>
+        <h2 className="mt-1 text-2xl">{moduleLabel}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {classItem.instructor} · {classItem.room} · {classItem.duration_min} min
+        </p>
+
+        <div className="mt-4 flex items-center gap-2">
+          <span
+            className={cn(
+              "px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.1em]",
+              full ? "bg-amber-500/10 text-amber-700" : "bg-emerald-500/10 text-emerald-700",
+            )}
+          >
+            {full ? "Sin lugares" : `${classItem.capacity - classItem.taken} lugares libres`}
+          </span>
+          {classItem.waitlisted > 0 ? (
+            <span className="bg-muted px-2.5 py-1 text-[0.65rem] text-muted-foreground">
+              {classItem.waitlisted} en espera
+            </span>
+          ) : null}
+        </div>
+
+        {mine ? (
+          <p className="mt-8 text-sm text-emerald-600">Ya tienes esta clase reservada.</p>
+        ) : waiting ? (
+          <p className="mt-8 text-sm text-amber-600">
+            Ya estás en la lista de espera de esta clase.
+          </p>
+        ) : (
+          <>
+            {!full ? (
+              <div className="mt-8">
+                <p className="mb-3 eyebrow">Elige tu lugar</p>
+                <div
+                  className="grid gap-2"
+                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                >
+                  {seats.map((n) => {
+                    const taken = (takenSeats ?? []).includes(n);
+                    const selected = seat === n;
+                    return (
+                      <button
+                        key={n}
+                        disabled={taken}
+                        onClick={() => setSeat(n)}
+                        className={cn(
+                          "flex aspect-square items-center justify-center border text-sm",
+                          taken
+                            ? "border-transparent bg-foreground text-background opacity-60"
+                            : selected
+                              ? "border-secondary bg-secondary text-background"
+                              : "border-emerald-500 bg-emerald-500/10 text-emerald-700",
+                        )}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  disabled={!seat || pending}
+                  onClick={() => onReserve(seat)}
+                  className="mt-6 w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+                >
+                  Reservar lugar {seat ? `#${seat}` : ""}
+                </button>
+              </div>
+            ) : (
+              <button
+                disabled={pending}
+                onClick={onJoinWaitlist}
+                className="mt-8 w-full border border-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] disabled:opacity-40"
+              >
+                Unirme a la lista de espera
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -387,41 +891,126 @@ function CreditosTab() {
     onError: () => toast.error("No pudimos completar la compra."),
   });
 
+  const activeMembership = useMemo(() => {
+    const tx = (transactions ?? []).find((t) => {
+      const cat = (plans ?? []).find((p) => p.id === t.plan_id)?.category;
+      return cat === "membresia";
+    });
+    return tx;
+  }, [transactions, plans]);
+
+  const [view, setView] = useState<"creditos" | "membresia">("creditos");
+  const creditPlans = grouped.filter(([c]) => c !== "membresia");
+  const membershipPlans = grouped.find(([c]) => c === "membresia")?.[1] ?? [];
+
   return (
-    <div className="space-y-10 px-5 py-6">
-      <div className="border border-border p-6 text-center">
+    <div className="px-5 py-6">
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => setView("membresia")}
+          className={cn(
+            "flex flex-col items-center gap-2 border p-4 text-center",
+            view === "membresia" ? "border-foreground" : "border-border",
+          )}
+        >
+          <BadgeCheck className="h-6 w-6" />
+          <span className="text-[0.65rem] uppercase tracking-[0.1em]">Membresía</span>
+        </button>
+        <button
+          onClick={() => setView("creditos")}
+          className={cn(
+            "flex flex-col items-center gap-2 border p-4 text-center",
+            view === "creditos" ? "border-foreground" : "border-border",
+          )}
+        >
+          <Wallet className="h-6 w-6" />
+          <span className="text-[0.65rem] uppercase tracking-[0.1em]">Créditos</span>
+        </button>
+      </div>
+
+      <div className="mt-8 border border-border p-6 text-center">
         <p className="eyebrow">Créditos disponibles</p>
         <p className="mt-2 text-4xl">{balance ?? 0}</p>
       </div>
 
-      <div className="space-y-8">
-        {grouped.map(([category, items]) => (
-          <div key={category}>
-            <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
-            <div className="mt-3 space-y-2">
-              {items.map((p) => (
-                <div key={p.id} className="border border-border p-4">
-                  <p className="text-sm">{p.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {money(p.price_cents, p.currency)} · {p.tokens} créditos
-                    {p.recurring ? " · recurrente" : ""}
-                  </p>
-                  <button
-                    onClick={() =>
-                      setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens })
-                    }
-                    className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
-                  >
-                    Comprar
-                  </button>
-                </div>
-              ))}
+      {view === "membresia" ? (
+        <div className="mt-8">
+          {activeMembership ? (
+            <div className="border border-foreground p-5">
+              <p className="eyebrow">Membresía activa</p>
+              <p className="mt-1 text-lg">{activeMembership.token_plans?.name ?? "Membresía"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Desde el{" "}
+                {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                  new Date(activeMembership.created_at),
+                )}
+              </p>
             </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-14 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <BadgeCheck className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">Sin membresía activa</p>
+              <p className="max-w-[220px] text-xs text-muted-foreground">
+                Las membresías incluyen clases, Align y Contrast en un solo pago mensual.
+              </p>
+            </div>
+          )}
+          <div className="mt-6 space-y-2">
+            {membershipPlans.map((p) => (
+              <div key={p.id} className="border border-border p-4">
+                <p className="text-sm">{p.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{p.subtitle}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {money(p.price_cents, p.currency)}/mes
+                </p>
+                <button
+                  onClick={() =>
+                    setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens })
+                  }
+                  className="mt-3 w-full bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background"
+                >
+                  Elegir membresía
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="mt-8 space-y-8">
+          {creditPlans.map(([category, items]) => (
+            <div key={category}>
+              <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
+              <div className="mt-3 space-y-2">
+                {items.map((p) => (
+                  <div key={p.id} className="border border-border p-4">
+                    <p className="text-sm">{p.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {money(p.price_cents, p.currency)} · {p.tokens} créditos
+                    </p>
+                    <button
+                      onClick={() =>
+                        setBuying({
+                          id: p.id,
+                          name: p.name,
+                          price: p.price_cents,
+                          tokens: p.tokens,
+                        })
+                      }
+                      className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
+                    >
+                      Comprar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <div>
+      <div className="mt-10">
         <p className="eyebrow">Compras recientes</p>
         {(transactions ?? []).length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">Sin compras registradas.</p>
@@ -566,30 +1155,40 @@ function TiendaTab() {
 
   return (
     <div className="space-y-10 px-5 py-6">
+      <p className="text-center text-lg">Featured items</p>
       {grouped.map(([category, items]) => (
         <div key={category}>
           <p className="eyebrow">{STORE_CATEGORY_LABELS[category] ?? category}</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             {items.map((p) => (
-              <div key={p.id} className="border border-border p-3">
-                <p className="text-sm">{p.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{money(p.price_cents)}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <button
-                    onClick={() =>
-                      setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) }))
-                    }
-                    className="border border-input px-2.5 py-1 text-sm"
-                  >
-                    −
-                  </button>
-                  <span className="text-sm">{cart[p.id] ?? 0}</span>
-                  <button
-                    onClick={() => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 }))}
-                    className="border border-input px-2.5 py-1 text-sm"
-                  >
-                    +
-                  </button>
+              <div key={p.id} className="border border-border">
+                <div className="flex aspect-square items-center justify-center bg-muted">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <ShoppingBag className="h-8 w-8 text-muted-foreground/50" />
+                  )}
+                </div>
+                <div className="p-3">
+                  <p className="text-sm">{p.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{money(p.price_cents)}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <button
+                      onClick={() =>
+                        setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) }))
+                      }
+                      className="border border-input px-2.5 py-1 text-sm"
+                    >
+                      −
+                    </button>
+                    <span className="text-sm">{cart[p.id] ?? 0}</span>
+                    <button
+                      onClick={() => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 }))}
+                      className="border border-input px-2.5 py-1 text-sm"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
