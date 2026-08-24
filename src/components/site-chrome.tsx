@@ -32,10 +32,10 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:h-28 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5 sm:h-28 sm:px-8">
         <BrandLink />
 
-        <nav className="hidden items-center gap-5 md:flex lg:gap-8">
+        <nav className="ml-4 hidden items-center gap-6 md:flex lg:ml-10 lg:gap-9">
           {NAV.map((item) => (
             <Link
               key={item.to}
@@ -50,7 +50,8 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-5 md:flex">
+          {" "}
           {user ? (
             <>
               {isAdmin ? (

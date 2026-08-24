@@ -11,6 +11,13 @@ import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
+// Set editorial nuevo (matte black & white) — reemplaza foto1 (persona
+// estirando) en el hero y complementa Recovery Bar / Conócenos.
+const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
+const editorial2 = "/foto-editorial/laatu-editorial-2.jpg";
+const editorial3 = "/foto-editorial/laatu-editorial-3.jpg";
+void foto1;
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -62,8 +69,8 @@ function Home() {
               en el caos.
             </h1>
             <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
-              Pilates Reformer, recuperación y acompañamiento en un mismo lugar.
-              Máximo diez personas por salón, para que alguien mire tu proceso.
+              Pilates Reformer, recuperación y acompañamiento en un mismo lugar. Máximo diez
+              personas por salón, para que alguien mire tu proceso.
             </p>
             <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
@@ -83,8 +90,8 @@ function Home() {
 
           <div className="relative -mx-5 min-h-[19rem] sm:-mx-8 sm:min-h-[24rem] lg:mx-0 lg:min-h-full">
             <img
-              src={foto1.url}
-              alt="Persona estirando en el estudio Läätu"
+              src={editorial1}
+              alt="Coach en movimiento en el estudio Läätu"
               className="h-full w-full object-cover"
               loading="eager"
               decoding="async"
@@ -93,16 +100,13 @@ function Home() {
         </div>
       </section>
 
-
       {/* ---------- Horarios ---------- */}
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
               <p className="eyebrow">Horarios</p>
-              <h2 className="statement mt-4 text-[clamp(1.9rem,4.5vw,3rem)]">
-                Reserva tu lugar.
-              </h2>
+              <h2 className="statement mt-4 text-[clamp(1.9rem,4.5vw,3rem)]">Reserva tu lugar.</h2>
             </div>
             <Link
               to="/horarios"
@@ -138,10 +142,7 @@ function Home() {
 
       {/* ---------- Programas ---------- */}
       <section className="relative overflow-hidden border-b border-border">
-        <PatternField
-          opacity={0.1}
-          className="-right-32 -top-24 h-[30rem] w-[30rem]"
-        />
+        <PatternField opacity={0.1} className="-right-32 -top-24 h-[30rem] w-[30rem]" />
         <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <p className="eyebrow">Programas</p>
           <h2 className="statement mt-4 max-w-xl text-[clamp(1.9rem,4.5vw,3rem)]">
@@ -170,9 +171,7 @@ function Home() {
                 >
                   <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {m.description}
-                  </p>
+                  <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
                   <span className="mt-auto pt-6 text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground transition-colors group-hover:text-foreground">
                     Ver horarios →
                   </span>
@@ -180,7 +179,6 @@ function Home() {
               );
             })}
           </div>
-
         </div>
       </section>
 
@@ -188,7 +186,7 @@ function Home() {
       <section className="border-b border-border">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
           <img
-            src={foto4.url}
+            src={editorial3}
             alt="Recuperación después de entrenar en Läätu"
             className="aspect-[4/5] w-full object-cover"
             loading="lazy"
@@ -199,8 +197,8 @@ function Home() {
               Lo que tu cuerpo pide después.
             </h2>
             <p className="mt-6 text-muted-foreground">
-              Smoothies de proteína, shots, infusiones y café de especialidad.
-              Nuestra barra vive dentro del estudio y se ordena ahí mismo.
+              Smoothies de proteína, shots, infusiones y café de especialidad. Nuestra barra vive
+              dentro del estudio y se ordena ahí mismo.
             </p>
             <Link
               to="/recovery-bar"
@@ -214,10 +212,7 @@ function Home() {
 
       {/* ---------- Conócenos ---------- */}
       <section className="relative overflow-hidden">
-        <PatternField
-          opacity={0.08}
-          className="-left-48 bottom-0 h-[26rem] w-[26rem]"
-        />
+        <PatternField opacity={0.08} className="-left-48 bottom-0 h-[26rem] w-[26rem]" />
         <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
@@ -226,9 +221,8 @@ function Home() {
                 Diez personas por salón.
               </h2>
               <p className="mt-6 text-muted-foreground">
-                No creemos en las clases multitudinarias. Grupos pequeños,
-                corrección individual y un ritmo que respeta tu cuerpo. Ser
-                flexible no es una debilidad.
+                No creemos en las clases multitudinarias. Grupos pequeños, corrección individual y
+                un ritmo que respeta tu cuerpo. Ser flexible no es una debilidad.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link
@@ -247,7 +241,7 @@ function Home() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <img
-                src={foto3.url}
+                src={editorial2}
                 alt="Acompañamiento entre coach y alumna"
                 className="aspect-[3/4] w-full object-cover"
                 loading="lazy"
@@ -272,9 +266,7 @@ function Home() {
         />
         <div className="relative z-[2] mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Wordmark tone="ivory" variant="stack" className="mx-auto h-24" />
-          <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">
-            Abraza tu recorrido.
-          </p>
+          <p className="statement mt-10 text-[clamp(1.6rem,4vw,2.4rem)]">Abraza tu recorrido.</p>
           <Link
             to="/horarios"
             className="mt-10 inline-block bg-ivory px-8 py-4 text-[0.72rem] uppercase tracking-[0.18em] text-shadow"

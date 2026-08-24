@@ -14,6 +14,7 @@ import {
   LineChart,
   Tag,
   Home,
+  PackageOpen,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +23,7 @@ import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
 import {
   POSPanel,
   InventoryPanel,
+  PendingOrdersPanel,
   StaffDirectoryPanel,
   CoachesPanel,
   ClientsPanel,
@@ -63,6 +65,7 @@ function Admin() {
             { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
+            { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
             { key: "inventario", label: "Inventario", icon: Package },
           ],
         },
@@ -94,6 +97,7 @@ function Admin() {
             {
               items: [
                 { key: "pos", label: "Punto de venta", icon: ShoppingCart },
+                { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
                 { key: "inventario", label: "Inventario", icon: Package },
               ],
             },
@@ -137,6 +141,7 @@ function Admin() {
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
       {activeKey === "pos" ? <POSPanel /> : null}
+      {activeKey === "pedidos" ? <PendingOrdersPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}

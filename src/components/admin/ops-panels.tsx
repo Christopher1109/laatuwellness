@@ -127,6 +127,136 @@ const UNITS = ["pieza", "caja", "kg", "g", "l", "ml", "dosis"];
 // ============================================================================
 // PUNTO DE VENTA (POS)
 // ============================================================================
+// ============================================================================
+// PEDIDOS PENDIENTES (Recovery Bar / tienda) — pedidos que los clientes
+// hacen desde la app y el staff va avanzando hasta entregarlos.
+// ============================================================================
+const ORDER_STATUS_FLOW: Record<string, { next: string | null; label: string }> = {
+  pendiente: { next: "listo", label: "Marcar listo" },
+  listo: { next: "entregado", label: "Marcar entregado" },
+  entregado: { next: null, label: "Entregado" },
+};
+
+export function PendingOrdersPanel() {
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<"activos" | "todos">("activos");
+
+  const { data: orders } = useQuery({
+    queryKey: ["pending-orders"],
+    queryFn: async () => {
+      const { data: sales, error } = await supabase
+        .from("pos_sales")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(80);
+      if (error) throw error;
+      const saleIds = (sales ?? []).map((s) => s.id);
+      const { data: items } = saleIds.length
+        ? await supabase.from("pos_sale_items").select("*").in("sale_id", saleIds)
+        : { data: [] as { sale_id: string; description: string; qty: number }[] };
+      const userIds = Array.from(
+        new Set((sales ?? []).map((s) => s.user_id).filter(Boolean)),
+      ) as string[];
+      const { data: profiles } = userIds.length
+        ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
+        : { data: [] as { id: string; full_name: string; email: string }[] };
+      return (sales ?? []).map((s) => ({
+        ...s,
+        items: (items ?? []).filter((i) => i.sale_id === s.id),
+        client: profiles?.find((p) => p.id === s.user_id),
+      }));
+    },
+  });
+
+  const advance = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: string }) => {
+      const { error } = await supabase.from("pos_sales").update({ status: next }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pedido actualizado.");
+      void qc.invalidateQueries({ queryKey: ["pending-orders"] });
+    },
+    onError: () => toast.error("No se pudo actualizar el pedido."),
+  });
+
+  const visible = (orders ?? []).filter((o) =>
+    filter === "activos" ? o.status !== "entregado" : true,
+  );
+
+  return (
+    <div>
+      <div className="mb-4 flex gap-1.5">
+        {(["activos", "todos"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${filter === f ? "border-foreground bg-foreground text-background" : "border-input"}`}
+          >
+            {f === "activos" ? "Activos" : "Todos"}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((o) => {
+          const flow = ORDER_STATUS_FLOW[o.status] ?? { next: null, label: o.status };
+          return (
+            <div key={o.id} className="border border-border p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {o.client?.full_name || o.client?.email || "Cliente"}
+                  </p>
+                  <p className="text-[0.65rem] text-muted-foreground">
+                    {new Intl.DateTimeFormat("es-MX", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(o.created_at))}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em]",
+                    o.status === "entregado"
+                      ? "bg-muted text-muted-foreground"
+                      : o.status === "listo"
+                        ? "bg-emerald-500/10 text-emerald-700"
+                        : "bg-amber-500/10 text-amber-700",
+                  )}
+                >
+                  {o.status}
+                </span>
+              </div>
+              <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                {o.items.map((i, idx) => (
+                  <li key={idx}>
+                    {i.qty}× {i.description}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-sm">{money(o.total_cents)}</p>
+              {flow.next ? (
+                <button
+                  onClick={() => advance.mutate({ id: o.id, next: flow.next! })}
+                  disabled={advance.isPending}
+                  className="mt-3 w-full bg-foreground px-3 py-2 text-[0.62rem] uppercase tracking-[0.1em] text-background disabled:opacity-50"
+                >
+                  {flow.label}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+        {visible.length === 0 ? (
+          <p className="col-span-full text-muted-foreground">Sin pedidos en este filtro.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function POSPanel() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");

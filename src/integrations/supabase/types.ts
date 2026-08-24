@@ -312,6 +312,7 @@ export type Database = {
           id: string
           payment_method: string
           sold_by: string | null
+          status: string
           total_cents: number
           user_id: string | null
         }
@@ -320,6 +321,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sold_by?: string | null
+          status?: string
           total_cents?: number
           user_id?: string | null
         }
@@ -328,6 +330,7 @@ export type Database = {
           id?: string
           payment_method?: string
           sold_by?: string | null
+          status?: string
           total_cents?: number
           user_id?: string | null
         }
@@ -963,6 +966,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      client_place_order: {
+        Args: { _items: Json; _note?: string | null }
+        Returns: string
       }
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
