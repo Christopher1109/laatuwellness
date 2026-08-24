@@ -171,12 +171,30 @@ function Cuenta() {
     onError: () => toast.error("No pudimos cancelar la reserva."),
   });
 
+  const leaveWaitlist = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase.rpc("leave_waitlist", { _booking_id: bookingId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Saliste de la lista de espera. Tu crédito fue devuelto.");
+      void qc.invalidateQueries({ queryKey: ["bookings"] });
+      void qc.invalidateQueries({ queryKey: ["balance"] });
+    },
+    onError: () => toast.error("No se pudo salir de la lista de espera."),
+  });
+
   const now = Date.now();
   const upcoming = (bookings.data ?? []).filter(
     (b) => b.status === "reservada" && new Date(b.classes!.starts_at).getTime() > now,
   );
+  const waitlisted = (bookings.data ?? []).filter(
+    (b) => b.status === "lista_espera" && new Date(b.classes!.starts_at).getTime() > now,
+  );
   const past = (bookings.data ?? []).filter(
-    (b) => b.status !== "reservada" || new Date(b.classes!.starts_at).getTime() <= now,
+    (b) =>
+      (b.status !== "reservada" && b.status !== "lista_espera") ||
+      new Date(b.classes!.starts_at).getTime() <= now,
   );
 
   return (
@@ -194,9 +212,7 @@ function Cuenta() {
             </div>
             <div className="bg-background p-6">
               <p className="eyebrow">Waiver</p>
-              <p className="mt-3 text-lg">
-                {waiver.data ? "Firmado" : "Pendiente"}
-              </p>
+              <p className="mt-3 text-lg">{waiver.data ? "Firmado" : "Pendiente"}</p>
             </div>
             <div className="bg-background p-6">
               <p className="eyebrow">Próximas clases</p>
@@ -214,18 +230,16 @@ function Cuenta() {
             <div className="mt-6 max-h-52 overflow-y-auto border border-border p-5 text-sm text-muted-foreground">
               {/* TODO: reemplazar por el texto legal definitivo del waiver. */}
               <p>
-                Declaro que participo de forma voluntaria en las actividades
-                físicas ofrecidas por Läätu Wellness y que me encuentro en
-                condiciones de salud adecuadas para realizarlas. Informaré al
-                estudio sobre cualquier lesión, embarazo o condición médica
-                relevante antes de cada sesión.
+                Declaro que participo de forma voluntaria en las actividades físicas ofrecidas por
+                Läätu Wellness y que me encuentro en condiciones de salud adecuadas para
+                realizarlas. Informaré al estudio sobre cualquier lesión, embarazo o condición
+                médica relevante antes de cada sesión.
               </p>
               <p className="mt-3">
-                Entiendo que toda actividad física implica riesgos y libero a
-                Läätu Wellness, a su personal e instructoras de responsabilidad
-                por lesiones derivadas de mi participación, salvo negligencia
-                comprobada. Acepto seguir las indicaciones de las instructoras y
-                las políticas de reservas, cancelaciones y uso de tokens.
+                Entiendo que toda actividad física implica riesgos y libero a Läätu Wellness, a su
+                personal e instructoras de responsabilidad por lesiones derivadas de mi
+                participación, salvo negligencia comprobada. Acepto seguir las indicaciones de las
+                instructoras y las políticas de reservas, cancelaciones y uso de tokens.
               </p>
               <p className="mt-3 italic">
                 Texto legal preliminar, pendiente de revisión por el estudio.
@@ -268,9 +282,8 @@ function Cuenta() {
             ))}
           </div>
           <p className="mt-5 text-xs text-muted-foreground">
-            El cobro con tarjeta y la suscripción recurrente se activan al
-            conectar la pasarela de pago. Por ahora la compra queda registrada y
-            los tokens se acreditan de inmediato.
+            El cobro con tarjeta y la suscripción recurrente se activan al conectar la pasarela de
+            pago. Por ahora la compra queda registrada y los tokens se acreditan de inmediato.
           </p>
         </div>
       </section>
@@ -290,7 +303,14 @@ function Cuenta() {
               {upcoming.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
                   <div>
-                    <p>{dateTime(b.classes!.starts_at)}</p>
+                    <p>
+                      {dateTime(b.classes!.starts_at)}
+                      {b.seat_number ? (
+                        <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
+                          {b.seat_number}
+                        </span>
+                      ) : null}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {b.classes!.room} · {b.classes!.instructor}
                     </p>
@@ -305,6 +325,33 @@ function Cuenta() {
               ))}
             </ul>
           )}
+
+          {waitlisted.length > 0 ? (
+            <div className="mt-12">
+              <p className="eyebrow">Lista de espera</p>
+              <ul className="mt-6 divide-y divide-border border-y border-border">
+                {waitlisted.map((b) => (
+                  <li key={b.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
+                    <div>
+                      <p>{dateTime(b.classes!.starts_at)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {b.classes!.room} · {b.classes!.instructor}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-amber-600">
+                        Tu crédito está apartado — se devuelve si no hay lugar
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => leaveWaitlist.mutate(b.id)}
+                      className="border border-input px-5 py-2 text-[0.7rem] uppercase tracking-[0.16em] hover:border-foreground"
+                    >
+                      Salir de la lista
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </section>
 

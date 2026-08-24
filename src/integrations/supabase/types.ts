@@ -847,14 +847,16 @@ export type Database = {
         Returns: number
       }
       book_class: {
-        Args: { _class_id: string }
+        Args: { _class_id: string; _seat?: number | null }
         Returns: {
           class_id: string
           created_at: string
           id: string
+          seat_number: number | null
           status: string
           tokens_spent: number
           user_id: string
+          waitlisted_at: string | null
         }
         SetofOptions: {
           from: "*"
@@ -862,6 +864,52 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      join_waitlist: {
+        Args: { _class_id: string }
+        Returns: {
+          class_id: string
+          created_at: string
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      leave_waitlist: {
+        Args: { _booking_id: string }
+        Returns: {
+          class_id: string
+          created_at: string
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      class_waitlist_count: {
+        Args: { _class_id: string }
+        Returns: number
+      }
+      class_taken_seats: {
+        Args: { _class_id: string }
+        Returns: number[]
       }
       cancel_booking: {
         Args: { _booking_id: string }
