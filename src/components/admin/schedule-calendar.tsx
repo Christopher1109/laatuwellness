@@ -447,6 +447,13 @@ function statusLabel(booking: BookingRow, checkin: { status: string } | undefine
   return { label: "Reservado", tone: "muted" as const };
 }
 
+const actionBtn =
+  "flex min-h-[3.25rem] items-center justify-center border border-input px-3 py-2 text-center text-[0.65rem] uppercase leading-tight tracking-[0.1em] transition-colors hover:bg-muted";
+const actionBtnPrimary =
+  "flex min-h-[3.25rem] items-center justify-center bg-foreground px-3 py-2 text-center text-[0.65rem] uppercase leading-tight tracking-[0.1em] text-background";
+
+
+
 function ClassDetailDrawer({
   classId,
   onClose,
