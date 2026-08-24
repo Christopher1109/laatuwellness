@@ -146,6 +146,7 @@ function Admin() {
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
+      {activeKey === "kardex" ? <KardexPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}
     </AdminShell>
   );
