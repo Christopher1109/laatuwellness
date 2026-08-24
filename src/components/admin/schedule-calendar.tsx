@@ -904,15 +904,15 @@ function ClassDetailDrawer({
               {reserved.map((r) => {
                 const { label, tone } = statusLabel(r, r.checkin);
                 return (
-                  <div key={r.id} className="border border-border p-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 truncate">
+                  <div key={r.id} className="border border-border p-2.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 truncate">
                         {r.seat_number ? (
                           <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
                             {r.seat_number}
                           </span>
                         ) : null}
-                        {r.profile?.full_name || r.profile?.email}
+                        <span className="truncate">{r.profile?.full_name || r.profile?.email}</span>
                       </span>
                       <span
                         className={cn(
@@ -925,23 +925,42 @@ function ClassDetailDrawer({
                         {label}
                       </span>
                     </div>
+                    {r.seat_number ? (
+                      <p className="mt-1 text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">
+                        Lugar {r.seat_number}
+                      </p>
+                    ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {!r.seat_number ? (
-                        <button
-                          onClick={() =>
-                            setAssigningFor({
-                              id: r.id,
-                              name: r.profile?.full_name || r.profile?.email || "",
-                            })
-                          }
-                          className={cn(
-                            "border px-2 py-1 text-[0.6rem] uppercase",
+                      <button
+                        onClick={() =>
+                          setAssigningFor(
                             assigningFor?.id === r.id
-                              ? "border-foreground bg-foreground text-background"
-                              : "border-input",
-                          )}
+                              ? null
+                              : {
+                                  id: r.id,
+                                  name: r.profile?.full_name || r.profile?.email || "",
+                                },
+                          )
+                        }
+                        className={cn(
+                          "border px-2 py-1 text-[0.6rem] uppercase",
+                          assigningFor?.id === r.id
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-input",
+                        )}
+                      >
+                        {assigningFor?.id === r.id
+                          ? "Elige un lugar…"
+                          : r.seat_number
+                            ? "Cambiar lugar"
+                            : "Asignar lugar"}
+                      </button>
+                      {r.seat_number ? (
+                        <button
+                          onClick={() => assignSeat.mutate({ bookingId: r.id, seat: null })}
+                          className="border border-input px-2 py-1 text-[0.6rem] uppercase"
                         >
-                          {assigningFor?.id === r.id ? "Elige un lugar…" : "Asignar lugar"}
+                          Quitar lugar
                         </button>
                       ) : null}
                       {!r.checkin ? (
