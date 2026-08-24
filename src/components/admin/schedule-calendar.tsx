@@ -201,11 +201,25 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           </label>
           <label className="text-xs">
             <span className="eyebrow">Duración (min)</span>
-            <input name="duration_min" type="number" min={10} max={180} defaultValue={50} className={input} />
+            <input
+              name="duration_min"
+              type="number"
+              min={10}
+              max={180}
+              defaultValue={50}
+              className={input}
+            />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Cupo</span>
-            <input name="capacity" type="number" min={1} max={40} defaultValue={10} className={input} />
+            <input
+              name="capacity"
+              type="number"
+              min={1}
+              max={40}
+              defaultValue={10}
+              className={input}
+            />
           </label>
           <div className="sm:col-span-3 lg:col-span-6">
             <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
@@ -228,7 +242,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-xs capitalize">{format(monthCursor, "MMMM yyyy", { locale: es })}</span>
+              <span className="text-xs capitalize">
+                {format(monthCursor, "MMMM yyyy", { locale: es })}
+              </span>
               <button
                 type="button"
                 onClick={() => setMonthCursor((m) => addMonths(m, 1))}
@@ -285,19 +301,29 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               type="button"
               onClick={() =>
                 setSelectedDate((d) =>
-                  view === "day" ? addDays(d, -1) : view === "week" ? addWeeks(d, -1) : addMonths(d, -1),
+                  view === "day"
+                    ? addDays(d, -1)
+                    : view === "week"
+                      ? addWeeks(d, -1)
+                      : addMonths(d, -1),
                 )
               }
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs text-muted-foreground">Hoy: {format(new Date(), "d MMM", { locale: es })}</span>
+            <span className="text-xs text-muted-foreground">
+              Hoy: {format(new Date(), "d MMM", { locale: es })}
+            </span>
             <button
               type="button"
               onClick={() =>
                 setSelectedDate((d) =>
-                  view === "day" ? addDays(d, 1) : view === "week" ? addWeeks(d, 1) : addMonths(d, 1),
+                  view === "day"
+                    ? addDays(d, 1)
+                    : view === "week"
+                      ? addWeeks(d, 1)
+                      : addMonths(d, 1),
                 )
               }
               className="text-xs text-muted-foreground hover:text-foreground"
@@ -310,7 +336,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
         {/* bloques de clase */}
         <div className="space-y-5">
           {byDay.length === 0 ? (
-            <p className="text-muted-foreground">Sin horarios en este rango para {title.toLowerCase()}.</p>
+            <p className="text-muted-foreground">
+              Sin horarios en este rango para {title.toLowerCase()}.
+            </p>
           ) : null}
           {byDay.map(([dayKey, items]) => (
             <div key={dayKey}>
@@ -337,7 +365,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                       </span>
                       <Avatar className="h-7 w-7 shrink-0">
                         {avatar ? <AvatarImage src={avatar} alt="" /> : null}
-                        <AvatarFallback className="text-[0.6rem]">{initials(c.instructor)}</AvatarFallback>
+                        <AvatarFallback className="text-[0.6rem]">
+                          {initials(c.instructor)}
+                        </AvatarFallback>
                       </Avatar>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">
@@ -350,7 +380,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                       <span
                         className={cn(
                           "shrink-0 px-2 py-0.5 text-[0.65rem]",
-                          full ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
+                          full
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-muted text-muted-foreground",
                         )}
                       >
                         {counts.reservada}/{c.capacity}
@@ -429,7 +461,7 @@ function ClassDetailDrawer({
           "booking_id",
           (bookings ?? []).map((b) => b.id),
         );
-      return (bookings as BookingRow[] | null ?? []).map((b) => ({
+      return ((bookings as BookingRow[] | null) ?? []).map((b) => ({
         ...b,
         profile: profiles?.find((p) => p.id === b.user_id),
         checkin: checks?.find((c) => c.booking_id === b.id),
@@ -454,7 +486,10 @@ function ClassDetailDrawer({
 
   const noShow = useMutation({
     mutationFn: async (bookingId: string) => {
-      const { error } = await supabase.rpc("mark_no_show", { _booking_id: bookingId, _penalty_cents: 0 });
+      const { error } = await supabase.rpc("mark_no_show", {
+        _booking_id: bookingId,
+        _penalty_cents: 0,
+      });
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -502,7 +537,10 @@ function ClassDetailDrawer({
         p_reason: "No hubo espacio en lista de espera",
       });
       if (refundError) throw refundError;
-      const { error } = await supabase.from("bookings").update({ status: "cancelada" }).eq("id", bookingId);
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelada" })
+        .eq("id", bookingId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -514,7 +552,10 @@ function ClassDetailDrawer({
 
   const assignSeat = useMutation({
     mutationFn: async ({ bookingId, seat }: { bookingId: string; seat: number }) => {
-      const { error } = await supabase.from("bookings").update({ seat_number: seat }).eq("id", bookingId);
+      const { error } = await supabase
+        .from("bookings")
+        .update({ seat_number: seat })
+        .eq("id", bookingId);
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -526,10 +567,13 @@ function ClassDetailDrawer({
   const cancelled = (rows ?? []).filter((r) => r.status === "cancelada");
 
   const capacity = cls?.capacity ?? 10;
-  const seatCols = 4;
+  const seatCols = 5;
   const seatRows = Math.ceil(capacity / seatCols);
-  const seats = Array.from({ length: seatRows * seatCols }, (_, i) => i + 1).filter((n) => n <= capacity);
+  const seats = Array.from({ length: seatRows * seatCols }, (_, i) => i + 1).filter(
+    (n) => n <= capacity,
+  );
   const takenBy = (seat: number) => reserved.find((r) => r.seat_number === seat);
+  const [assigningFor, setAssigningFor] = useState<{ id: string; name: string } | null>(null);
 
   const avatar = cls ? coachAvatar(cls.instructor) : null;
 
@@ -547,7 +591,7 @@ function ClassDetailDrawer({
             </Avatar>
             <div>
               <p className="text-sm font-medium">
-                {cls ? MODULE_LABELS[cls.module_key ?? ""] ?? cls.module_key : ""} ·{" "}
+                {cls ? (MODULE_LABELS[cls.module_key ?? ""] ?? cls.module_key) : ""} ·{" "}
                 {cls ? format(new Date(cls.starts_at), "HH:mm") : ""}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -561,7 +605,11 @@ function ClassDetailDrawer({
                 {waitlist.length} en espera
               </span>
             ) : null}
-            <button onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="text-muted-foreground hover:text-foreground"
+            >
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -578,9 +626,13 @@ function ClassDetailDrawer({
                 return (
                   <div key={r.id} className="border border-border p-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="truncate">
+                      <span className="flex items-center gap-1.5 truncate">
+                        {r.seat_number ? (
+                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
+                            {r.seat_number}
+                          </span>
+                        ) : null}
                         {r.profile?.full_name || r.profile?.email}
-                        {r.seat_number ? ` · #${r.seat_number}` : ""}
                       </span>
                       <span
                         className={cn(
@@ -593,32 +645,54 @@ function ClassDetailDrawer({
                         {label}
                       </span>
                     </div>
-                    {!r.checkin ? (
-                      <div className="mt-1.5 flex gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {!r.seat_number ? (
                         <button
-                          onClick={() => checkIn.mutate(r.id)}
-                          className="border border-input px-2 py-1 text-[0.6rem] uppercase"
+                          onClick={() =>
+                            setAssigningFor({
+                              id: r.id,
+                              name: r.profile?.full_name || r.profile?.email || "",
+                            })
+                          }
+                          className={cn(
+                            "border px-2 py-1 text-[0.6rem] uppercase",
+                            assigningFor?.id === r.id
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-input",
+                          )}
                         >
-                          Check-in
+                          {assigningFor?.id === r.id ? "Elige un lugar…" : "Asignar lugar"}
                         </button>
-                        <button
-                          onClick={() => noShow.mutate(r.id)}
-                          className="border border-input px-2 py-1 text-[0.6rem] uppercase"
-                        >
-                          No asistió
-                        </button>
-                        <button
-                          onClick={() => cancelBooking.mutate(r.id)}
-                          className="border border-input px-2 py-1 text-[0.6rem] uppercase text-destructive"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                      {!r.checkin ? (
+                        <>
+                          <button
+                            onClick={() => checkIn.mutate(r.id)}
+                            className="border border-input px-2 py-1 text-[0.6rem] uppercase"
+                          >
+                            Check-in
+                          </button>
+                          <button
+                            onClick={() => noShow.mutate(r.id)}
+                            className="border border-input px-2 py-1 text-[0.6rem] uppercase"
+                          >
+                            No asistió
+                          </button>
+                          <button
+                            onClick={() => cancelBooking.mutate(r.id)}
+                            className="border border-input px-2 py-1 text-[0.6rem] uppercase text-destructive"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
-              {reserved.length === 0 ? <p className="text-xs text-muted-foreground">Sin reservaciones.</p> : null}
+              {reserved.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin reservaciones.</p>
+              ) : null}
             </div>
           </div>
 
@@ -645,7 +719,9 @@ function ClassDetailDrawer({
                   </div>
                 </div>
               ))}
-              {waitlist.length === 0 ? <p className="text-xs text-muted-foreground">Sin lista de espera.</p> : null}
+              {waitlist.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin lista de espera.</p>
+              ) : null}
             </div>
           </div>
 
@@ -658,37 +734,63 @@ function ClassDetailDrawer({
                   <span className="ml-1 text-[0.6rem]">· crédito devuelto</span>
                 </div>
               ))}
-              {cancelled.length === 0 ? <p className="text-xs text-muted-foreground">Sin cancelaciones.</p> : null}
+              {cancelled.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin cancelaciones.</p>
+              ) : null}
             </div>
           </div>
         </div>
 
         <div>
           <p className="eyebrow mb-2">Mapa de lugares</p>
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${seatCols}, minmax(0, 1fr))` }}>
+          {assigningFor ? (
+            <p className="mb-2 text-xs text-foreground">
+              Elige un lugar libre para <strong>{assigningFor.name}</strong>.{" "}
+              <button onClick={() => setAssigningFor(null)} className="underline">
+                cancelar
+              </button>
+            </p>
+          ) : null}
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${seatCols}, minmax(0, 1fr))` }}
+          >
             {seats.map((seat) => {
               const owner = takenBy(seat);
+              const clickable = owner ? false : Boolean(assigningFor);
               return (
                 <button
                   key={seat}
                   type="button"
-                  disabled={Boolean(owner)}
-                  onClick={() => assignSeat.mutate({ bookingId: reserved[0]?.id ?? "", seat })}
-                  title={owner ? owner.profile?.full_name ?? "" : "Libre"}
+                  disabled={!owner && !assigningFor}
+                  onClick={() => {
+                    if (owner || !assigningFor) return;
+                    assignSeat.mutate({ bookingId: assigningFor.id, seat });
+                    setAssigningFor(null);
+                  }}
+                  title={owner ? owner.profile?.full_name || owner.profile?.email || "" : "Libre"}
                   className={cn(
-                    "flex aspect-square items-center justify-center border text-xs",
+                    "flex aspect-square flex-col items-center justify-center gap-0.5 border p-1 text-center text-[0.6rem] leading-tight",
                     owner
-                      ? "border-transparent bg-destructive/10 text-destructive"
-                      : "border-dashed border-input text-muted-foreground hover:border-foreground/40",
+                      ? "border-transparent bg-foreground text-background"
+                      : clickable
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+                        : "border-emerald-500/40 bg-emerald-500/5 text-emerald-700/70",
                   )}
                 >
-                  {seat}
+                  <span className="text-[0.65rem] font-medium">{seat}</span>
+                  {owner ? (
+                    <span className="line-clamp-1 w-full px-0.5">
+                      {(owner.profile?.full_name || owner.profile?.email || "").split(" ")[0]}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
           </div>
           <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            Cuatro columnas verticales · rojo = ocupado · punteado = libre.
+            Cinco columnas · verde = libre · oscuro = ocupado (nombre en el recuadro). Para asignar
+            un lugar, dale clic a "Asignar lugar" junto a la persona en Reservaciones.
           </p>
         </div>
       </div>
