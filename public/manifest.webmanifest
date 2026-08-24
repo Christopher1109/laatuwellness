@@ -2,7 +2,7 @@
   "name": "Läätu Wellness",
   "short_name": "Läätu",
   "description": "Reserva tus clases de Pilates Reformer, contraste, nutrición y psicología en Läätu Wellness.",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "background_color": "#F9F8F2",

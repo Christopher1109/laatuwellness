@@ -14,6 +14,7 @@ const NAV = [
   { to: "/programas", label: "Programas" },
   { to: "/coaches", label: "Coaches" },
   { to: "/horarios", label: "Horarios" },
+  { to: "/paquetes", label: "Paquetes" },
   { to: "/recovery-bar", label: "Recovery Bar" },
   { to: "/contacto", label: "Contacto" },
 ] as const;
@@ -103,7 +104,6 @@ export function SiteHeader() {
       {open ? (
         <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background md:hidden">
           <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3 pb-6">
-
             {NAV.map((item) => (
               <Link
                 key={item.to}
@@ -165,8 +165,7 @@ export function SiteFooter() {
             <Wordmark tone="ivory" variant="stack" className="h-20" />
             <Coordinates className="mt-6" />
             <p className="mt-5 text-sm text-muted-foreground">
-              Wellness Recovery Bar. Un espacio para respirar, moverte y
-              agradecer el recorrido.
+              Wellness Recovery Bar. Un espacio para respirar, moverte y agradecer el recorrido.
             </p>
           </div>
 
@@ -174,31 +173,74 @@ export function SiteFooter() {
             <div>
               <p className="eyebrow">Estudio</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
-                <li><Link to="/nosotros" className="hover:text-foreground">Nosotros</Link></li>
-                <li><Link to="/programas" className="hover:text-foreground">Programas</Link></li>
-                <li><Link to="/coaches" className="hover:text-foreground">Coaches</Link></li>
+                <li>
+                  <Link to="/nosotros" className="hover:text-foreground">
+                    Nosotros
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/programas" className="hover:text-foreground">
+                    Programas
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/coaches" className="hover:text-foreground">
+                    Coaches
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>
               <p className="eyebrow">Reservar</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
-                <li><Link to="/horarios" className="hover:text-foreground">Horarios</Link></li>
-                <li><Link to="/cuenta" className="hover:text-foreground">Mi cuenta</Link></li>
-                <li><Link to="/recovery-bar" className="hover:text-foreground">Recovery Bar</Link></li>
-                <li><Link to="/app" className="hover:text-foreground">App</Link></li>
+                <li>
+                  <Link to="/horarios" className="hover:text-foreground">
+                    Horarios
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/paquetes" className="hover:text-foreground">
+                    Paquetes
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/cuenta" className="hover:text-foreground">
+                    Mi cuenta
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/recovery-bar" className="hover:text-foreground">
+                    Recovery Bar
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/app" className="hover:text-foreground">
+                    App
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>
               <p className="eyebrow">Contacto</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
                 <li>
-                  <a href="https://instagram.com/laatu" target="_blank" rel="noreferrer" className="hover:text-foreground">
+                  <a
+                    href="https://instagram.com/laatu"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-foreground"
+                  >
                     Instagram @laatu
                   </a>
                 </li>
                 <li>
                   {/* TODO: enlazar la tienda de suplementos definitiva */}
-                  <a href="https://instagram.com/laatu" target="_blank" rel="noreferrer" className="hover:text-foreground">
+                  <a
+                    href="https://instagram.com/laatu"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-foreground"
+                  >
                     Suplementos
                   </a>
                 </li>
@@ -233,7 +275,6 @@ export function SiteLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-
 export function PageHeader({
   eyebrow,
   title,
@@ -247,7 +288,9 @@ export function PageHeader({
     <section className="border-b border-border">
       <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-28">
         <p className="eyebrow rise">{eyebrow}</p>
-        <h1 className="statement rise mt-5 text-[clamp(2.3rem,9vw,5rem)] leading-[1.02] sm:mt-6">{title}</h1>
+        <h1 className="statement rise mt-5 text-[clamp(2.3rem,9vw,5rem)] leading-[1.02] sm:mt-6">
+          {title}
+        </h1>
         {intro ? (
           <p className="rise mt-6 max-w-xl text-base text-muted-foreground">{intro}</p>
         ) : null}
