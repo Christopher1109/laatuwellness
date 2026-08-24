@@ -2,10 +2,21 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
@@ -32,6 +43,78 @@ export function Popout({
         {children}
       </div>
     </div>
+  );
+}
+
+// Tabla tipo Excel: encabezados clicables que ordenan asc/desc. `columns`
+// define qué campos son numéricos (para alinear a la derecha) y cómo se
+// formatean.
+function SortableTable<T extends Record<string, unknown>>({
+  rows,
+  columns,
+  emptyLabel,
+}: {
+  rows: T[];
+  columns: { key: keyof T; label: string; align?: "right"; format?: (v: unknown) => string }[];
+  emptyLabel: string;
+}) {
+  const [sortKey, setSortKey] = useState<keyof T>(columns[0]!.key);
+  const [dir, setDir] = useState<1 | -1>(-1);
+
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [rows, sortKey, dir]);
+
+  const toggleSort = (key: keyof T) => {
+    if (key === sortKey) setDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
+    else {
+      setSortKey(key);
+      setDir(-1);
+    }
+  };
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-border">
+          {columns.map((col) => (
+            <th
+              key={String(col.key)}
+              onClick={() => toggleSort(col.key)}
+              className={`cursor-pointer select-none py-2 text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground ${col.align === "right" ? "text-right" : "text-left"}`}
+            >
+              {col.label} {sortKey === col.key ? (dir === 1 ? "▲" : "▼") : ""}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {sorted.map((row, i) => (
+          <tr key={i} className="hover:bg-muted/50">
+            {columns.map((col) => (
+              <td
+                key={String(col.key)}
+                className={`py-2 ${col.align === "right" ? "text-right text-muted-foreground" : ""}`}
+              >
+                {col.format ? col.format(row[col.key]) : String(row[col.key])}
+              </td>
+            ))}
+          </tr>
+        ))}
+        {sorted.length === 0 ? (
+          <tr>
+            <td colSpan={columns.length} className="py-4 text-center text-muted-foreground">
+              {emptyLabel}
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
   );
 }
 
@@ -1104,6 +1187,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   const qc = useQueryClient();
   const [showPackages, setShowPackages] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("efectivo");
 
   const { data: profile } = useQuery({
     queryKey: ["client-detail-profile", clientId],
@@ -1198,16 +1282,16 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   });
 
   const buyPlan = useMutation({
-    mutationFn: async (planId: string) => {
+    mutationFn: async ({ planId, paymentMethod }: { planId: string; paymentMethod: string }) => {
       const { error } = await supabase.rpc("admin_purchase_plan", {
         _user_id: clientId,
         _plan_id: planId,
-        _payment_method: "efectivo",
+        _payment_method: paymentMethod,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Créditos agregados.");
+      toast.success("Venta registrada — créditos agregados al cliente.");
       setShowPackages(false);
       setPendingPlan(null);
       void qc.invalidateQueries({ queryKey: ["client-detail-balance", clientId] });
@@ -1329,13 +1413,31 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
         {pendingPlan ? (
           <Popout onClose={() => setPendingPlan(null)}>
-            <p className="mb-2 eyebrow">Confirmar compra</p>
+            <p className="mb-2 eyebrow">Confirmar venta</p>
             <p className="text-sm">
-              ¿Agregar <strong>{pendingPlan.name}</strong> ({pendingPlan.tokens} créditos,{" "}
-              {money(pendingPlan.price_cents)}) a {profile?.full_name || profile?.email}?
+              ¿Vender <strong>{pendingPlan.name}</strong> ({pendingPlan.tokens} créditos) a{" "}
+              {profile?.full_name || profile?.email}?
             </p>
+            <div className="mt-4 border border-border p-4">
+              <p className="text-xs text-muted-foreground">
+                Esto se registra como ingreso del estudio
+              </p>
+              <p className="mt-1 text-2xl">{money(pendingPlan.price_cents)}</p>
+            </div>
+            <label className="mt-4 block text-xs">
+              <span className="eyebrow">Forma de pago</span>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className={input}
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </label>
             {pendingPlan.terms ? (
-              <p className="mt-2 text-xs text-muted-foreground">{pendingPlan.terms}</p>
+              <p className="mt-3 text-xs text-muted-foreground">{pendingPlan.terms}</p>
             ) : null}
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -1346,10 +1448,10 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
               </button>
               <button
                 disabled={buyPlan.isPending}
-                onClick={() => buyPlan.mutate(pendingPlan.id)}
+                onClick={() => buyPlan.mutate({ planId: pendingPlan.id, paymentMethod })}
                 className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-50"
               >
-                Confirmar y cobrar
+                Confirmar venta ({paymentMethod})
               </button>
             </div>
           </Popout>
@@ -2617,12 +2719,64 @@ export function CoachesPanel() {
     },
   });
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [range, setRange] = useState<"hoy" | "semana" | "mes">("semana");
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!selectedId && coaches && coaches.length > 0) setSelectedId(coaches[0]!.id);
-  }, [coaches, selectedId]);
+  return (
+    <div>
+      {(coaches ?? []).length === 0 ? (
+        <p className="text-muted-foreground">
+          Sin coaches dados de alta todavía (asigna el rol "Coach" en Staff).
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {(coaches ?? []).map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setOpenId(c.id)}
+              className="border border-border p-4 text-left hover:border-foreground/40"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <Avatar className="h-9 w-9">
+                  {c.photo_url ? <AvatarImage src={c.photo_url} alt="" /> : null}
+                  <AvatarFallback className="text-xs">
+                    {c.full_name
+                      .split(" ")
+                      .slice(0, 2)
+                      .map((p) => p[0]?.toUpperCase())
+                      .join("")}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{c.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{money(c.hourly_rate_cents)}/h</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {openId ? <CoachDetailPopout coachId={openId} onClose={() => setOpenId(null)} /> : null}
+    </div>
+  );
+}
+
+function CoachDetailPopout({ coachId, onClose }: { coachId: string; onClose: () => void }) {
+  const [range, setRange] = useState<"hoy" | "semana" | "mes">("hoy");
+
+  const { data: coach } = useQuery({
+    queryKey: ["coach-detail-profile", coachId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("*")
+        .eq("id", coachId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const bounds = useMemo(() => {
     const now = new Date();
@@ -2637,17 +2791,16 @@ export function CoachesPanel() {
 
   const { data: classes } = useQuery({
     queryKey: [
-      "coaches-panel-classes",
-      selectedId,
+      "coach-detail-classes",
+      coachId,
       bounds.start.toISOString(),
       bounds.end.toISOString(),
     ],
-    enabled: Boolean(selectedId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
         .select("*")
-        .eq("coach_id", selectedId as string)
+        .eq("coach_id", coachId)
         .gte("starts_at", bounds.start.toISOString())
         .lt("starts_at", bounds.end.toISOString())
         .order("starts_at");
@@ -2656,8 +2809,8 @@ export function CoachesPanel() {
     },
   });
 
-  const { data: bookingCounts } = useQuery({
-    queryKey: ["coaches-panel-bookings", (classes ?? []).map((c) => c.id).join(",")],
+  const { data: bookingsByClass } = useQuery({
+    queryKey: ["coach-detail-bookings", (classes ?? []).map((c) => c.id).join(",")],
     enabled: Boolean(classes?.length),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -2668,40 +2821,36 @@ export function CoachesPanel() {
           (classes ?? []).map((c) => c.id),
         );
       if (error) throw error;
-      const counts = new Map<string, { reservada: number; total: number }>();
+      const map = new Map<string, { reservada: number; cancelada: number; lista_espera: number }>();
       for (const b of data ?? []) {
-        const acc = counts.get(b.class_id) ?? { reservada: 0, total: 0 };
-        acc.total += 1;
+        const acc = map.get(b.class_id) ?? { reservada: 0, cancelada: 0, lista_espera: 0 };
         if (b.status === "reservada") acc.reservada += 1;
-        counts.set(b.class_id, acc);
+        if (b.status === "cancelada") acc.cancelada += 1;
+        if (b.status === "lista_espera") acc.lista_espera += 1;
+        map.set(b.class_id, acc);
       }
-      return counts;
+      return map;
     },
   });
 
-  const totalReservations = (classes ?? []).reduce(
-    (sum, c) => sum + (bookingCounts?.get(c.id)?.reservada ?? 0),
-    0,
+  const totals = (classes ?? []).reduce(
+    (acc, c) => {
+      const b = bookingsByClass?.get(c.id) ?? { reservada: 0, cancelada: 0, lista_espera: 0 };
+      acc.reservada += b.reservada;
+      acc.cancelada += b.cancelada;
+      acc.espera += b.lista_espera;
+      return acc;
+    },
+    { reservada: 0, cancelada: 0, espera: 0 },
   );
-  const selectedCoach = coaches?.find((c) => c.id === selectedId);
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <label className="text-xs">
-          <span className="eyebrow">Coach</span>
-          <select
-            value={selectedId ?? ""}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className={`${input} w-64`}
-          >
-            {(coaches ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.full_name}
-              </option>
-            ))}
-          </select>
-        </label>
+    <Popout onClose={onClose} wide>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-lg font-medium">{coach?.full_name}</p>
+          <p className="text-xs text-muted-foreground">{money(coach?.hourly_rate_cents ?? 0)}/h</p>
+        </div>
         <div className="flex gap-1.5">
           {(["hoy", "semana", "mes"] as const).map((r) => (
             <button
@@ -2716,60 +2865,68 @@ export function CoachesPanel() {
         </div>
       </div>
 
-      {(coaches ?? []).length === 0 ? (
-        <p className="text-muted-foreground">
-          Sin coaches dados de alta todavía (asigna el rol "Coach" en Staff).
-        </p>
-      ) : (
-        <>
-          <div className="mb-6 grid gap-4 sm:grid-cols-3">
-            <div className="border border-border p-4">
-              <p className="eyebrow">Clases en el rango</p>
-              <p className="mt-1 text-xl">{(classes ?? []).length}</p>
-            </div>
-            <div className="border border-border p-4">
-              <p className="eyebrow">Reservaciones totales</p>
-              <p className="mt-1 text-xl">{totalReservations}</p>
-            </div>
-            <div className="border border-border p-4">
-              <p className="eyebrow">Tarifa por hora</p>
-              <p className="mt-1 text-xl">{money(selectedCoach?.hourly_rate_cents ?? 0)}</p>
-            </div>
-          </div>
+      <div className="mb-5 grid gap-3 sm:grid-cols-4">
+        <div className="border border-border p-3">
+          <p className="text-xs text-muted-foreground">Clases</p>
+          <p className="mt-1 text-lg">{(classes ?? []).length}</p>
+        </div>
+        <div className="border border-border p-3">
+          <p className="text-xs text-muted-foreground">Reservaciones</p>
+          <p className="mt-1 text-lg">{totals.reservada}</p>
+        </div>
+        <div className="border border-border p-3">
+          <p className="text-xs text-muted-foreground">Cancelaciones</p>
+          <p className="mt-1 text-lg">{totals.cancelada}</p>
+        </div>
+        <div className="border border-border p-3">
+          <p className="text-xs text-muted-foreground">Lista de espera</p>
+          <p className="mt-1 text-lg">{totals.espera}</p>
+        </div>
+      </div>
 
-          <ul className="divide-y divide-border border-y border-border text-sm">
-            {(classes ?? []).map((c) => {
-              const counts = bookingCounts?.get(c.id) ?? { reservada: 0, total: 0 };
-              return (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                  <span>
-                    {new Intl.DateTimeFormat("es-MX", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(c.starts_at))}
+      <ul className="divide-y divide-border border-y border-border text-sm">
+        {(classes ?? []).map((c) => {
+          const b = bookingsByClass?.get(c.id) ?? { reservada: 0, cancelada: 0, lista_espera: 0 };
+          return (
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <span>
+                {new Intl.DateTimeFormat("es-MX", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(c.starts_at))}
+              </span>
+              <span className="text-muted-foreground">
+                {c.room} · {c.module_key}
+              </span>
+              <span className="flex gap-1.5">
+                <span
+                  className={
+                    b.reservada >= c.capacity
+                      ? "bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
+                      : "bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                  }
+                >
+                  {b.reservada}/{c.capacity}
+                </span>
+                {b.cancelada > 0 ? (
+                  <span className="bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700">
+                    {b.cancelada} canceló
                   </span>
-                  <span className="text-muted-foreground">
-                    {c.room} · {c.module_key}
+                ) : null}
+                {b.lista_espera > 0 ? (
+                  <span className="bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700">
+                    {b.lista_espera} en espera
                   </span>
-                  <span
-                    className={
-                      counts.reservada >= c.capacity
-                        ? "bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
-                        : "bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                    }
-                  >
-                    {counts.reservada}/{c.capacity}
-                  </span>
-                </li>
-              );
-            })}
-            {(classes ?? []).length === 0 ? (
-              <li className="py-6 text-muted-foreground">Sin clases en este rango.</li>
-            ) : null}
-          </ul>
-        </>
-      )}
-    </div>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+        {(classes ?? []).length === 0 ? (
+          <li className="py-6 text-muted-foreground">Sin clases en este rango.</li>
+        ) : null}
+      </ul>
+    </Popout>
   );
 }
 
@@ -2883,8 +3040,7 @@ export function FinancePanel() {
   const [openCard, setOpenCard] = useState<"tokens" | "merch" | "consumibles" | "nomina" | null>(
     null,
   );
-  const [merchSort, setMerchSort] = useState<"top" | "bottom">("top");
-  const [consumibleSort, setConsumibleSort] = useState<"top" | "bottom">("top");
+  const [tokenCategoryFilter, setTokenCategoryFilter] = useState<string>("todas");
 
   // Últimas 8 semanas + 2 semanas de proyección (promedio de las últimas 4).
   const weeks = useMemo(() => {
@@ -2919,7 +3075,10 @@ export function FinancePanel() {
         .lte("created_at", toIso);
 
       const tokensByCategory = new Map<string, number>();
-      const tokensByPlan = new Map<string, { name: string; revenue: number; count: number }>();
+      const tokensByPlan = new Map<
+        string,
+        { name: string; category: string; revenue: number; count: number }
+      >();
       let clasesRevenue = 0;
       for (const t of transactions ?? []) {
         if (new Date(t.created_at) < monthStart) continue;
@@ -2927,7 +3086,12 @@ export function FinancePanel() {
         const cat = t.plan?.category ?? "clases_pilates";
         tokensByCategory.set(cat, (tokensByCategory.get(cat) ?? 0) + t.amount_cents);
         const planName = t.plan?.name ?? "Otro";
-        const acc = tokensByPlan.get(planName) ?? { name: planName, revenue: 0, count: 0 };
+        const acc = tokensByPlan.get(planName) ?? {
+          name: planName,
+          category: cat,
+          revenue: 0,
+          count: 0,
+        };
         acc.revenue += t.amount_cents;
         acc.count += 1;
         tokensByPlan.set(planName, acc);
@@ -3055,21 +3219,33 @@ export function FinancePanel() {
 
       const trend = weeks.map((w, i) => ({
         label: w.label,
-        revenue: weeklyPos[i]! + weeklyTokens[i]!,
-        cost: weeklyPayroll[i]!,
-        margin: weeklyPos[i]! + weeklyTokens[i]! - weeklyPayroll[i]!,
+        revenue: Math.round((weeklyPos[i]! + weeklyTokens[i]!) / 100),
+        cost: Math.round(weeklyPayroll[i]! / 100),
+        margin: Math.round((weeklyPos[i]! + weeklyTokens[i]! - weeklyPayroll[i]!) / 100),
         projected: false,
       }));
       const last4 = trend.slice(-4);
       const avgRevenue = last4.reduce((s, t) => s + t.revenue, 0) / (last4.length || 1);
       const avgCost = last4.reduce((s, t) => s + t.cost, 0) / (last4.length || 1);
-      const projected = [1, 2].map((i) => ({
-        label: `+${i}sem`,
-        revenue: avgRevenue,
-        cost: avgCost,
-        margin: avgRevenue - avgCost,
-        projected: true,
-      }));
+      const lastActual = trend[trend.length - 1];
+      const projected = [
+        // primer punto proyectado = último real, para que la línea punteada
+        // arranque pegada a la sólida en vez de dejar un salto en el aire
+        {
+          label: lastActual!.label,
+          revenue: lastActual!.revenue,
+          cost: lastActual!.cost,
+          margin: lastActual!.margin,
+          projected: true,
+        },
+        ...[1, 2].map((i) => ({
+          label: `+${i} sem`,
+          revenue: Math.round(avgRevenue),
+          cost: Math.round(avgCost),
+          margin: Math.round(avgRevenue - avgCost),
+          projected: true,
+        })),
+      ];
 
       const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue;
       return {
@@ -3086,33 +3262,32 @@ export function FinancePanel() {
         payrollByStaff: Array.from(payrollByStaff.values()).sort((a, b) => b.cost - a.cost),
         totalRevenue,
         margin: totalRevenue - payrollCost,
-        trend: [...trend, ...projected],
+        trendActual: trend,
+        trendProjected: projected,
       };
     },
   });
 
   const marginPositive = (data?.margin ?? 0) >= 0;
-  const trend = data?.trend ?? [];
-  const maxVal = Math.max(1, ...trend.map((t) => Math.max(t.revenue, t.cost)));
-  const chartW = 640;
-  const chartH = 160;
-  const stepX = chartW / Math.max(1, trend.length - 1);
-  const solidCount = trend.filter((t) => !t.projected).length;
-
-  // linePath dibuja usando la posición ABSOLUTA (índice real dentro de
-  // `trend`) para que las series solidas y la proyectada queden alineadas.
-  const linePath = (key: "revenue" | "cost" | "margin", indices: number[]) =>
-    indices
-      .map(
-        (i, n) =>
-          `${n === 0 ? "M" : "L"} ${i * stepX} ${chartH - (trend[i]![key] / maxVal) * chartH}`,
-      )
-      .join(" ");
-
-  const solidIndices = trend.map((_, i) => i).filter((i) => i < solidCount);
-  // La línea punteada arranca en el último punto sólido para que se vea
-  // continua, y cubre desde ahí hasta el final (semanas proyectadas).
-  const projectedIndices = trend.map((_, i) => i).filter((i) => i >= solidCount - 1);
+  const chartData = useMemo(() => {
+    const actual = data?.trendActual ?? [];
+    const projected = data?.trendProjected ?? [];
+    const actualRows = actual.map((t) => ({
+      label: t.label,
+      Ingresos: t.revenue,
+      Costo: t.cost,
+      Margen: t.margin,
+    }));
+    // La proyección se guarda en columnas separadas para que recharts la
+    // dibuje con línea punteada; el primer punto se repite (mismo valor que
+    // el último real) solo para que la línea se vea continua, sin salto.
+    const projectedRows = projected.map((t) => ({
+      label: t.label,
+      "Ingresos (proyección)": t.revenue,
+      "Costo (proyección)": t.cost,
+    }));
+    return [...actualRows, ...projectedRows];
+  }, [data]);
 
   return (
     <div className="space-y-8">
@@ -3143,53 +3318,67 @@ export function FinancePanel() {
       </div>
 
       <div className="border border-border p-6">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="eyebrow">Tendencia semanal (ingresos, costo, margen)</p>
-          <div className="flex items-center gap-3 text-[0.65rem] text-muted-foreground">
-            <span>— Ingresos</span>
-            <span>— Costo</span>
-            <span>— Margen</span>
-            <span>┄ Proyección</span>
-          </div>
-        </div>
-        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="h-40 w-full overflow-visible">
-          <path
-            d={linePath("revenue", solidIndices)}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            className="text-foreground"
-          />
-          <path
-            d={linePath("cost", solidIndices)}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            className="text-destructive"
-          />
-          <path
-            d={linePath("margin", solidIndices)}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            className="text-emerald-600"
-          />
-          <path
-            d={linePath("revenue", projectedIndices)}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeDasharray="4 4"
-            className="text-foreground/50"
-          />
-        </svg>
-        <div className="mt-1 flex justify-between text-[0.6rem] text-muted-foreground">
-          {trend.map((t, i) => (
-            <span key={i} className={t.projected ? "italic" : ""}>
-              {t.label}
-            </span>
-          ))}
-        </div>
+        <p className="mb-4 eyebrow">Tendencia semanal (MXN, últimas 8 semanas + proyección)</p>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis
+              tick={{ fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+              width={44}
+            />
+            <Tooltip
+              formatter={(value: number) => money(value * 100)}
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey="Ingresos"
+              stroke="#0F6E56"
+              strokeWidth={2.5}
+              dot={{ r: 3 }}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Costo"
+              stroke="#D85A30"
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Margen"
+              stroke="#185FA5"
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Ingresos (proyección)"
+              stroke="#0F6E56"
+              strokeWidth={2.5}
+              strokeDasharray="6 5"
+              dot={false}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="Costo (proyección)"
+              stroke="#D85A30"
+              strokeWidth={2}
+              strokeDasharray="6 5"
+              dot={false}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -3231,172 +3420,152 @@ export function FinancePanel() {
       {openCard === "tokens" ? (
         <Popout onClose={() => setOpenCard(null)} wide>
           <p className="mb-4 eyebrow">Tokens / créditos — análisis</p>
-          <p className="mb-2 text-xs text-muted-foreground">Por categoría</p>
+          <div className="mb-5 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setTokenCategoryFilter("todas")}
+              className={`border px-3 py-1 text-[0.6rem] uppercase ${tokenCategoryFilter === "todas" ? "border-foreground bg-foreground text-background" : "border-input"}`}
+            >
+              Todas
+            </button>
+            {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTokenCategoryFilter(key)}
+                className={`border px-3 py-1 text-[0.6rem] uppercase ${tokenCategoryFilter === key ? "border-foreground bg-foreground text-background" : "border-input"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
-              <div key={key} className="border border-border p-4">
+              <div
+                key={key}
+                className={`border p-4 ${tokenCategoryFilter === key ? "border-foreground" : "border-border"}`}
+              >
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <p className="mt-1 text-lg">{money(data?.tokensByCategory.get(key) ?? 0)}</p>
               </div>
             ))}
           </div>
           <p className="mb-2 text-xs text-muted-foreground">
-            Por paquete (de mejor a peor vendido)
+            Por paquete — clic en la columna para ordenar
           </p>
-          <ul className="divide-y divide-border border-y border-border text-sm">
-            {(data?.tokensByPlan ?? []).map((p) => (
-              <li key={p.name} className="flex items-center justify-between py-2">
-                <span>{p.name}</span>
-                <span className="text-muted-foreground">
-                  {p.count} venta{p.count === 1 ? "" : "s"} · {money(p.revenue)}
-                </span>
-              </li>
-            ))}
-            {(data?.tokensByPlan ?? []).length === 0 ? (
-              <li className="py-2 text-muted-foreground">Sin ventas de paquetes este mes.</li>
-            ) : null}
-          </ul>
+          <SortableTable
+            rows={(data?.tokensByPlan ?? []).filter(
+              (p) => tokenCategoryFilter === "todas" || p.category === tokenCategoryFilter,
+            )}
+            emptyLabel="Sin ventas de paquetes este mes."
+            columns={[
+              { key: "name", label: "Paquete" },
+              {
+                key: "category",
+                label: "Categoría",
+                format: (v) => TOKEN_CATEGORY_LABELS[v as string] ?? String(v),
+              },
+              { key: "count", label: "Ventas", align: "right" },
+              {
+                key: "revenue",
+                label: "Ingreso",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
         </Popout>
       ) : null}
 
       {openCard === "merch" ? (
         <Popout onClose={() => setOpenCard(null)} wide>
-          <div className="mb-4 flex items-center justify-between">
-            <p className="eyebrow">Merch — análisis</p>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => setMerchSort("top")}
-                className={`border px-3 py-1 text-[0.6rem] uppercase ${merchSort === "top" ? "border-foreground bg-foreground text-background" : "border-input"}`}
-              >
-                Mejor a peor
-              </button>
-              <button
-                type="button"
-                onClick={() => setMerchSort("bottom")}
-                className={`border px-3 py-1 text-[0.6rem] uppercase ${merchSort === "bottom" ? "border-foreground bg-foreground text-background" : "border-input"}`}
-              >
-                Peor a mejor
-              </button>
-            </div>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <p className="mb-2 text-xs text-muted-foreground">Productos</p>
-              <ul className="divide-y divide-border text-sm">
-                {(merchSort === "top"
-                  ? (data?.topMerch ?? [])
-                  : [...(data?.topMerch ?? [])].reverse()
-                ).map((p) => (
-                  <li key={p.name} className="flex items-center justify-between py-2">
-                    <span>{p.name}</span>
-                    <span className="text-muted-foreground">
-                      {p.units} uds · {money(p.revenue)}
-                    </span>
-                  </li>
-                ))}
-                {(data?.topMerch ?? []).length === 0 ? (
-                  <li className="py-2 text-muted-foreground">Sin ventas de merch.</li>
-                ) : null}
-              </ul>
-            </div>
-            <div>
-              <p className="mb-2 text-xs text-muted-foreground">Clientes</p>
-              <ul className="divide-y divide-border text-sm">
-                {(merchSort === "top"
-                  ? (data?.clientsMerch ?? [])
-                  : [...(data?.clientsMerch ?? [])].reverse()
-                ).map((c) => (
-                  <li key={c.name} className="flex items-center justify-between py-2">
-                    <span>{c.name}</span>
-                    <span className="text-muted-foreground">{money(c.revenue)}</span>
-                  </li>
-                ))}
-                {(data?.clientsMerch ?? []).length === 0 ? (
-                  <li className="py-2 text-muted-foreground">Sin datos.</li>
-                ) : null}
-              </ul>
-            </div>
-          </div>
+          <p className="mb-4 eyebrow">Merch — análisis</p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Productos — clic en la columna para ordenar
+          </p>
+          <SortableTable
+            rows={data?.topMerch ?? []}
+            emptyLabel="Sin ventas de merch este mes."
+            columns={[
+              { key: "name", label: "Producto" },
+              { key: "units", label: "Unidades", align: "right" },
+              {
+                key: "revenue",
+                label: "Ingreso",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
+          <p className="mb-2 mt-6 text-xs text-muted-foreground">
+            Clientes — clic en la columna para ordenar
+          </p>
+          <SortableTable
+            rows={data?.clientsMerch ?? []}
+            emptyLabel="Sin datos todavía."
+            columns={[
+              { key: "name", label: "Cliente" },
+              {
+                key: "revenue",
+                label: "Gastado",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
         </Popout>
       ) : null}
 
       {openCard === "consumibles" ? (
         <Popout onClose={() => setOpenCard(null)} wide>
-          <div className="mb-4 flex items-center justify-between">
-            <p className="eyebrow">Consumibles (Recovery Bar) — análisis</p>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => setConsumibleSort("top")}
-                className={`border px-3 py-1 text-[0.6rem] uppercase ${consumibleSort === "top" ? "border-foreground bg-foreground text-background" : "border-input"}`}
-              >
-                Mejor a peor
-              </button>
-              <button
-                type="button"
-                onClick={() => setConsumibleSort("bottom")}
-                className={`border px-3 py-1 text-[0.6rem] uppercase ${consumibleSort === "bottom" ? "border-foreground bg-foreground text-background" : "border-input"}`}
-              >
-                Peor a mejor
-              </button>
-            </div>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <p className="mb-2 text-xs text-muted-foreground">Productos</p>
-              <ul className="divide-y divide-border text-sm">
-                {(consumibleSort === "top"
-                  ? (data?.topConsumibles ?? [])
-                  : [...(data?.topConsumibles ?? [])].reverse()
-                ).map((p) => (
-                  <li key={p.name} className="flex items-center justify-between py-2">
-                    <span>{p.name}</span>
-                    <span className="text-muted-foreground">
-                      {p.units} uds · {money(p.revenue)}
-                    </span>
-                  </li>
-                ))}
-                {(data?.topConsumibles ?? []).length === 0 ? (
-                  <li className="py-2 text-muted-foreground">Sin ventas de consumibles.</li>
-                ) : null}
-              </ul>
-            </div>
-            <div>
-              <p className="mb-2 text-xs text-muted-foreground">Clientes</p>
-              <ul className="divide-y divide-border text-sm">
-                {(consumibleSort === "top"
-                  ? (data?.clientsConsumibles ?? [])
-                  : [...(data?.clientsConsumibles ?? [])].reverse()
-                ).map((c) => (
-                  <li key={c.name} className="flex items-center justify-between py-2">
-                    <span>{c.name}</span>
-                    <span className="text-muted-foreground">{money(c.revenue)}</span>
-                  </li>
-                ))}
-                {(data?.clientsConsumibles ?? []).length === 0 ? (
-                  <li className="py-2 text-muted-foreground">Sin datos.</li>
-                ) : null}
-              </ul>
-            </div>
-          </div>
+          <p className="mb-4 eyebrow">Consumibles (Recovery Bar) — análisis</p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Productos — clic en la columna para ordenar
+          </p>
+          <SortableTable
+            rows={data?.topConsumibles ?? []}
+            emptyLabel="Sin ventas de consumibles este mes."
+            columns={[
+              { key: "name", label: "Producto" },
+              { key: "units", label: "Unidades", align: "right" },
+              {
+                key: "revenue",
+                label: "Ingreso",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
+          <p className="mb-2 mt-6 text-xs text-muted-foreground">
+            Clientes — clic en la columna para ordenar
+          </p>
+          <SortableTable
+            rows={data?.clientsConsumibles ?? []}
+            emptyLabel="Sin datos todavía."
+            columns={[
+              { key: "name", label: "Cliente" },
+              {
+                key: "revenue",
+                label: "Gastado",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
         </Popout>
       ) : null}
 
       {openCard === "nomina" ? (
         <Popout onClose={() => setOpenCard(null)}>
           <p className="mb-4 eyebrow">Nómina del mes — desglose</p>
-          <ul className="divide-y divide-border text-sm">
-            {(data?.payrollByStaff ?? []).map((s) => (
-              <li key={s.name} className="flex items-center justify-between py-2">
-                <span>{s.name}</span>
-                <span className="text-muted-foreground">{money(s.cost)}</span>
-              </li>
-            ))}
-            {(data?.payrollByStaff ?? []).length === 0 ? (
-              <li className="py-2 text-muted-foreground">Sin staff activo.</li>
-            ) : null}
-          </ul>
+          <SortableTable
+            rows={data?.payrollByStaff ?? []}
+            emptyLabel="Sin staff activo."
+            columns={[
+              { key: "name", label: "Persona" },
+              { key: "cost", label: "Costo", align: "right", format: (v) => money(v as number) },
+            ]}
+          />
         </Popout>
       ) : null}
 
