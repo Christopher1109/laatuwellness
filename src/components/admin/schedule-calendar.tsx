@@ -712,7 +712,7 @@ function ClassDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <div
-        className="h-full w-full max-w-2xl overflow-y-auto bg-background p-6"
+        className="h-full w-full max-w-[min(60rem,96vw)] overflow-y-auto bg-background p-6 lg:p-9"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between border-b border-border pb-4">
