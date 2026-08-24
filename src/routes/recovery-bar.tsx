@@ -47,8 +47,7 @@ export const Route = createFileRoute("/recovery-bar")({
       { property: "og:title", content: "Recovery Bar — Läätu Wellness" },
       {
         property: "og:description",
-        content:
-          "La barra de recuperación de Läätu: proteína, café de especialidad e hidratación.",
+        content: "La barra de recuperación de Läätu: proteína, café de especialidad e hidratación.",
       },
     ],
   }),
@@ -94,13 +93,11 @@ function RecoveryBar() {
               La recuperación también es entrenamiento.
             </p>
             <p className="mt-6 text-muted-foreground">
-              Todo se prepara al momento, con ingredientes simples y sin azúcares
-              añadidos innecesarios. Pregunta por las opciones sin lácteos.
+              Todo se prepara al momento, con ingredientes simples y sin azúcares añadidos
+              innecesarios. Pregunta por las opciones sin lácteos.
             </p>
             <a
-              href={whatsappHref(
-                "Hola Läätu, quiero saber más sobre el Recovery Bar.",
-              )}
+              href={whatsappHref("Hola Läätu, quiero saber más sobre el Recovery Bar.")}
               target="_blank"
               rel="noreferrer"
               className="mt-9 inline-block border border-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
@@ -112,15 +109,10 @@ function RecoveryBar() {
       </section>
 
       <section className="relative overflow-hidden">
-        <PatternField
-          opacity={0.08}
-          className="-right-36 top-10 h-[28rem] w-[28rem]"
-        />
+        <PatternField opacity={0.08} className="-right-36 top-10 h-[28rem] w-[28rem]" />
         <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <p className="eyebrow">La carta</p>
-          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
-            Solo en el estudio.
-          </h2>
+          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">Solo en el estudio.</h2>
           <div className="mt-10 grid gap-px sm:mt-14 bg-border md:grid-cols-3">
             {CARTA.map((g, i) => (
               <div key={g.grupo} className="bg-background p-6 sm:p-8">

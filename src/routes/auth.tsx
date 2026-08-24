@@ -28,7 +28,7 @@ export const Route = createFileRoute("/auth")({
 const signUpSchema = z.object({
   full_name: z.string().trim().min(2, "Escribe tu nombre").max(100),
   email: z.string().trim().email("Correo inválido").max(255),
-  phone: z.string().trim().max(30).optional().or(z.literal("")),
+  phone: z.string().trim().min(10, "Escribe un número a 10 dígitos").max(30),
   password: z.string().min(8, "Mínimo 8 caracteres").max(72),
 });
 
@@ -190,9 +190,18 @@ function Auth() {
                 </div>
                 <div>
                   <label htmlFor="phone" className="eyebrow">
-                    Teléfono (opcional)
+                    Teléfono
                   </label>
-                  <input id="phone" name="phone" maxLength={30} className={field} />
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    required
+                    minLength={10}
+                    maxLength={30}
+                    placeholder="81 1234 5678"
+                    className={field}
+                  />
                 </div>
               </>
             ) : null}

@@ -89,7 +89,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Läätu Wellness — Wellness Recovery Bar" },
       {
         property: "og:description",
-        content: "Un espacio para respirar, moverte y agradecer el recorrido. Reserva tu clase de Reformer.",
+        content:
+          "Un espacio para respirar, moverte y agradecer el recorrido. Reserva tu clase de Reformer.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -100,7 +101,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "apple-mobile-web-app-status-bar-style",
         content: "black-translucent",
       },
-
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -119,7 +119,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-
     ],
   }),
   shellComponent: RootShell,

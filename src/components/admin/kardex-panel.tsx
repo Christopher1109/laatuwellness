@@ -74,7 +74,9 @@ export function KardexPanel() {
     queryFn: async () => {
       let q = supabase
         .from("activity_log")
-        .select("id, category, action, description, amount_cents, created_at, actor_id, subject_user_id")
+        .select(
+          "id, category, action, description, amount_cents, created_at, actor_id, subject_user_id",
+        )
         .order("created_at", { ascending: false })
         .limit(500);
       if (category !== "todo") q = q.eq("category", category);

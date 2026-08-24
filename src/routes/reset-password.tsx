@@ -48,7 +48,9 @@ function ResetPassword() {
         <h1 className="statement mt-10 text-3xl">Nueva contraseña</h1>
         <form onSubmit={submit} className="mt-8 space-y-5">
           <div>
-            <label htmlFor="password" className="eyebrow">Contraseña</label>
+            <label htmlFor="password" className="eyebrow">
+              Contraseña
+            </label>
             <input
               id="password"
               name="password"

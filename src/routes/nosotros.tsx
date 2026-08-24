@@ -55,14 +55,13 @@ function Nosotros() {
           <div>
             <p className="eyebrow">La propuesta</p>
             <p className="mt-6 text-lg leading-relaxed">
-              Trabajamos con reformer, con recuperación por contraste y con
-              acompañamiento integral. Cada salón recibe un máximo de diez
-              personas para que la atención sea individual dentro de un grupo.
+              Trabajamos con reformer, con recuperación por contraste y con acompañamiento integral.
+              Cada salón recibe un máximo de diez personas para que la atención sea individual
+              dentro de un grupo.
             </p>
             <p className="mt-5 text-muted-foreground">
-              No creemos en la intensidad como identidad. Creemos en la
-              constancia, en la respiración y en el espacio que se abre cuando
-              dejas de competir contigo.
+              No creemos en la intensidad como identidad. Creemos en la constancia, en la
+              respiración y en el espacio que se abre cuando dejas de competir contigo.
             </p>
           </div>
           <img

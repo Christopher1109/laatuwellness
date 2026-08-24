@@ -19,13 +19,13 @@ function isStandalone() {
 function isMobileOrTablet() {
   if (typeof window === "undefined") return false;
   const ua = window.navigator.userAgent;
-  const esTablet = /iPad|Tablet|PlayBook|Silk/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
+  const esTablet =
+    /iPad|Tablet|PlayBook|Silk/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
   const esMovil = /Android|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
   const pantallaChica = window.matchMedia("(max-width: 1024px)").matches;
   const tactil = window.matchMedia("(pointer: coarse)").matches;
   return esMovil || esTablet || (pantallaChica && tactil);
 }
-
 
 /**
  * Invitación a instalar Läätu en la pantalla de inicio.
@@ -69,7 +69,6 @@ export function InstallPrompt() {
     close();
   };
 
-
   if (!open) return null;
 
   return (
@@ -99,8 +98,8 @@ export function InstallPrompt() {
           Tennos en la comodidad de tu mano.
         </h2>
         <p className="mt-4 text-sm text-muted-foreground">
-          Agrega Läätu a tu pantalla de inicio y reserva tus clases en un toque,
-          sin abrir el navegador.
+          Agrega Läätu a tu pantalla de inicio y reserva tus clases en un toque, sin abrir el
+          navegador.
         </p>
 
         {ios ? (
@@ -149,15 +148,7 @@ export function InstallPrompt() {
   );
 }
 
-function Paso({
-  n,
-  icon,
-  text,
-}: {
-  n: string;
-  icon: React.ReactNode;
-  text: string;
-}) {
+function Paso({ n, icon, text }: { n: string; icon: React.ReactNode; text: string }) {
   return (
     <li className="flex items-start gap-4">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-border font-mono text-[0.65rem]">

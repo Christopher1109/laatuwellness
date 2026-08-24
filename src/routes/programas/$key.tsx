@@ -12,8 +12,11 @@ import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
+const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
+void foto1;
+
 const HERO: Record<string, string> = {
-  reformer: foto1.url,
+  reformer: editorial1,
   "salon-2": foto2.url,
   contraste: foto4.url,
   nutricion: foto4.url,
@@ -37,8 +40,7 @@ export const Route = createFileRoute("/programas/$key")({
         { property: "og:title", content: title },
         {
           property: "og:description",
-          content:
-            "Horarios en vivo, cupos disponibles y compra de sesiones en Läätu Wellness.",
+          content: "Horarios en vivo, cupos disponibles y compra de sesiones en Läätu Wellness.",
         },
       ],
     };
@@ -80,7 +82,10 @@ function ProgramaDetalle() {
 
   const purchase = useMutation({
     mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", { _plan_id: planId, _payment_method: "en_sitio" });
+      const { error } = await supabase.rpc("purchase_plan", {
+        _plan_id: planId,
+        _payment_method: "en_sitio",
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -125,9 +130,7 @@ function ProgramaDetalle() {
                 Ver horarios
               </a>
               <a
-                href={whatsappHref(
-                  `Hola Läätu, quiero información sobre ${modulo.name}.`,
-                )}
+                href={whatsappHref(`Hola Läätu, quiero información sobre ${modulo.name}.`)}
                 target="_blank"
                 rel="noreferrer"
                 className="border border-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
@@ -138,7 +141,7 @@ function ProgramaDetalle() {
           </div>
           <div className="relative -mx-5 min-h-[20rem] sm:-mx-8 lg:mx-0">
             <img
-              src={HERO[modulo.key] ?? foto1.url}
+              src={HERO[modulo.key] ?? editorial1}
               alt={modulo.name}
               className="h-full w-full object-cover"
               loading="eager"
@@ -150,9 +153,7 @@ function ProgramaDetalle() {
       <section id="horarios" className="border-b border-border scroll-mt-28">
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Horarios</p>
-          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
-            Cupos en vivo.
-          </h2>
+          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">Cupos en vivo.</h2>
           <div className="mt-12">
             <Schedule moduleKey={modulo.key} defaultRange="semana" />
           </div>
@@ -162,12 +163,10 @@ function ProgramaDetalle() {
       <section>
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Sesiones</p>
-          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
-            Compra tus accesos.
-          </h2>
+          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">Compra tus accesos.</h2>
           <p className="mt-5 max-w-lg text-muted-foreground">
-            Los tokens sirven para cualquier programa. Reserva con ellos y
-            cancela hasta 12 horas antes sin perderlos.
+            Los tokens sirven para cualquier programa. Reserva con ellos y cancela hasta 12 horas
+            antes sin perderlos.
           </p>
 
           <div className="mt-12 grid gap-px bg-border sm:grid-cols-3">

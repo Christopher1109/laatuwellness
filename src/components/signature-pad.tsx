@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Firma táctil sobre canvas. Devuelve un PNG en dataURL. */
-export function SignaturePad({
-  onChange,
-}: {
-  onChange: (dataUrl: string | null) => void;
-}) {
+export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [empty, setEmpty] = useState(true);
