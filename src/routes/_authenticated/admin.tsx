@@ -7,14 +7,12 @@ import {
   Stethoscope,
   ShoppingCart,
   Package,
-  UserCheck,
   Users,
   UserCog,
   Wallet,
-  CalendarRange,
-  Clock,
   Contact,
   LineChart,
+  Tag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,13 +21,10 @@ import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
 import {
   POSPanel,
   InventoryPanel,
-  CheckInPanel,
   StaffDirectoryPanel,
   ClientsPanel,
   PayrollPanel,
-  ShiftSchedulePanel,
-  MyAvailabilityPanel,
-  TimeClockPanel,
+  PackagesPanel,
   CoachProfilePanel,
   FinancePanel,
   input,
@@ -61,7 +56,6 @@ function Admin() {
           items: [
             { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
-            { key: "checkin", label: "Check-in", icon: UserCheck },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
             { key: "inventario", label: "Inventario", icon: Package },
           ],
@@ -72,37 +66,28 @@ function Admin() {
             { key: "clientes", label: "Clientes", icon: Contact },
             { key: "staff", label: "Staff", icon: UserCog },
             { key: "nomina", label: "Nómina", icon: Wallet },
-            { key: "turnos", label: "Turnos", icon: CalendarRange },
           ],
         },
         {
           label: "Negocio",
-          items: [{ key: "finanzas", label: "Finanzas", icon: LineChart }],
-        },
-        {
-          label: "Mi cuenta",
-          items: [{ key: "checador", label: "Checador", icon: Clock }],
+          items: [
+            { key: "paquetes", label: "Paquetes", icon: Tag },
+            { key: "finanzas", label: "Finanzas", icon: LineChart },
+          ],
         },
       ]
     : isCoach
       ? [
           {
-            items: [
-              { key: "mi-perfil", label: "Mi perfil", icon: Users },
-              { key: "checador", label: "Checador", icon: Clock },
-              { key: "disponibilidad", label: "Mi disponibilidad", icon: CalendarRange },
-            ],
+            items: [{ key: "mi-perfil", label: "Mi perfil", icon: Users }],
           },
         ]
       : isStaff
         ? [
             {
               items: [
-                { key: "checkin", label: "Check-in", icon: UserCheck },
                 { key: "pos", label: "Punto de venta", icon: ShoppingCart },
                 { key: "inventario", label: "Inventario", icon: Package },
-                { key: "checador", label: "Checador", icon: Clock },
-                { key: "disponibilidad", label: "Mi disponibilidad", icon: CalendarRange },
               ],
             },
           ]
@@ -143,16 +128,13 @@ function Admin() {
       {activeKey === "horarios-consultorio" ? (
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
-      {activeKey === "checkin" ? <CheckInPanel /> : null}
       {activeKey === "pos" ? <POSPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
-      {activeKey === "turnos" ? <ShiftSchedulePanel /> : null}
+      {activeKey === "paquetes" ? <PackagesPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
-      {activeKey === "disponibilidad" ? <MyAvailabilityPanel /> : null}
-      {activeKey === "checador" ? <TimeClockPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}
     </AdminShell>
   );
