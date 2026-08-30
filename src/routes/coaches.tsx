@@ -42,7 +42,7 @@ function Coaches() {
       <PageHeader
         eyebrow="Coaches"
         title="Alguien que mira tu proceso."
-        intro="Nombres provisionales mientras se confirma el equipo definitivo y sus horarios."
+        intro="El equipo que acompaña tu proceso en Läätu."
       />
 
       <section>

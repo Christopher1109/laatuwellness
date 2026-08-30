@@ -12,7 +12,7 @@ import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
 // Set editorial nuevo (matte black & white) — reemplaza foto1 (persona
-// estirando) en el hero y complementa Recovery Bar / Conócenos.
+// estirando) en el hero y complementa Fuel / Conócenos.
 const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
 const editorial2 = "/foto-editorial/laatu-editorial-2.jpg";
 const editorial3 = "/foto-editorial/laatu-editorial-3.jpg";
@@ -182,7 +182,7 @@ function Home() {
         </div>
       </section>
 
-      {/* ---------- Recovery Bar ---------- */}
+      {/* ---------- Fuel ---------- */}
       <section className="surface-dark grain relative overflow-hidden border-b border-border">
         <PatternField
           tone="ivory"
@@ -192,13 +192,13 @@ function Home() {
         <div className="relative z-[2] mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
-              <p className="eyebrow opacity-70">Recovery Bar</p>
+              <p className="eyebrow opacity-70">Fuel</p>
               <h2 className="statement mt-4 max-w-lg text-[clamp(1.8rem,4vw,2.8rem)]">
                 Lo que tu cuerpo pide después.
               </h2>
             </div>
             <Link
-              to="/recovery-bar"
+              to="/fuel"
               className="text-[0.7rem] uppercase tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100"
             >
               Ver la carta completa →
@@ -207,9 +207,13 @@ function Home() {
 
           <div className="mt-12 grid gap-px bg-current/15 sm:mt-16 md:grid-cols-3">
             {[
-              ["01", "Smoothies de proteína", "Recovery, verde y berry. Preparados al momento."],
-              ["02", "Café de especialidad", "Espresso de origen, latte de avena, cold brew."],
-              ["03", "Shots e infusiones", "Jengibre, electrolitos y mezclas para relajar."],
+              ["01", "Smoothies", "Blush, Indigo, Lift y Verde. Preparados al momento, $125."],
+              [
+                "02",
+                "Coffee & Matcha",
+                "Latte, capu, flat, brew y matcha. Leches vegetales sin costo extra.",
+              ],
+              ["03", "Add-ons", "Proteína, colágeno y jarabes de temporada."],
             ].map(([num, titulo, desc]) => (
               <div key={num} className="surface-dark p-6 sm:p-8">
                 <p className="font-mono text-[0.65rem] tracking-[0.24em] opacity-60">{num}</p>
@@ -220,7 +224,7 @@ function Home() {
           </div>
 
           <p className="mt-10 max-w-xl font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
-            La barra vive dentro del estudio · se ordena y se paga ahí mismo
+            Fuel vive dentro del estudio · se ordena y se paga ahí mismo
           </p>
         </div>
       </section>

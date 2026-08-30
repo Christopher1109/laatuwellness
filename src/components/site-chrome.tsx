@@ -15,7 +15,7 @@ const NAV = [
   { to: "/coaches", label: "Coaches" },
   { to: "/horarios", label: "Horarios" },
   { to: "/paquetes", label: "Paquetes" },
-  { to: "/recovery-bar", label: "Recovery Bar" },
+  { to: "/fuel", label: "Fuel" },
   { to: "/contacto", label: "Contacto" },
 ] as const;
 
@@ -166,7 +166,7 @@ export function SiteFooter() {
             <Wordmark tone="ivory" variant="stack" className="h-20" />
             <Coordinates className="mt-6" />
             <p className="mt-5 text-sm text-muted-foreground">
-              Wellness Recovery Bar. Un espacio para respirar, moverte y agradecer el recorrido.
+              Wellness &amp; Fuel. Un espacio para respirar, moverte y agradecer el recorrido.
             </p>
           </div>
 
@@ -210,8 +210,8 @@ export function SiteFooter() {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/recovery-bar" className="hover:text-foreground">
-                    Recovery Bar
+                  <Link to="/fuel" className="hover:text-foreground">
+                    Fuel
                   </Link>
                 </li>
                 <li>

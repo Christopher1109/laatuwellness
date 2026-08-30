@@ -17,7 +17,7 @@ void foto1;
 
 const HERO: Record<string, string> = {
   reformer: editorial1,
-  "salon-2": foto2.url,
+  "4mat": foto2.url,
   contraste: foto4.url,
   nutricion: foto4.url,
   psicologia: foto3.url,
