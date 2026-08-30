@@ -157,7 +157,7 @@ function Auth() {
             Tu cuenta guarda tus tokens, tu waiver y tu historial de reservas.
           </p>
         </div>
-        <p className="relative z-[2] eyebrow">Wellness Recovery Bar</p>
+        <p className="relative z-[2] eyebrow">Studio & Fuel</p>
       </div>
 
       <div className="flex flex-col justify-center px-5 py-16 sm:px-12">

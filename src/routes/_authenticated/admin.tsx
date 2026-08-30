@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 // Horarios de clase (Reformer, Contrast Therapy...) viven separados de los
 // horarios de consultorio (fisioterapia, psicología, nutrición) para que no
 // se mezclen en la misma lista.
-const CLASS_MODULES = ["reformer", "salon-2", "contraste"] as const;
+const CLASS_MODULES = ["reformer", "4mat", "contraste"] as const;
 const CONSULTORIO_MODULES = ["nutricion", "psicologia", "rehabilitacion"] as const;
 
 function Admin() {

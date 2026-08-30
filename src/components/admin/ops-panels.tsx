@@ -128,7 +128,7 @@ const UNITS = ["pieza", "caja", "kg", "g", "l", "ml", "dosis"];
 // PUNTO DE VENTA (POS)
 // ============================================================================
 // ============================================================================
-// PEDIDOS PENDIENTES (Recovery Bar / tienda) — pedidos que los clientes
+// PEDIDOS PENDIENTES (Fuel / tienda) — pedidos que los clientes
 // hacen desde la app y el staff va avanzando hasta entregarlos.
 // ============================================================================
 const ORDER_STATUS_FLOW: Record<string, { next: string | null; label: string }> = {
@@ -3879,7 +3879,7 @@ export function FinancePanel() {
           onClick={() => setOpenCard("consumibles")}
           className="border border-border p-5 text-left hover:border-foreground/40"
         >
-          <p className="eyebrow">Consumibles (Recovery Bar)</p>
+          <p className="eyebrow">Consumibles (Fuel)</p>
           <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
         </button>
       </div>
@@ -3994,7 +3994,7 @@ export function FinancePanel() {
 
       {openCard === "consumibles" ? (
         <Popout onClose={() => setOpenCard(null)} wide>
-          <p className="mb-4 eyebrow">Consumibles (Recovery Bar) — análisis</p>
+          <p className="mb-4 eyebrow">Consumibles (Fuel) — análisis</p>
           <p className="mb-2 text-xs text-muted-foreground">
             Productos — clic en la columna para ordenar
           </p>

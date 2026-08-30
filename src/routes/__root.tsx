@@ -79,14 +79,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Läätu Wellness — Wellness Recovery Bar" },
+      { title: "Läätu Wellness — Studio & Fuel" },
       {
         name: "description",
         content:
           "Läätu Wellness: estudio boutique de Pilates Reformer y recuperación (sauna infrarrojo, nutrición, psicología) en Nuevo León. Abraza tu recorrido.",
       },
       { name: "author", content: "Läätu Wellness" },
-      { property: "og:title", content: "Läätu Wellness — Wellness Recovery Bar" },
+      { property: "og:title", content: "Läätu Wellness — Studio & Fuel" },
       {
         property: "og:description",
         content:

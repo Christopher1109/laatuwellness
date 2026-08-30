@@ -29,7 +29,7 @@ type ViewMode = "day" | "week" | "month";
 
 const MODULE_LABELS: Record<string, string> = {
   reformer: "Reformer",
-  "salon-2": "Salón 2",
+  "4mat": "4mat",
   contraste: "Contraste",
   nutricion: "Nutrición",
   psicologia: "Psicología",

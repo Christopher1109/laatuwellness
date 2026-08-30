@@ -1068,7 +1068,7 @@ function CreditosTab() {
 
 const STORE_CATEGORY_LABELS: Record<string, string> = {
   merch: "Merch",
-  consumible: "Recovery Bar",
+  consumible: "Fuel",
 };
 
 function TiendaTab() {
