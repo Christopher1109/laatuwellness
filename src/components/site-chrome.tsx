@@ -21,7 +21,7 @@ const NAV = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isStaff } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -60,6 +60,13 @@ export function SiteHeader() {
                   className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground"
                 >
                   Admin
+                </Link>
+              ) : isStaff ? (
+                <Link
+                  to="/staff"
+                  className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground"
+                >
+                  Staff
                 </Link>
               ) : null}
               <Link
@@ -137,6 +144,14 @@ export function SiteHeader() {
                 className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
               >
                 Panel admin
+              </Link>
+            ) : user && isStaff ? (
+              <Link
+                to="/staff"
+                onClick={() => setOpen(false)}
+                className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
+              >
+                Panel de staff
               </Link>
             ) : null}
             {user ? (
