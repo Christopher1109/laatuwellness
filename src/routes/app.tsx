@@ -1013,38 +1013,7 @@ function CreditosTab() {
       </div>
 
       {buying ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setBuying(null)}
-        >
-          <div
-            className="w-full max-w-sm bg-background p-8 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="eyebrow">Pago seguro</p>
-            <h3 className="mt-3 text-xl">Estamos integrando tu pago</h3>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Muy pronto vas a poder pagar <strong>{buying.name}</strong> ({money(buying.price)})
-              con tarjeta directo aquí, vía Stripe. Mientras tanto, tu compra queda registrada y tus{" "}
-              {buying.tokens} créditos se acreditan de inmediato.
-            </p>
-            <div className="mt-7 flex gap-2">
-              <button
-                onClick={() => setBuying(null)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={purchase.isPending}
-                onClick={() => purchase.mutate(buying.id)}
-                className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
-              >
-                {purchase.isPending ? "Procesando…" : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </div>
   );
