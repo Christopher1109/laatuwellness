@@ -164,7 +164,7 @@ function Admin() {
 // ============================================================================
 const MODULE_LABELS: Record<string, string> = {
   reformer: "Reformer Studio",
-  "salon-2": "Segundo Salón",
+  "4mat": "4mat",
   contraste: "Contrast Therapy",
   nutricion: "Nutrición",
   psicologia: "Psicología",

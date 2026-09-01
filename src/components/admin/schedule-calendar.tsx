@@ -517,9 +517,11 @@ function ClassDetailDrawer({
 
   const noShow = useMutation({
     mutationFn: async (bookingId: string) => {
+      // El monto real ($150 MXN) lo decide el servidor y solo aplica si el
+      // cliente tiene membresía activa — este valor es solo informativo.
       const { error } = await supabase.rpc("mark_no_show", {
         _booking_id: bookingId,
-        _penalty_cents: 0,
+        _penalty_cents: 15000,
       });
       if (error) throw error;
     },
