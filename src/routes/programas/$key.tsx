@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Constellation, Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
@@ -49,13 +49,10 @@ export const Route = createFileRoute("/programas/$key")({
   component: ProgramaDetalle,
 });
 
-import { useState } from "react";
-
 function ProgramaDetalle() {
   const { key } = Route.useParams();
   const [buying, setBuying] = useState<CheckoutPlan | null>(null);
   const { user } = useAuth();
-  const qc = useQueryClient();
 
   const { data: modulo, isLoading } = useQuery({
     queryKey: ["site-module", key],
