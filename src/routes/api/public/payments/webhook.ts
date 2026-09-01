@@ -23,7 +23,7 @@ async function fulfill(params: {
     console.error("Webhook sin userId/planId en metadata", params);
     return;
   }
-  const { error } = await getSupabase().rpc("fulfill_plan_purchase", {
+  const { error } = await (getSupabase().rpc as any)("fulfill_plan_purchase", {
     _user_id: params.userId,
     _plan_id: params.planId,
     _external_ref: params.externalRef,
