@@ -49,12 +49,12 @@ function money(cents: number, currency = "MXN") {
 function Paquetes() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const [buying, setBuying] = useState<{
     id: string;
     name: string;
     price: number;
     tokens: number;
+    priceId: string;
   } | null>(null);
 
   const { data: plans, isLoading } = useQuery({
