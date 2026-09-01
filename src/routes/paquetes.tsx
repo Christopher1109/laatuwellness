@@ -171,34 +171,46 @@ function Paquetes() {
 
       {buying ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
           onClick={() => setBuying(null)}
         >
           <div
-            className="w-full max-w-sm bg-background p-8 text-center"
+            className="w-full max-w-2xl bg-background"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="eyebrow">Pago seguro</p>
-            <h3 className="mt-3 text-xl">Estamos integrando tu pago</h3>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Muy pronto vas a poder pagar <strong>{buying.name}</strong> ({money(buying.price)})
-              con tarjeta directo aquí, vía Stripe. Mientras tanto, tu compra queda registrada y tus{" "}
-              {buying.tokens} créditos se acreditan de inmediato a tu cuenta.
-            </p>
-            <div className="mt-7 flex gap-2">
+            <PaymentTestModeBanner />
+            <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
+              <div>
+                <p className="eyebrow">Pago seguro</p>
+                <h3 className="mt-2 text-lg">
+                  {buying.name} · {money(buying.price)}
+                </h3>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  {buying.tokens} {buying.tokens === 1 ? "crédito" : "créditos"}
+                </p>
+              </div>
               <button
                 onClick={() => setBuying(null)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
+                className="border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em]"
               >
-                Cancelar
+                Cerrar
               </button>
-              <button
-                disabled={purchase.isPending}
-                onClick={() => purchase.mutate(buying.id)}
-                className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
-              >
-                {purchase.isPending ? "Procesando…" : "Confirmar"}
-              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              {buying.priceId ? (
+                <StripeEmbeddedCheckout
+                  priceId={buying.priceId}
+                  planId={buying.id}
+                  {...(user?.email ? { customerEmail: user.email } : {})}
+                  {...(user?.id ? { userId: user.id } : {})}
+                  returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
+                />
+              ) : (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Este paquete todavía no tiene pago en línea configurado. Escríbenos por
+                  WhatsApp y lo resolvemos contigo.
+                </p>
+              )}
             </div>
           </div>
         </div>
