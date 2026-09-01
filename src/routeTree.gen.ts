@@ -23,6 +23,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedCuentaRouteImport } from './routes/_authenticated/cuenta'
 import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
+import { Route as CheckoutReturnRouteImport } from './routes/checkout/return'
 import { Route as ProgramasIndexRouteImport } from './routes/programas/index'
 import { Route as ProgramasKeyRouteImport } from './routes/programas/$key'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
@@ -96,6 +97,11 @@ const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const CheckoutReturnRoute = CheckoutReturnRouteImport.update({
+  id: '/checkout/return',
+  path: '/checkout/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProgramasIndexRoute = ProgramasIndexRouteImport.update({
   id: '/programas/',
   path: '/programas/',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
   '/staff': typeof AuthenticatedStaffRoute
+  '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/cuenta': typeof AuthenticatedCuentaRoute
   '/staff': typeof AuthenticatedStaffRoute
+  '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/cuenta': typeof AuthenticatedCuentaRoute
   '/_authenticated/staff': typeof AuthenticatedStaffRoute
+  '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cuenta'
     | '/staff'
+    | '/checkout/return'
     | '/programas/$key'
     | '/programas/'
     | '/api/public/payments/webhook'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cuenta'
     | '/staff'
+    | '/checkout/return'
     | '/programas/$key'
     | '/programas'
     | '/api/public/payments/webhook'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/cuenta'
     | '/_authenticated/staff'
+    | '/checkout/return'
     | '/programas/$key'
     | '/programas/'
     | '/api/public/payments/webhook'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   NosotrosRoute: typeof NosotrosRoute
   PaquetesRoute: typeof PaquetesRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  CheckoutReturnRoute: typeof CheckoutReturnRoute
   ProgramasKeyRoute: typeof ProgramasKeyRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/checkout/return': {
+      id: '/checkout/return'
+      path: '/checkout/return'
+      fullPath: '/checkout/return'
+      preLoaderRoute: typeof CheckoutReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/programas/': {
       id: '/programas/'
       path: '/programas'
@@ -395,6 +415,7 @@ const rootRouteChildren: RootRouteChildren = {
   NosotrosRoute: NosotrosRoute,
   PaquetesRoute: PaquetesRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  CheckoutReturnRoute: CheckoutReturnRoute,
   ProgramasKeyRoute: ProgramasKeyRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,

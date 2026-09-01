@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
+import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
