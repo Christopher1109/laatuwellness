@@ -739,6 +739,7 @@ export type Database = {
           price_cents: number
           recurring: boolean
           sort_order: number
+          stripe_price_id: string
           subtitle: string
           terms: string
           tokens: number
@@ -756,6 +757,7 @@ export type Database = {
           price_cents: number
           recurring?: boolean
           sort_order?: number
+          stripe_price_id?: string
           subtitle?: string
           terms?: string
           tokens: number
@@ -773,6 +775,7 @@ export type Database = {
           price_cents?: number
           recurring?: boolean
           sort_order?: number
+          stripe_price_id?: string
           subtitle?: string
           terms?: string
           tokens?: number
@@ -785,6 +788,7 @@ export type Database = {
           amount_cents: number
           created_at: string
           currency: string
+          external_ref: string | null
           id: string
           payment_method: string
           plan_id: string | null
@@ -796,6 +800,7 @@ export type Database = {
           amount_cents?: number
           created_at?: string
           currency?: string
+          external_ref?: string | null
           id?: string
           payment_method?: string
           plan_id?: string | null
@@ -807,6 +812,7 @@ export type Database = {
           amount_cents?: number
           created_at?: string
           currency?: string
+          external_ref?: string | null
           id?: string
           payment_method?: string
           plan_id?: string | null
@@ -982,6 +988,15 @@ export type Database = {
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
       client_place_order: { Args: { _items: Json }; Returns: string }
+      fulfill_plan_purchase: {
+        Args: {
+          _external_ref: string
+          _payment_method?: string
+          _plan_id: string
+          _user_id: string
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
