@@ -76,30 +76,19 @@ function Paquetes() {
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
   }, [plans]);
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "pendiente",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Créditos acreditados a tu cuenta.");
-      setBuying(null);
-      void qc.invalidateQueries({ queryKey: ["balance"] });
-      void qc.invalidateQueries({ queryKey: ["transactions"] });
-      navigate({ to: "/cuenta" });
-    },
-    onError: () => toast.error("No pudimos completar la compra."),
-  });
-
   const handleBuyClick = (p: NonNullable<typeof plans>[number]) => {
     if (!user) {
       navigate({ to: "/auth" });
       return;
     }
-    setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens });
+    const priceId = ((p as unknown as { stripe_price_id?: string }).stripe_price_id ?? "").trim();
+    setBuying({
+      id: p.id,
+      name: p.name,
+      price: p.price_cents,
+      tokens: p.tokens,
+      priceId,
+    });
   };
 
   return (
