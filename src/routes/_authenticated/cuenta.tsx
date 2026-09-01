@@ -7,6 +7,7 @@ import { SignaturePad } from "@/components/signature-pad";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 
 export const Route = createFileRoute("/_authenticated/cuenta")({
   head: () => ({
@@ -43,6 +44,7 @@ function Cuenta() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [signature, setSignature] = useState<string | null>(null);
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
   const profile = useQuery({
     queryKey: ["profile", user?.id],
@@ -378,6 +380,9 @@ function Cuenta() {
           </div>
         </div>
       </section>
+          {buying ? (
+        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
+      ) : null}
     </SiteLayout>
   );
 }
