@@ -18,6 +18,7 @@ import { dayLabel, timeLabel } from "@/components/schedule";
 import { Wordmark } from "@/components/brand";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
@@ -824,12 +825,7 @@ const CATEGORY_ORDER = ["clases_pilates", "membresia", "consulta", "recuperacion
 function CreditosTab() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [buying, setBuying] = useState<{
-    id: string;
-    name: string;
-    price: number;
-    tokens: number;
-  } | null>(null);
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
   const { data: balance } = useQuery({
     queryKey: ["app-balance", user?.id],
@@ -874,22 +870,6 @@ function CreditosTab() {
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
   }, [plans]);
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "pendiente",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Créditos acreditados.");
-      setBuying(null);
-      void qc.invalidateQueries({ queryKey: ["app-balance"] });
-      void qc.invalidateQueries({ queryKey: ["app-transactions"] });
-    },
-    onError: () => toast.error("No pudimos completar la compra."),
-  });
 
   const activeMembership = useMemo(() => {
     const tx = (transactions ?? []).find((t) => {
@@ -967,7 +947,7 @@ function CreditosTab() {
                 </p>
                 <button
                   onClick={() =>
-                    setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens })
+                    setBuying(p as unknown as CheckoutPlan)
                   }
                   className="mt-3 w-full bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background"
                 >
@@ -991,12 +971,7 @@ function CreditosTab() {
                     </p>
                     <button
                       onClick={() =>
-                        setBuying({
-                          id: p.id,
-                          name: p.name,
-                          price: p.price_cents,
-                          tokens: p.tokens,
-                        })
+                        setBuying(p as unknown as CheckoutPlan)
                       }
                       className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
                     >
@@ -1029,38 +1004,7 @@ function CreditosTab() {
       </div>
 
       {buying ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setBuying(null)}
-        >
-          <div
-            className="w-full max-w-sm bg-background p-8 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="eyebrow">Pago seguro</p>
-            <h3 className="mt-3 text-xl">Estamos integrando tu pago</h3>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Muy pronto vas a poder pagar <strong>{buying.name}</strong> ({money(buying.price)})
-              con tarjeta directo aquí, vía Stripe. Mientras tanto, tu compra queda registrada y tus{" "}
-              {buying.tokens} créditos se acreditan de inmediato.
-            </p>
-            <div className="mt-7 flex gap-2">
-              <button
-                onClick={() => setBuying(null)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={purchase.isPending}
-                onClick={() => purchase.mutate(buying.id)}
-                className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
-              >
-                {purchase.isPending ? "Procesando…" : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </div>
   );

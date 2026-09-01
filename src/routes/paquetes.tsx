@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
+import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
@@ -48,12 +49,12 @@ function money(cents: number, currency = "MXN") {
 function Paquetes() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const [buying, setBuying] = useState<{
     id: string;
     name: string;
     price: number;
     tokens: number;
+    priceId: string;
   } | null>(null);
 
   const { data: plans, isLoading } = useQuery({
@@ -75,30 +76,19 @@ function Paquetes() {
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
   }, [plans]);
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "pendiente",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Créditos acreditados a tu cuenta.");
-      setBuying(null);
-      void qc.invalidateQueries({ queryKey: ["balance"] });
-      void qc.invalidateQueries({ queryKey: ["transactions"] });
-      navigate({ to: "/cuenta" });
-    },
-    onError: () => toast.error("No pudimos completar la compra."),
-  });
-
   const handleBuyClick = (p: NonNullable<typeof plans>[number]) => {
     if (!user) {
       navigate({ to: "/auth" });
       return;
     }
-    setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens });
+    const priceId = ((p as unknown as { stripe_price_id?: string }).stripe_price_id ?? "").trim();
+    setBuying({
+      id: p.id,
+      name: p.name,
+      price: p.price_cents,
+      tokens: p.tokens,
+      priceId,
+    });
   };
 
   return (
@@ -181,34 +171,46 @@ function Paquetes() {
 
       {buying ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
           onClick={() => setBuying(null)}
         >
           <div
-            className="w-full max-w-sm bg-background p-8 text-center"
+            className="w-full max-w-2xl bg-background"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="eyebrow">Pago seguro</p>
-            <h3 className="mt-3 text-xl">Estamos integrando tu pago</h3>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Muy pronto vas a poder pagar <strong>{buying.name}</strong> ({money(buying.price)})
-              con tarjeta directo aquí, vía Stripe. Mientras tanto, tu compra queda registrada y tus{" "}
-              {buying.tokens} créditos se acreditan de inmediato a tu cuenta.
-            </p>
-            <div className="mt-7 flex gap-2">
+            <PaymentTestModeBanner />
+            <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
+              <div>
+                <p className="eyebrow">Pago seguro</p>
+                <h3 className="mt-2 text-lg">
+                  {buying.name} · {money(buying.price)}
+                </h3>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  {buying.tokens} {buying.tokens === 1 ? "crédito" : "créditos"}
+                </p>
+              </div>
               <button
                 onClick={() => setBuying(null)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
+                className="border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em]"
               >
-                Cancelar
+                Cerrar
               </button>
-              <button
-                disabled={purchase.isPending}
-                onClick={() => purchase.mutate(buying.id)}
-                className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
-              >
-                {purchase.isPending ? "Procesando…" : "Confirmar"}
-              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              {buying.priceId ? (
+                <StripeEmbeddedCheckout
+                  priceId={buying.priceId}
+                  planId={buying.id}
+                  {...(user?.email ? { customerEmail: user.email } : {})}
+                  {...(user?.id ? { userId: user.id } : {})}
+                  returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
+                />
+              ) : (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Este paquete todavía no tiene pago en línea configurado. Escríbenos por
+                  WhatsApp y lo resolvemos contigo.
+                </p>
+              )}
             </div>
           </div>
         </div>

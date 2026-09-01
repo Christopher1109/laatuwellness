@@ -7,6 +7,7 @@ import { SignaturePad } from "@/components/signature-pad";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 
 export const Route = createFileRoute("/_authenticated/cuenta")({
   head: () => ({
@@ -43,6 +44,7 @@ function Cuenta() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [signature, setSignature] = useState<string | null>(null);
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
   const profile = useQuery({
     queryKey: ["profile", user?.id],
@@ -140,21 +142,6 @@ function Cuenta() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "pendiente",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Tokens acreditados a tu cuenta.");
-      void qc.invalidateQueries({ queryKey: ["balance"] });
-      void qc.invalidateQueries({ queryKey: ["transactions"] });
-    },
-    onError: () => toast.error("No pudimos completar la compra."),
-  });
 
   const cancel = useMutation({
     mutationFn: async (bookingId: string) => {
@@ -272,8 +259,7 @@ function Cuenta() {
                   {p.tokens} tokens{p.recurring ? " · recurrente" : ""}
                 </p>
                 <button
-                  onClick={() => purchase.mutate(p.id)}
-                  disabled={purchase.isPending}
+                  onClick={() => setBuying(p as unknown as CheckoutPlan)}
                   className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:opacity-40"
                 >
                   Comprar
@@ -282,8 +268,8 @@ function Cuenta() {
             ))}
           </div>
           <p className="mt-5 text-xs text-muted-foreground">
-            El cobro con tarjeta y la suscripción recurrente se activan al conectar la pasarela de
-            pago. Por ahora la compra queda registrada y los tokens se acreditan de inmediato.
+            Pagos con tarjeta procesados de forma segura por Stripe. Tus créditos se acreditan
+            automáticamente al confirmarse el cobro.
           </p>
         </div>
       </section>
@@ -394,6 +380,9 @@ function Cuenta() {
           </div>
         </div>
       </section>
+          {buying ? (
+        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
+      ) : null}
     </SiteLayout>
   );
 }

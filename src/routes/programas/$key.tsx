@@ -1,12 +1,13 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Constellation, Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
@@ -50,8 +51,8 @@ export const Route = createFileRoute("/programas/$key")({
 
 function ProgramaDetalle() {
   const { key } = Route.useParams();
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
   const { user } = useAuth();
-  const qc = useQueryClient();
 
   const { data: modulo, isLoading } = useQuery({
     queryKey: ["site-module", key],
@@ -80,20 +81,6 @@ function ProgramaDetalle() {
     },
   });
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "en_sitio",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Paquete agregado a tu cuenta.");
-      void qc.invalidateQueries({ queryKey: ["balance"] });
-    },
-    onError: () => toast.error("No pudimos procesar la compra."),
-  });
 
   if (isLoading) {
     return (
@@ -181,9 +168,8 @@ function ProgramaDetalle() {
                 </p>
                 {user ? (
                   <button
-                    onClick={() => purchase.mutate(p.id)}
-                    disabled={purchase.isPending}
-                    className="mt-7 w-full border border-foreground py-3 text-[0.68rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background disabled:opacity-40"
+                    onClick={() => setBuying(p as unknown as CheckoutPlan)}
+                    className="mt-7 w-full border border-foreground py-3 text-[0.68rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
                   >
                     Comprar
                   </button>
@@ -202,6 +188,9 @@ function ProgramaDetalle() {
           <Constellation className="mt-20 opacity-50" />
         </div>
       </section>
+          {buying ? (
+        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
+      ) : null}
     </SiteLayout>
   );
 }
