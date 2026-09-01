@@ -947,7 +947,7 @@ function CreditosTab() {
                 </p>
                 <button
                   onClick={() =>
-                    setBuying({ id: p.id, name: p.name, price: p.price_cents, tokens: p.tokens })
+                    setBuying(p as unknown as CheckoutPlan)
                   }
                   className="mt-3 w-full bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background"
                 >
@@ -971,12 +971,7 @@ function CreditosTab() {
                     </p>
                     <button
                       onClick={() =>
-                        setBuying({
-                          id: p.id,
-                          name: p.name,
-                          price: p.price_cents,
-                          tokens: p.tokens,
-                        })
+                        setBuying(p as unknown as CheckoutPlan)
                       }
                       className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
                     >
