@@ -825,12 +825,7 @@ const CATEGORY_ORDER = ["clases_pilates", "membresia", "consulta", "recuperacion
 function CreditosTab() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [buying, setBuying] = useState<{
-    id: string;
-    name: string;
-    price: number;
-    tokens: number;
-  } | null>(null);
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
   const { data: balance } = useQuery({
     queryKey: ["app-balance", user?.id],
