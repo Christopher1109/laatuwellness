@@ -874,22 +874,6 @@ function CreditosTab() {
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
   }, [plans]);
 
-  const purchase = useMutation({
-    mutationFn: async (planId: string) => {
-      const { error } = await supabase.rpc("purchase_plan", {
-        _plan_id: planId,
-        _payment_method: "pendiente",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Créditos acreditados.");
-      setBuying(null);
-      void qc.invalidateQueries({ queryKey: ["app-balance"] });
-      void qc.invalidateQueries({ queryKey: ["app-transactions"] });
-    },
-    onError: () => toast.error("No pudimos completar la compra."),
-  });
 
   const activeMembership = useMemo(() => {
     const tx = (transactions ?? []).find((t) => {
