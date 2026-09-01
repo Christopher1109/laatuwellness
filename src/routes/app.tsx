@@ -18,6 +18,7 @@ import { dayLabel, timeLabel } from "@/components/schedule";
 import { Wordmark } from "@/components/brand";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
