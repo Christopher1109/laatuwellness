@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -703,6 +704,7 @@ function ReservasTab() {
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase.rpc("cancel_booking", { _booking_id: bookingId });
       if (error) throw error;
+      await tryChargePendingNoShowFee(bookingId);
     },
     onSuccess: () => {
       toast.success("Reserva cancelada.");
@@ -841,9 +843,11 @@ function CreditosTab() {
     queryKey: ["app-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("token_plans")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
+        .from("token_plans" as any)
         .select("*")
         .eq("active", true)
+        .eq("is_staff_only", false)
         .order("sort_order");
       if (error) throw error;
       return data;
@@ -869,7 +873,6 @@ function CreditosTab() {
     for (const p of plans ?? []) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
     return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
   }, [plans]);
-
 
   const activeMembership = useMemo(() => {
     const tx = (transactions ?? []).find((t) => {
@@ -946,9 +949,7 @@ function CreditosTab() {
                   {money(p.price_cents, p.currency)}/mes
                 </p>
                 <button
-                  onClick={() =>
-                    setBuying(p as unknown as CheckoutPlan)
-                  }
+                  onClick={() => setBuying(p as unknown as CheckoutPlan)}
                   className="mt-3 w-full bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background"
                 >
                   Elegir membresía
@@ -970,9 +971,7 @@ function CreditosTab() {
                       {money(p.price_cents, p.currency)} · {p.tokens} créditos
                     </p>
                     <button
-                      onClick={() =>
-                        setBuying(p as unknown as CheckoutPlan)
-                      }
+                      onClick={() => setBuying(p as unknown as CheckoutPlan)}
                       className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
                     >
                       Comprar

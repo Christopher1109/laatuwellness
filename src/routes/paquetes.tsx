@@ -61,9 +61,11 @@ function Paquetes() {
     queryKey: ["public-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("token_plans")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
+        .from("token_plans" as any)
         .select("*")
         .eq("active", true)
+        .eq("is_staff_only", false)
         .order("sort_order");
       if (error) throw error;
       return data;
@@ -174,10 +176,7 @@ function Paquetes() {
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
           onClick={() => setBuying(null)}
         >
-          <div
-            className="w-full max-w-2xl bg-background"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-2xl bg-background" onClick={(e) => e.stopPropagation()}>
             <PaymentTestModeBanner />
             <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
               <div>
@@ -207,8 +206,8 @@ function Paquetes() {
                 />
               ) : (
                 <p className="py-10 text-center text-sm text-muted-foreground">
-                  Este paquete todavía no tiene pago en línea configurado. Escríbenos por
-                  WhatsApp y lo resolvemos contigo.
+                  Este paquete todavía no tiene pago en línea configurado. Escríbenos por WhatsApp y
+                  lo resolvemos contigo.
                 </p>
               )}
             </div>

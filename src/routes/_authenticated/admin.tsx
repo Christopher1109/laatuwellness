@@ -16,6 +16,7 @@ import {
   Home,
   PackageOpen,
   ScrollText,
+  Ticket,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +35,7 @@ import {
   CoachProfilePanel,
   FinancePanel,
   DashboardPanel,
+  CouponsPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -84,6 +86,7 @@ function Admin() {
           label: "Negocio",
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
+            { key: "cupones", label: "Cupones", icon: Ticket },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
           ],
@@ -151,6 +154,7 @@ function Admin() {
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel /> : null}
+      {activeKey === "cupones" ? <CouponsPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "kardex" ? <KardexPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}

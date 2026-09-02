@@ -231,7 +231,7 @@ export function SiteFooter() {
                 </li>
                 <li>
                   <Link to="/app" className="hover:text-foreground">
-                    App
+                    Reservar y comprar (app)
                   </Link>
                 </li>
               </ul>

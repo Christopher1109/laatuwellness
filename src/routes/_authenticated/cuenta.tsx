@@ -8,6 +8,7 @@ import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 export const Route = createFileRoute("/_authenticated/cuenta")({
   head: () => ({
@@ -90,9 +91,11 @@ function Cuenta() {
     queryKey: ["plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("token_plans")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
+        .from("token_plans" as any)
         .select("*")
         .eq("active", true)
+        .eq("is_staff_only", false)
         .order("sort_order");
       if (error) throw error;
       return data;
@@ -142,13 +145,13 @@ function Cuenta() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-
   const cancel = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase.rpc("cancel_booking", {
         _booking_id: bookingId,
       });
       if (error) throw error;
+      await tryChargePendingNoShowFee(bookingId);
     },
     onSuccess: () => {
       toast.success("Reserva cancelada.");
@@ -380,7 +383,7 @@ function Cuenta() {
           </div>
         </div>
       </section>
-          {buying ? (
+      {buying ? (
         <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </SiteLayout>
