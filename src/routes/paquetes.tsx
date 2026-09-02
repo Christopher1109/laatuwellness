@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
 import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
@@ -61,14 +62,17 @@ function Paquetes() {
     queryKey: ["public-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
-        .from("token_plans" as any)
+        .from("token_plans")
         .select("*")
         .eq("active", true)
-        .eq("is_staff_only", false)
         .order("sort_order");
       if (error) throw error;
-      return data;
+      // Filtro en memoria (no en la query): así no truena si la columna
+      // is_staff_only todavía no existe en la base real. Si no existe,
+      // p.is_staff_only es undefined y el plan se muestra (correcto).
+      return (data ?? []).filter(
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+      );
     },
   });
 
