@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X, LogOut, Tablet } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -76,6 +76,13 @@ export function AdminShell({
         ))}
       </div>
       <div className="border-t border-white/10 px-3 py-4">
+        <a
+          href="/staff"
+          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-ivory/70 hover:bg-white/5 hover:text-ivory"
+        >
+          <Tablet className="h-4 w-4" />
+          Panel de staff (iPad)
+        </a>
         <button
           onClick={() => supabase.auth.signOut().then(() => window.location.assign("/auth"))}
           className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-ivory/70 hover:bg-white/5 hover:text-ivory"
