@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 export const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
@@ -846,6 +847,7 @@ export function CheckInPanel() {
           _penalty_cents: 15000,
         });
         if (error) throw error;
+        await tryChargePendingNoShowFee(bookingId);
       } else {
         const { error } = await supabase
           .from("check_ins")
@@ -2011,6 +2013,214 @@ export function PackagesPanel() {
       {openPlan ? <PackageEditPopout plan={openPlan} onClose={() => setOpenId(null)} /> : null}
       {creating ? <PackageEditPopout plan={null} onClose={() => setCreating(false)} /> : null}
     </div>
+  );
+}
+
+type CouponRow = {
+  id: string;
+  code: string;
+  kind: string;
+  reward_tokens: number;
+  max_uses: number | null;
+  times_used: number;
+  active: boolean;
+};
+
+export function CouponsPanel() {
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ["admin-coupons"],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "coupons" no está en los tipos generados (el conector de Supabase de esta sesión no puede regenerarlos contra el proyecto real)
+      const { data, error } = await (supabase.from as any)("coupons")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as CouponRow[];
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (row: Partial<CouponRow> & { id?: string }) => {
+      const payload = {
+        code: row.code?.trim().toUpperCase(),
+        reward_tokens: row.reward_tokens,
+        max_uses: row.max_uses,
+        active: row.active,
+      };
+      if (row.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "coupons" no está en los tipos generados
+        const { error } = await (supabase.from as any)("coupons").update(payload).eq("id", row.id);
+        if (error) throw error;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "coupons" no está en los tipos generados
+        const { error } = await (supabase.from as any)("coupons").insert({
+          ...payload,
+          kind: "referido",
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Cupón guardado.");
+      setEditingId(null);
+      setCreating(false);
+      void qc.invalidateQueries({ queryKey: ["admin-coupons"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="eyebrow">Cupón de referido</p>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Código general reutilizable: cualquier clienta que lo use recibe 1 clase gratis. Edita el
+          código y el límite de usos aquí — no necesitas pedirme que cambie código.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+      >
+        + Agregar cupón
+      </button>
+
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+              <th className="px-4 py-3">Código</th>
+              <th className="px-4 py-3">Recompensa</th>
+              <th className="px-4 py-3">Límite de usos</th>
+              <th className="px-4 py-3">Usados</th>
+              <th className="px-4 py-3">Activo</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data ?? []).map((c) =>
+              editingId === c.id ? (
+                <CouponEditRow
+                  key={c.id}
+                  coupon={c}
+                  onCancel={() => setEditingId(null)}
+                  onSave={(row) => save.mutate({ ...row, id: c.id })}
+                />
+              ) : (
+                <tr key={c.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-mono">{c.code}</td>
+                  <td className="px-4 py-3">{c.reward_tokens} clase(s)</td>
+                  <td className="px-4 py-3">{c.max_uses ?? "Ilimitado"}</td>
+                  <td className="px-4 py-3">{c.times_used}</td>
+                  <td className="px-4 py-3">{c.active ? "Sí" : "No"}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(c.id)}
+                      className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                    >
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ),
+            )}
+            {creating ? (
+              <CouponEditRow
+                coupon={null}
+                onCancel={() => setCreating(false)}
+                onSave={(row) => save.mutate(row)}
+              />
+            ) : null}
+          </tbody>
+        </table>
+        {(data ?? []).length === 0 && !creating ? (
+          <p className="p-4 text-sm text-muted-foreground">Sin cupones todavía.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CouponEditRow({
+  coupon,
+  onCancel,
+  onSave,
+}: {
+  coupon: CouponRow | null;
+  onCancel: () => void;
+  onSave: (row: Partial<CouponRow>) => void;
+}) {
+  const [code, setCode] = useState(coupon?.code ?? "");
+  const [rewardTokens, setRewardTokens] = useState(coupon?.reward_tokens ?? 1);
+  const [maxUses, setMaxUses] = useState<string>(coupon?.max_uses?.toString() ?? "");
+  const [active, setActive] = useState(coupon?.active ?? true);
+
+  return (
+    <tr className="border-b border-border bg-muted/30 last:border-0">
+      <td className="px-4 py-3">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="CODIGO"
+          className={input}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="number"
+          min={1}
+          value={rewardTokens}
+          onChange={(e) => setRewardTokens(Number(e.target.value))}
+          className={input}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="number"
+          min={1}
+          placeholder="Ilimitado"
+          value={maxUses}
+          onChange={(e) => setMaxUses(e.target.value)}
+          className={input}
+        />
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{coupon?.times_used ?? 0}</td>
+      <td className="px-4 py-3">
+        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+      </td>
+      <td className="px-4 py-3 text-right">
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onSave({
+                code,
+                reward_tokens: rewardTokens,
+                max_uses: maxUses.trim() === "" ? null : Number(maxUses),
+                active,
+              })
+            }
+            className="bg-foreground px-3 py-1.5 text-xs uppercase tracking-wide text-background"
+          >
+            Guardar
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
 

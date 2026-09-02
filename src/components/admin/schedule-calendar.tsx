@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 const input = "mt-1 w-full border border-input bg-background px-3 py-2 text-sm";
 
@@ -58,6 +59,25 @@ function rangeForView(date: Date, view: ViewMode) {
 
 export function AdminSchedulePanel({ modules, title }: { modules: string[]; title: string }) {
   const qc = useQueryClient();
+  const instructorRef = useRef<HTMLInputElement>(null);
+  const [newClassDate, setNewClassDate] = useState("");
+
+  const newClassDow = newClassDate ? new Date(newClassDate).getDay() : null;
+  const isWeekendPick = newClassDow === 0 || newClassDow === 6;
+
+  const weekendCoach = useQuery({
+    queryKey: ["weekend-coach", newClassDate.slice(0, 10)],
+    queryFn: async () => {
+      const dateOnly = newClassDate.slice(0, 10);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "get_weekend_coach" no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("get_weekend_coach", {
+        _date: dateOnly,
+      });
+      if (error) throw error;
+      return (data?.[0] as { coach_id: string; coach_name: string } | undefined) ?? null;
+    },
+    enabled: isWeekendPick,
+  });
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [view, setView] = useState<ViewMode>("day");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
@@ -175,6 +195,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               duration_min: Number(f.get("duration_min") || 50),
             });
             e.currentTarget.reset();
+            setNewClassDate("");
           }}
         >
           <label className="text-xs">
@@ -193,12 +214,48 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           </label>
           <label className="text-xs">
             <span className="eyebrow">Instructora / especialista</span>
-            <input name="instructor" className={input} />
+            <input name="instructor" ref={instructorRef} className={input} />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Fecha y hora</span>
-            <input name="starts_at" type="datetime-local" required className={input} />
+            <input
+              name="starts_at"
+              type="datetime-local"
+              required
+              className={input}
+              value={newClassDate}
+              onChange={(e) => setNewClassDate(e.target.value)}
+            />
           </label>
+          {isWeekendPick ? (
+            <div className="sm:col-span-3 lg:col-span-6 -mt-2 flex items-center gap-3 border border-dashed border-border bg-muted/40 px-3 py-2 text-xs">
+              {weekendCoach.isLoading ? (
+                <span className="text-muted-foreground">Buscando coach en rotación…</span>
+              ) : weekendCoach.data ? (
+                <>
+                  <span>
+                    Coach en rotación para este {newClassDow === 6 ? "sábado" : "domingo"}:{" "}
+                    <strong>{weekendCoach.data.coach_name}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (instructorRef.current && weekendCoach.data) {
+                        instructorRef.current.value = weekendCoach.data.coach_name;
+                      }
+                    }}
+                    className="border border-foreground px-2 py-1 text-[0.65rem] uppercase tracking-wide hover:bg-foreground hover:text-background"
+                  >
+                    Usar este nombre
+                  </button>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  No hay rotación configurada para este día.
+                </span>
+              )}
+            </div>
+          ) : null}
           <label className="text-xs">
             <span className="eyebrow">Duración (min)</span>
             <input
@@ -524,6 +581,7 @@ function ClassDetailDrawer({
         _penalty_cents: 15000,
       });
       if (error) throw error;
+      await tryChargePendingNoShowFee(bookingId);
     },
     onSuccess: invalidate,
   });

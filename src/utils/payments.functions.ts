@@ -1,9 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import {
-  type StripeEnv,
-  createStripeClient,
-  getStripeErrorMessage,
-} from "@/lib/stripe.server";
+import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
 
 type CheckoutSessionResult = { clientSecret: string } | { error: string };
 
@@ -40,6 +36,77 @@ async function resolveOrCreateCustomer(
   return created.id;
 }
 
+export const chargeMembershipFee = createServerFn({ method: "POST" })
+  .inputValidator((data: { membershipFeeId: string; environment: StripeEnv }) => {
+    if (!/^[a-zA-Z0-9-]+$/.test(data.membershipFeeId)) throw new Error("Invalid membershipFeeId");
+    return data;
+  })
+  .handler(async ({ data }): Promise<{ charged: boolean; error?: string }> => {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabaseAdmin = createClient(
+      process.env["SUPABASE_URL"]!,
+      process.env["SUPABASE_SERVICE_ROLE_KEY"]!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const { data: fee, error: feeError } = await supabaseAdmin
+      .from("membership_fees")
+      .select("id, user_id, amount_cents, status, reason")
+      .eq("id", data.membershipFeeId)
+      .maybeSingle();
+    if (feeError || !fee) return { charged: false, error: "Fee no encontrado" };
+    if (fee.status !== "pending_charge") return { charged: false, error: "Fee ya procesado" };
+
+    try {
+      const stripe = createStripeClient(data.environment);
+
+      const customers = await stripe.customers.search({
+        query: `metadata['userId']:'${fee.user_id}'`,
+        limit: 1,
+      });
+      const customer = customers.data[0];
+      if (!customer) {
+        return {
+          charged: false,
+          error: "Cliente sin cuenta de Stripe (sin membresía pagada en línea)",
+        };
+      }
+
+      let paymentMethodId: string | undefined;
+      if (
+        customer.invoice_settings?.default_payment_method &&
+        typeof customer.invoice_settings.default_payment_method === "string"
+      ) {
+        paymentMethodId = customer.invoice_settings.default_payment_method;
+      } else {
+        const methods = await stripe.paymentMethods.list({ customer: customer.id, type: "card" });
+        paymentMethodId = methods.data[0]?.id;
+      }
+      if (!paymentMethodId) {
+        return { charged: false, error: "El cliente no tiene una tarjeta guardada para cobro" };
+      }
+
+      await stripe.paymentIntents.create({
+        amount: fee.amount_cents,
+        currency: "mxn",
+        customer: customer.id,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        description: fee.reason || "Cargo Läätu Wellness",
+      });
+
+      await supabaseAdmin
+        .from("membership_fees")
+        .update({ status: "charged", charged_at: new Date().toISOString() })
+        .eq("id", fee.id);
+
+      return { charged: true };
+    } catch (error) {
+      return { charged: false, error: getStripeErrorMessage(error) };
+    }
+  });
+
 export const createCheckoutSession = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
@@ -74,9 +141,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       let productDescription: string | undefined;
       if (!isRecurring) {
         const productId =
-          typeof stripePrice.product === "string"
-            ? stripePrice.product
-            : stripePrice.product.id;
+          typeof stripePrice.product === "string" ? stripePrice.product : stripePrice.product.id;
         const product = await stripe.products.retrieve(productId);
         productDescription = "name" in product ? product.name : undefined;
       }
