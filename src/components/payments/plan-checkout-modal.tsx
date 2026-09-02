@@ -35,29 +35,32 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
       onClick={onClose}
     >
-      <div className="w-full max-w-2xl bg-background" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <PaymentTestModeBanner />
-        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
-            <p className="eyebrow">Pago seguro</p>
-            <h3 className="mt-2 text-lg">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="eyebrow text-[0.6rem]">Pago seguro</p>
+            <h3 className="mt-1 truncate text-base font-medium">
               {plan.name} · {money(plan.price_cents, plan.currency ?? "MXN")}
             </h3>
-            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
               {plan.tokens} {plan.tokens === 1 ? "crédito" : "créditos"}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em]"
+            className="shrink-0 border border-input px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.16em]"
           >
             Cerrar
           </button>
         </div>
-        <div className="p-4 sm:p-6">
+        <div className="max-h-[70vh] overflow-y-auto p-3 sm:p-4">
           {priceId ? (
             <StripeEmbeddedCheckout
               priceId={priceId}
