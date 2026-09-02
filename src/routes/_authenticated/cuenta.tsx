@@ -6,6 +6,7 @@ import { SiteLayout } from "@/components/site-chrome";
 import { SignaturePad } from "@/components/signature-pad";
 import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
@@ -91,14 +92,14 @@ function Cuenta() {
     queryKey: ["plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
-        .from("token_plans" as any)
+        .from("token_plans")
         .select("*")
         .eq("active", true)
-        .eq("is_staff_only", false)
         .order("sort_order");
       if (error) throw error;
-      return data;
+      return (data ?? []).filter(
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+      );
     },
   });
 

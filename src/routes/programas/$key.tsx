@@ -6,6 +6,7 @@ import { Constellation, Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
@@ -72,14 +73,14 @@ function ProgramaDetalle() {
     queryKey: ["token-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
-        .from("token_plans" as any)
+        .from("token_plans")
         .select("*")
         .eq("active", true)
-        .eq("is_staff_only", false)
         .order("tokens");
       if (error) throw error;
-      return data;
+      return (data ?? []).filter(
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+      );
     },
   });
 
