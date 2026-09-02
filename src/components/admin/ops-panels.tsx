@@ -1949,6 +1949,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   membresia: "Membresías",
   consulta: "Align (consulta)",
   recuperacion: "Contrast (recuperación)",
+  convenio: "Convenios corporativos",
 };
 
 export function PackagesPanel() {

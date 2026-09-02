@@ -72,15 +72,16 @@ function ProgramaDetalle() {
     queryKey: ["token-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("token_plans")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "is_staff_only" no está en los tipos generados
+        .from("token_plans" as any)
         .select("*")
         .eq("active", true)
+        .eq("is_staff_only", false)
         .order("tokens");
       if (error) throw error;
       return data;
     },
   });
-
 
   if (isLoading) {
     return (
@@ -188,7 +189,7 @@ function ProgramaDetalle() {
           <Constellation className="mt-20 opacity-50" />
         </div>
       </section>
-          {buying ? (
+      {buying ? (
         <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </SiteLayout>
