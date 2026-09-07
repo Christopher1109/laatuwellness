@@ -358,13 +358,22 @@ export function Schedule({
 
   const all = classes ?? [];
 
-  /** Programas presentes en el rango, en el orden del catálogo. */
+  /**
+   * Programas visibles. Se listan todos los programas reservables del
+   * catálogo (aunque hoy no tengan sesiones), para que el visitante vea que
+   * existen 4mat, Contrast o DorisFisio y no solo Reformer. En la portada
+   * (con `limit`) solo se muestran los que sí tienen sesiones.
+   */
   const presentes = useMemo(() => {
     const keys = new Set(all.map((c) => c.module_key ?? "otros"));
-    const ordered = (modules ?? []).map((m) => m.key).filter((k) => keys.has(k));
+    const catalogo = (modules ?? [])
+      .filter((m) => (m as { bookable?: boolean }).bookable !== false)
+      .map((m) => m.key);
+    const base = moduleKey ? [moduleKey] : limit ? catalogo.filter((k) => keys.has(k)) : catalogo;
+    const ordered = [...base];
     for (const k of keys) if (!ordered.includes(k)) ordered.push(k);
     return ordered;
-  }, [all, modules]);
+  }, [all, modules, moduleKey, limit]);
 
   const grupos = useMemo(() => {
     const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
