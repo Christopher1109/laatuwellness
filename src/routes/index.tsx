@@ -69,7 +69,7 @@ function Home() {
               en el caos.
             </h1>
             <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
-              Pilates Reformer, recuperación y acompañamiento en un mismo lugar. Diez personas
+              Pilates Reformer, clases en Mat y recuperación en un mismo lugar. Diez personas
               por salón, para que alguien mire tu proceso.
             </p>
             <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">

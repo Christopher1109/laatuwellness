@@ -17,6 +17,18 @@ import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
 void foto1;
 
+// TODO: quitar este tipo local y usar Tables<"class_types"> en cuanto se
+// regeneren los tipos de Supabase contra la base real (la tabla ya existe
+// en la migración pero los tipos generados todavía no la incluyen).
+type ClassType = {
+  id: string;
+  module_key: string;
+  name: string;
+  description: string;
+  active: boolean;
+  sort_order: number;
+};
+
 const HERO: Record<string, string> = {
   reformer: editorial1,
   "4mat": foto2.url,
@@ -84,6 +96,21 @@ function ProgramaDetalle() {
     },
   });
 
+  const { data: classTypes } = useQuery({
+    queryKey: ["class-types", key],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as unknown as (t: string) => any)(
+        "class_types",
+      )
+        .select("*")
+        .eq("module_key", key)
+        .eq("active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as ClassType[];
+    },
+  });
+
   if (isLoading) {
     return (
       <SiteLayout>
@@ -138,6 +165,30 @@ function ProgramaDetalle() {
           </div>
         </div>
       </section>
+
+      {classTypes && classTypes.length > 0 ? (
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+            <p className="eyebrow">Las clases de {modulo.name}</p>
+            <h2 className="statement mt-4 max-w-xl text-[clamp(1.7rem,4vw,2.6rem)]">
+              Cuatro formas de entrenar en este salón.
+            </h2>
+            <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+              {classTypes.map((c, i) => (
+                <div key={c.id} className="flex flex-col bg-background p-6 sm:p-7">
+                  <p className="font-mono text-[0.65rem] tracking-[0.24em] text-muted-foreground">
+                    0{i + 1}
+                  </p>
+                  <h3 className="mt-5 text-lg">{c.name}</h3>
+                  {c.description ? (
+                    <p className="mt-2 text-sm text-muted-foreground">{c.description}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section id="horarios" className="border-b border-border scroll-mt-28">
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
