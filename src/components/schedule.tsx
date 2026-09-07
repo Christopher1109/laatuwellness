@@ -358,13 +358,22 @@ export function Schedule({
 
   const all = classes ?? [];
 
-  /** Programas presentes en el rango, en el orden del catálogo. */
+  /**
+   * Programas visibles. Se listan todos los programas reservables del
+   * catálogo (aunque hoy no tengan sesiones), para que el visitante vea que
+   * existen 4mat, Contrast o DorisFisio y no solo Reformer. En la portada
+   * (con `limit`) solo se muestran los que sí tienen sesiones.
+   */
   const presentes = useMemo(() => {
     const keys = new Set(all.map((c) => c.module_key ?? "otros"));
-    const ordered = (modules ?? []).map((m) => m.key).filter((k) => keys.has(k));
+    const catalogo = (modules ?? [])
+      .filter((m) => (m as { bookable?: boolean }).bookable !== false)
+      .map((m) => m.key);
+    const base = moduleKey ? [moduleKey] : limit ? catalogo.filter((k) => keys.has(k)) : catalogo;
+    const ordered = [...base];
     for (const k of keys) if (!ordered.includes(k)) ordered.push(k);
     return ordered;
-  }, [all, modules]);
+  }, [all, modules, moduleKey, limit]);
 
   const grupos = useMemo(() => {
     const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
@@ -380,7 +389,7 @@ export function Schedule({
     });
   }, [all, presentes, filtro, limit]);
 
-  const total = grupos.reduce((n, g) => n + g.total, 0);
+  
 
   return (
     <div>
@@ -420,7 +429,7 @@ export function Schedule({
 
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
-      ) : total === 0 ? (
+      ) : grupos.length === 0 ? (
         <p className="mt-10 text-muted-foreground">
           No hay clases publicadas en este rango. Escríbenos por WhatsApp y te avisamos en cuanto se
           abra el horario.
@@ -440,6 +449,12 @@ export function Schedule({
               </header>
 
               <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
+                {g.total === 0 ? (
+                  <p className="py-8 text-sm text-muted-foreground">
+                    Sin sesiones en este rango. Cambia de semana o escríbenos por WhatsApp para
+                    apartar tu lugar.
+                  </p>
+                ) : null}
                 {g.dias.map(([day, items]) => (
                   <div key={day} className="py-4">
                     <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">

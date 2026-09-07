@@ -129,10 +129,41 @@ export type Database = {
           },
         ]
       }
+      class_types: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          module_key: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          module_key: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          module_key?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           active: boolean
           capacity: number
+          class_type_id: string | null
           coach_id: string | null
           created_at: string
           duration_min: number
@@ -146,6 +177,7 @@ export type Database = {
         Insert: {
           active?: boolean
           capacity?: number
+          class_type_id?: string | null
           coach_id?: string | null
           created_at?: string
           duration_min?: number
@@ -159,6 +191,7 @@ export type Database = {
         Update: {
           active?: boolean
           capacity?: number
+          class_type_id?: string | null
           coach_id?: string | null
           created_at?: string
           duration_min?: number
@@ -170,6 +203,13 @@ export type Database = {
           tokens_cost?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "classes_class_type_id_fkey"
+            columns: ["class_type_id"]
+            isOneToOne: false
+            referencedRelation: "class_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "classes_coach_id_fkey"
             columns: ["coach_id"]
@@ -206,6 +246,68 @@ export type Database = {
           name?: string
           sort_order?: number
           specialty?: string
+        }
+        Relationships: []
+      }
+      coupon_redemptions: {
+        Row: {
+          coupon_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          coupon_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          coupon_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          kind: string
+          max_uses: number | null
+          reward_tokens: number
+          times_used: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          kind?: string
+          max_uses?: number | null
+          reward_tokens?: number
+          times_used?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          max_uses?: number | null
+          reward_tokens?: number
+          times_used?: number
         }
         Relationships: []
       }
@@ -270,6 +372,50 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      membership_fees: {
+        Row: {
+          amount_cents: number
+          booking_id: string | null
+          charged_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          reason: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          booking_id?: string | null
+          charged_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          reason?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          booking_id?: string | null
+          charged_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          reason?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_fees_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payroll_adjustments: {
         Row: {
@@ -733,8 +879,10 @@ export type Database = {
           created_at: string
           currency: string
           description: string
+          excludes: string
           id: string
           includes: string
+          is_staff_only: boolean
           name: string
           price_cents: number
           recurring: boolean
@@ -751,8 +899,10 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string
+          excludes?: string
           id?: string
           includes?: string
+          is_staff_only?: boolean
           name: string
           price_cents: number
           recurring?: boolean
@@ -769,8 +919,10 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string
+          excludes?: string
           id?: string
           includes?: string
+          is_staff_only?: boolean
           name?: string
           price_cents?: number
           recurring?: boolean
@@ -868,6 +1020,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      weekend_coach_rotation: {
+        Row: {
+          coach_id: string
+          created_at: string
+          day_of_week: number
+          id: string
+          position: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          position: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekend_coach_rotation_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -987,7 +1171,9 @@ export type Database = {
       class_seats_taken: { Args: { _class_id: string }; Returns: number }
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
-      client_place_order: { Args: { _items: Json }; Returns: string }
+      client_place_order:
+        | { Args: { _items: Json }; Returns: string }
+        | { Args: { _items: Json; _note?: string }; Returns: string }
       fulfill_plan_purchase: {
         Args: {
           _external_ref: string
@@ -997,6 +1183,14 @@ export type Database = {
         }
         Returns: string
       }
+      get_weekend_coach: {
+        Args: { _date: string }
+        Returns: {
+          coach_id: string
+          coach_name: string
+        }[]
+      }
+      has_active_membership: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1082,6 +1276,7 @@ export type Database = {
         Args: { _payment_method: string; _plan_id: string }
         Returns: string
       }
+      redeem_coupon: { Args: { _code: string }; Returns: number }
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
@@ -1109,12 +1304,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1138,11 +1333,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1163,11 +1358,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1188,11 +1383,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1205,11 +1400,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
