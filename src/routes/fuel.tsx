@@ -114,91 +114,65 @@ function Fuel() {
       />
 
       <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-          <p className="eyebrow">Smoothies</p>
-          <div className="mt-2 flex items-baseline justify-between">
-            <h2 className="statement text-[clamp(1.7rem,4vw,2.6rem)]">$125 c/u</h2>
-          </div>
+        <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-24">
+          <p className="text-center text-lg text-muted-foreground">
+            Pide tu favorito. Pruébanos, te esperamos después de tu clase.
+          </p>
 
-          <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {SMOOTHIES.map((s, i) => (
-              <div key={s.nombre} className="flex flex-col bg-background p-6 sm:p-7">
-                <BirdBadge size="sm" variant={((i % 3) + 1) as 1 | 2 | 3} />
-                <div className="mt-6 flex items-baseline justify-between gap-3">
-                  <p className="text-lg">{s.nombre}</p>
-                  <p className="font-mono text-sm tabular-nums text-muted-foreground">
+          <div className="mt-12">
+            <p className="eyebrow">Smoothies</p>
+            <ul className="mt-4 divide-y divide-border">
+              {SMOOTHIES.map((s) => (
+                <li key={s.nombre} className="flex items-baseline justify-between gap-4 py-3">
+                  <div>
+                    <span className="text-base">{s.nombre}</span>
+                    <span className="ml-3 text-xs text-muted-foreground">{s.desc}</span>
+                  </div>
+                  <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
                     {money(s.precio)}
-                  </p>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 border border-border p-6 sm:p-7">
-            <p className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-              Add-ons
-            </p>
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                  </span>
+                </li>
+              ))}
               {SMOOTHIE_ADDONS.map(([nombre, precio]) => (
                 <li
                   key={nombre}
-                  className="flex items-center justify-between gap-4 text-sm text-muted-foreground"
+                  className="flex items-center justify-between gap-4 py-3 text-sm text-muted-foreground"
                 >
-                  <span>{nombre}</span>
+                  <span>+ {nombre}</span>
                   <span className="font-mono tabular-nums">{precio}</span>
                 </li>
               ))}
             </ul>
           </div>
-        </div>
-      </section>
 
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-          <p className="eyebrow">Coffee &amp; Matcha</p>
-
-          <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
-            {COFFEE.map((c, i) => (
-              <div key={c.nombre} className="flex flex-col bg-background p-6 sm:p-7">
-                <BirdBadge size="sm" variant={((i % 3) + 1) as 1 | 2 | 3} />
-                <div className="mt-6 flex items-baseline justify-between gap-3">
-                  <p className="text-lg">{c.nombre}</p>
-                  <p className="font-mono text-sm tabular-nums text-muted-foreground">
+          <div className="mt-12">
+            <p className="eyebrow">Coffee &amp; Matcha</p>
+            <ul className="mt-4 divide-y divide-border">
+              {COFFEE.map((c) => (
+                <li key={c.nombre} className="flex items-baseline justify-between gap-4 py-3">
+                  <div>
+                    <span className="text-base">{c.nombre}</span>
+                    <span className="ml-3 text-xs text-muted-foreground">{c.modo}</span>
+                  </div>
+                  <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
                     {money(c.precio)}
-                  </p>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{c.modo}</p>
-              </div>
-            ))}
+                  </span>
+                </li>
+              ))}
+              {COFFEE_ADDONS.map(([nombre, precio]) => (
+                <li
+                  key={nombre}
+                  className="flex items-center justify-between gap-4 py-3 text-sm text-muted-foreground"
+                >
+                  <span>+ {nombre}</span>
+                  <span className="font-mono tabular-nums">{precio}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-muted-foreground">Leches: {LECHES}</p>
           </div>
 
-          <div className="mt-4 grid gap-px bg-border sm:grid-cols-2">
-            <div className="border border-border bg-background p-6 sm:p-7">
-              <p className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-                Leches
-              </p>
-              <p className="mt-3 text-sm text-muted-foreground">{LECHES}</p>
-            </div>
-            <div className="border border-border bg-background p-6 sm:p-7">
-              <p className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-                Jarabes
-              </p>
-              <ul className="mt-3 space-y-1">
-                {COFFEE_ADDONS.map(([nombre, precio]) => (
-                  <li
-                    key={nombre}
-                    className="flex items-center justify-between gap-4 text-sm text-muted-foreground"
-                  >
-                    <span>{nombre}</span>
-                    <span className="font-mono tabular-nums">{precio}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <p className="mt-10 font-mono text-[0.65rem] uppercase tracking-[0.22em] text-muted-foreground">
+          <p className="mt-10 text-center font-mono text-[0.65rem] uppercase tracking-[0.22em] text-muted-foreground">
             Precios en MXN · disponibilidad en el estudio
           </p>
         </div>

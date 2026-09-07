@@ -37,6 +37,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   recuperacion: "Contrast",
 };
 
+const CATEGORY_HINTS: Record<string, string> = {
+  clases_pilates: "Compras créditos sueltos, sin compromiso mensual. Válidos por un tiempo limitado.",
+  membresia: "Cargo mensual recurrente con Align, Contrast y Fuel incluidos según el plan.",
+  consulta: "Sesión individual de recuperación con Doris, se paga por sesión.",
+  recuperacion: "Sesión de sauna infrarrojo y cold plunge, se paga por sesión.",
+};
+
 const CATEGORY_ORDER = ["clases_pilates", "membresia", "consulta", "recuperacion"];
 
 function money(cents: number, currency = "MXN") {
@@ -110,46 +117,81 @@ function Paquetes() {
           {isLoading ? (
             <p className="text-muted-foreground">Cargando paquetes…</p>
           ) : (
-            <div className="space-y-16">
+            <div className="space-y-20">
               {grouped.map(([category, items]) => (
                 <div key={category}>
-                  <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
-                  <div className="mt-6 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="border-b border-foreground pb-4">
+                    <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
+                    {CATEGORY_HINTS[category] ? (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {CATEGORY_HINTS[category]}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((p) => (
-                      <article key={p.id} className="flex flex-col bg-background p-8">
+                      <article
+                        key={p.id}
+                        className="flex flex-col border border-border bg-background p-8 shadow-sm"
+                      >
                         <h3 className="text-xl">{p.name}</h3>
                         {p.subtitle ? (
                           <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                             {p.subtitle}
                           </p>
                         ) : null}
-                        <p className="mt-3 flex-1 text-sm text-muted-foreground">{p.description}</p>
-                        {p.includes ? (
-                          <ul className="mt-4 space-y-1 text-xs text-muted-foreground">
-                            {p.includes
-                              .split("\n")
-                              .filter(Boolean)
-                              .map((line, i) => (
-                                <li key={i}>· {line}</li>
-                              ))}
-                          </ul>
-                        ) : null}
+                        <p className="mt-3 text-sm text-muted-foreground">{p.description}</p>
+
                         <p className="mt-6 text-2xl">{money(p.price_cents, p.currency)}</p>
                         <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                           {p.tokens} {p.tokens === 1 ? "crédito" : "créditos"}
                           {p.recurring ? " · recurrente" : ""}
                         </p>
+
                         <button
                           onClick={() => handleBuyClick(p)}
                           className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
                         >
                           {user ? "Comprar" : "Inicia sesión para comprar"}
                         </button>
-                        {p.terms ? (
-                          <p className="mt-4 text-[0.68rem] leading-relaxed text-muted-foreground">
-                            {p.terms}
-                          </p>
-                        ) : null}
+
+                        <div className="mt-6 flex-1 space-y-4 border-t border-border pt-5">
+                          {p.includes ? (
+                            <div>
+                              <p className="text-[0.65rem] uppercase tracking-[0.18em] text-foreground">
+                                Incluye
+                              </p>
+                              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                {p.includes
+                                  .split("\n")
+                                  .filter(Boolean)
+                                  .map((line, i) => (
+                                    <li key={i}>· {line}</li>
+                                  ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {(p as unknown as { excludes?: string }).excludes ? (
+                            <div>
+                              <p className="text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                No incluye
+                              </p>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                {(p as unknown as { excludes?: string }).excludes}
+                              </p>
+                            </div>
+                          ) : null}
+                          {p.terms ? (
+                            <div>
+                              <p className="text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                Restricciones
+                              </p>
+                              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                                {p.terms}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
                       </article>
                     ))}
                   </div>

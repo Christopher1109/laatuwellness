@@ -269,3 +269,19 @@
     stroke-dashoffset: 0;
   }
 }
+
+@keyframes laatu-coach-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* Se mueve exactamente la mitad del ancho: el track duplica la lista de
+       coaches, así que a la mitad el loop es visualmente idéntico al inicio. */
+    transform: translateX(-50%);
+  }
+}
+
+@utility animate-coach-marquee {
+  animation: laatu-coach-marquee 40s linear infinite;
+}
+
