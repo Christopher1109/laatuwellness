@@ -25,7 +25,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Estudio de Pilates Reformer, terapia de contraste, nutrición y psicología. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
+          "Estudio de Pilates Reformer, 4mat, Align y terapia de contraste. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,7 +33,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Pilates Reformer, contraste, nutrición y psicología en un solo lugar. Reserva tu clase.",
+          "Pilates Reformer, 4mat, Align y Contrast en un solo lugar. Reserva tu clase.",
       },
     ],
   }),
@@ -69,8 +69,8 @@ function Home() {
               en el caos.
             </h1>
             <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
-              Pilates Reformer, recuperación y acompañamiento en un mismo lugar. Máximo diez
-              personas por salón, para que alguien mire tu proceso.
+              Pilates Reformer, recuperación y acompañamiento en un mismo lugar. Diez personas
+              por salón, para que alguien mire tu proceso.
             </p>
             <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
@@ -224,7 +224,7 @@ function Home() {
           </div>
 
           <p className="mt-10 max-w-xl font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
-            Fuel vive dentro del estudio · se ordena y se paga ahí mismo
+            Fuel vive dentro del estudio · pide lo que se te antoje
           </p>
         </div>
       </section>
@@ -240,8 +240,8 @@ function Home() {
                 Diez personas por salón.
               </h2>
               <p className="mt-6 text-muted-foreground">
-                No creemos en las clases multitudinarias. Grupos pequeños, corrección individual y
-                un ritmo que respeta tu cuerpo. Ser flexible no es una debilidad.
+                Grupos pequeños de diez personas, corrección individual y un ritmo que respeta tu
+                cuerpo. Ser flexible no es una debilidad.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link

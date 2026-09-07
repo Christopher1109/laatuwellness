@@ -12,14 +12,14 @@ export const Route = createFileRoute("/programas/")({
       {
         name: "description",
         content:
-          "Pilates Reformer, terapia de contraste, nutrición, psicología y rehabilitación. Consulta horarios y reserva tu sesión.",
+          "Pilates Reformer, 4mat, Align y Contrast. Consulta horarios y reserva tu sesión.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:title", content: "Programas — Läätu Wellness" },
       {
         property: "og:description",
-        content: "Reformer, contraste, nutrición, psicología y rehabilitación en un mismo estudio.",
+        content: "Reformer, 4mat, Align y Contrast en un mismo estudio.",
       },
     ],
   }),

@@ -102,7 +102,7 @@ function Paquetes() {
       <PageHeader
         eyebrow="Paquetes"
         title="Elige tu forma de entrenar."
-        intro="Class Packages para Reformer y 4mat, membresías con Align y Contrast incluidos, y sesiones individuales de recovery."
+        intro="Paquetes de clases, membresías y recuperación."
       />
 
       <section>

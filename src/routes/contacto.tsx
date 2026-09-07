@@ -81,18 +81,21 @@ function Contacto() {
             <p className="eyebrow">Directo</p>
             <ul className="mt-6 space-y-3 text-sm">
               <li>
-                <a href="mailto:lore@tuwellness.com" className="border-b border-foreground pb-0.5">
-                  lore@tuwellness.com
+                <a
+                  href="mailto:lore@laatuwellness.com"
+                  className="border-b border-foreground pb-0.5"
+                >
+                  lore@laatuwellness.com
                 </a>
               </li>
               <li>
                 <a
-                  href="https://instagram.com/laatu"
+                  href="https://instagram.com/laatuwellness"
                   target="_blank"
                   rel="noreferrer"
                   className="border-b border-foreground pb-0.5"
                 >
-                  Instagram @laatu
+                  Instagram @laatuwellness
                 </a>
               </li>
             </ul>

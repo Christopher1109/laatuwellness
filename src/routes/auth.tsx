@@ -147,11 +147,11 @@ function Auth() {
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="surface-dark constellation grain hidden flex-col justify-between p-12 md:flex">
         <div className="relative z-[2]">
-          <BrandLink />
+          <BrandLink tone="ivory" />
         </div>
         <div className="relative z-[2]">
           <h1 className="statement text-[clamp(2rem,4vw,3.2rem)]">
-            Abraza el caos, es tu mejor amigo.
+            Ábrete a la posibilidad del camino.
           </h1>
           <p className="mt-6 max-w-sm text-muted-foreground">
             Tu cuenta guarda tus tokens, tu waiver y tu historial de reservas.

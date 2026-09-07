@@ -110,10 +110,7 @@ function Fuel() {
       <PageHeader
         eyebrow="Fuel"
         title="Lo que tu cuerpo pide después."
-        intro={
-          modulo?.long_description ||
-          "Fuel vive dentro del estudio. Se ordena y se paga ahí mismo, después de tu clase."
-        }
+        intro={modulo?.long_description || "Fuel vive dentro del estudio. Pide lo que te gusta."}
       />
 
       <section className="border-b border-border">

@@ -10,12 +10,12 @@ export const Route = createFileRoute("/nosotros")({
       {
         name: "description",
         content:
-          "Salones íntimos de 10 personas, atención personalizada y una práctica pensada para la longevidad. Conoce la propuesta de Läätu.",
+          "Salones de 10 personas, atención personalizada y una práctica pensada para la longevidad. Conoce la propuesta de Läätu.",
       },
       { property: "og:title", content: "Nosotros — Läätu Wellness" },
       {
         property: "og:description",
-        content: "Atención personalizada en salones íntimos. Transformación consciente.",
+        content: "Atención personalizada en salones de 10 personas. Transformación consciente.",
       },
     ],
   }),
