@@ -175,6 +175,8 @@ function Fuel() {
             </ul>
             <p className="mt-4 text-xs text-muted-foreground">Leches: {LECHES}</p>
           </div>
+          </div>
+
 
           <p className="mt-10 text-center font-mono text-[0.65rem] uppercase tracking-[0.22em] text-muted-foreground">
             Precios en MXN · disponibilidad en el estudio
