@@ -429,7 +429,7 @@ export function Schedule({
 
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
-      ) : total === 0 ? (
+      ) : grupos.length === 0 ? (
         <p className="mt-10 text-muted-foreground">
           No hay clases publicadas en este rango. Escríbenos por WhatsApp y te avisamos en cuanto se
           abra el horario.
