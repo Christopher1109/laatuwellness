@@ -389,7 +389,7 @@ export function Schedule({
     });
   }, [all, presentes, filtro, limit]);
 
-  const total = grupos.reduce((n, g) => n + g.total, 0);
+  
 
   return (
     <div>

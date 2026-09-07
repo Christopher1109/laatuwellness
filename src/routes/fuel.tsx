@@ -114,12 +114,16 @@ function Fuel() {
       />
 
       <section className="border-b border-border">
-        <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <p className="text-center text-lg text-muted-foreground">
             Pide tu favorito. Pruébanos, te esperamos después de tu clase.
           </p>
 
-          <div className="mt-12">
+          {/* En escritorio la carta va en dos columnas (smoothies a la
+              izquierda, café y matcha a la derecha); en tablet y celular se
+              apila una debajo de otra. */}
+          <div className="mt-12 grid gap-12 lg:grid-cols-2 lg:gap-16">
+          <div>
             <p className="eyebrow">Smoothies</p>
             <ul className="mt-4 divide-y divide-border">
               {SMOOTHIES.map((s) => (
