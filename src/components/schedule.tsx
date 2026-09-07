@@ -449,6 +449,12 @@ export function Schedule({
               </header>
 
               <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
+                {g.total === 0 ? (
+                  <p className="py-8 text-sm text-muted-foreground">
+                    Sin sesiones en este rango. Cambia de semana o escríbenos por WhatsApp para
+                    apartar tu lugar.
+                  </p>
+                ) : null}
                 {g.dias.map(([day, items]) => (
                   <div key={day} className="py-4">
                     <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
