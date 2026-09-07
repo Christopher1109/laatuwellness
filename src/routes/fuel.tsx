@@ -149,7 +149,7 @@ function Fuel() {
             </ul>
           </div>
 
-          <div className="mt-12">
+          <div>
             <p className="eyebrow">Coffee &amp; Matcha</p>
             <ul className="mt-4 divide-y divide-border">
               {COFFEE.map((c) => (
