@@ -1216,7 +1216,19 @@ export function StaffHomePanel({
   );
 }
 
-export function DashboardPanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+const DASHBOARD_MODULES = [
+  { key: "reformer", label: "Reformer Studio" },
+  { key: "4mat", label: "4MAT Studio" },
+  { key: "contraste", label: "Contrast Therapy" },
+  { key: "rehabilitacion", label: "DorisFisio" },
+] as const;
+
+export function DashboardPanel({
+  onGoTo,
+}: {
+  onGoTo: (key: string, moduleKey?: string) => void;
+}) {
+
   const todayBounds = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
