@@ -9,8 +9,8 @@
 -- había quedado con el placeholder 'align_doris_fisio_onetime'. El precio
 -- real de Stripe para ese monto ($850) en realidad corresponde al plan
 -- activo actual 'DorisFisio — Upper o Lower', así que el price_id se mueve
--- ahí. 'DorisFisio — Full Body' ($1,200) TODAVÍA NO tiene precio creado en
--- Stripe — falta que Lorena lo cree y nos pase el price_id.
+-- ahí. 'DorisFisio — Full Body' ($1,200) se agregó por separado, creado en
+-- Stripe el 7/sept/2026.
 -- ============================================================================
 
 UPDATE public.token_plans SET stripe_price_id = m.price_id FROM (VALUES
@@ -36,6 +36,6 @@ WHERE name = 'Align — Doris Fisio' AND stripe_price_id = 'align_doris_fisio_on
 UPDATE public.token_plans SET stripe_price_id = 'price_1UB4gZDPgAzvWuR2uKHeV1ya'
 WHERE name = 'DorisFisio — Upper o Lower';
 
--- DorisFisio — Full Body ($1,200) queda pendiente: Lorena aún no ha creado
--- ese precio en Stripe. Mientras stripe_price_id esté vacío, el sitio ya
--- muestra "todavía no tiene pago en línea configurado" en vez de tronar.
+-- DorisFisio — Full Body ($1,200): precio creado en Stripe el 7/sept/2026.
+UPDATE public.token_plans SET stripe_price_id = 'price_1UDGOmDPgAzvWuR2Xp3Gletw'
+WHERE name = 'DorisFisio — Full Body';
