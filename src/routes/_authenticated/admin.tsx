@@ -139,9 +139,11 @@ function Admin() {
   const [active, setActive] = useState(firstKey);
   const [focusModule, setFocusModule] = useState<string | null>(null);
 
-  const activeKey = groups.flatMap((g) => g.items).some((i) => i.key === active)
-    ? active
-    : firstKey;
+  const activeKey =
+    active === "panel-staff" || groups.flatMap((g) => g.items).some((i) => i.key === active)
+      ? active
+      : firstKey;
+
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando…</div>;
