@@ -33,16 +33,16 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:h-32 sm:px-8">
-        <BrandLink size="lg" />
+      <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:h-32 sm:px-8">
+        <BrandLink size="lg" className="shrink-0" />
 
-        <nav className="ml-4 hidden items-center gap-5 md:flex lg:ml-10 lg:gap-8 xl:gap-10">
+        <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-6 md:flex lg:gap-8">
           {NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className={cn(
-                "whitespace-nowrap text-[0.74rem] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground",
+                "whitespace-nowrap text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground transition-colors hover:text-foreground",
                 pathname === item.to && "text-foreground",
               )}
             >
@@ -51,7 +51,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-5 md:flex">
+        <div className="hidden shrink-0 items-center gap-5 md:flex">
           {" "}
           {user ? (
             <>
