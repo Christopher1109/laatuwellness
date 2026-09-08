@@ -51,6 +51,30 @@ async function fulfillMerch(params: {
   if (error) console.error("fulfill_merch_order failed", error);
 }
 
+async function fulfillMerchCart(params: {
+  userId?: string;
+  itemsJson?: string;
+  externalRef: string;
+}) {
+  if (!params.userId || !params.itemsJson) {
+    console.error("Webhook de merch_cart sin userId/items en metadata", params);
+    return;
+  }
+  let items: unknown;
+  try {
+    items = JSON.parse(params.itemsJson);
+  } catch {
+    console.error("Webhook de merch_cart con items invalidos", params.itemsJson);
+    return;
+  }
+  const { error } = await (getSupabase().rpc as any)("fulfill_merch_cart_order", {
+    _user_id: params.userId,
+    _items: items,
+    _external_ref: params.externalRef,
+  });
+  if (error) console.error("fulfill_merch_cart_order failed", error);
+}
+
 async function handleWebhook(req: Request, env: StripeEnv) {
   const event = await verifyWebhook(req, env);
 
@@ -63,6 +87,12 @@ async function handleWebhook(req: Request, env: StripeEnv) {
             userId: session.metadata?.userId,
             productId: session.metadata?.productId,
             qty: session.metadata?.qty,
+            externalRef: `session_${session.id}`,
+          });
+        } else if (session.metadata?.kind === "merch_cart") {
+          await fulfillMerchCart({
+            userId: session.metadata?.userId,
+            itemsJson: session.metadata?.items,
             externalRef: `session_${session.id}`,
           });
         } else {
