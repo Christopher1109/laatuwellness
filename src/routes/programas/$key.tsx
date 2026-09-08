@@ -81,20 +81,8 @@ function ProgramaDetalle() {
     },
   });
 
-  const { data: plans } = useQuery({
-    queryKey: ["token-plans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("token_plans")
-        .select("*")
-        .eq("active", true)
-        .order("tokens");
-      if (error) throw error;
-      return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
-      );
-    },
-  });
+
+
 
   const { data: classTypes } = useQuery({
     queryKey: ["class-types", key],
