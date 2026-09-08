@@ -9,6 +9,7 @@ import {
   endOfWeek,
   format,
   isSameDay,
+  startOfDay,
   isSameMonth,
   startOfMonth,
   startOfWeek,
@@ -46,15 +47,19 @@ function initials(name: string) {
     .join("");
 }
 
-function rangeForView(date: Date, view: ViewMode) {
-  if (view === "day") return { start: date, end: addDays(date, 1) };
+function rangeForView(date: Date | null, view: ViewMode) {
+  const anchor = date ?? new Date();
+  if (view === "day") {
+    const d = startOfDay(anchor);
+    return { start: d, end: addDays(d, 1) };
+  }
   if (view === "week") {
     return {
-      start: startOfWeek(date, { weekStartsOn: 1 }),
-      end: addDays(endOfWeek(date, { weekStartsOn: 1 }), 1),
+      start: startOfWeek(anchor, { weekStartsOn: 1 }),
+      end: addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1),
     };
   }
-  return { start: startOfMonth(date), end: addDays(endOfMonth(date), 1) };
+  return { start: startOfMonth(anchor), end: addDays(endOfMonth(anchor), 1) };
 }
 
 export function AdminSchedulePanel({ modules, title }: { modules: string[]; title: string }) {
@@ -78,14 +83,17 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     },
     enabled: isWeekendPick,
   });
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<ViewMode>("day");
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
+  const [monthCursor, setMonthCursor] = useState<Date | null>(null);
   const [openClassId, setOpenClassId] = useState<string | null>(null);
-  // Reloj interno: se fija al montar (evita desfase con el render del servidor)
-  // y se actualiza cada 30 s para que el estado de cada clase se vea al entrar.
+  // Al montar en cliente se fijan las fechas locales para evitar desfases de
+  // hidratación y para que la vista arranque siempre con el día de hoy completo.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    const today = new Date();
+    setSelectedDate(startOfDay(today));
+    setMonthCursor(startOfMonth(today));
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
@@ -95,6 +103,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   const { start, end } = useMemo(() => rangeForView(selectedDate, view), [selectedDate, view]);
 
   const { data: classes } = useQuery({
+    enabled: selectedDate != null,
     queryKey: ["admin-schedule-classes", modules.join(","), start.toISOString(), end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -205,6 +214,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
 
   const monthGrid = useMemo(() => {
+    if (!monthCursor) return [];
     const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
     const gridEnd = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 1 });
     const days: Date[] = [];
@@ -215,6 +225,10 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     }
     return days;
   }, [monthCursor]);
+
+  if (!selectedDate || !monthCursor) {
+    return <div className="py-12 text-center text-muted-foreground">Cargando calendario…</div>;
+  }
 
   return (
     <div>
@@ -353,7 +367,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <div className="mb-2 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setMonthCursor((m) => addMonths(m, -1))}
+                onClick={() => setMonthCursor((m) => addMonths(m ?? new Date(), -1))}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 aria-label="Mes anterior"
               >
@@ -364,7 +378,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               </span>
               <button
                 type="button"
-                onClick={() => setMonthCursor((m) => addMonths(m, 1))}
+                onClick={() => setMonthCursor((m) => addMonths(m ?? new Date(), 1))}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 aria-label="Mes siguiente"
               >
@@ -382,13 +396,13 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   type="button"
                   key={d.toISOString()}
                   onClick={() => {
-                    setSelectedDate(d);
+                    setSelectedDate(startOfDay(d));
                     setView("day");
                   }}
                   className={cn(
                     "py-1 text-[0.65rem]",
-                    !isSameMonth(d, monthCursor) && "text-muted-foreground/40",
-                    isSameDay(d, selectedDate) && "bg-foreground text-background",
+                    !isSameMonth(d, monthCursor ?? new Date()) && "text-muted-foreground/40",
+                    isSameDay(d, selectedDate ?? new Date()) && "bg-foreground text-background",
                   )}
                 >
                   {format(d, "d")}
@@ -417,13 +431,14 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <button
               type="button"
               onClick={() =>
-                setSelectedDate((d) =>
-                  view === "day"
-                    ? addDays(d, -1)
+                setSelectedDate((d) => {
+                  const anchor = d ?? new Date();
+                  return view === "day"
+                    ? addDays(anchor, -1)
                     : view === "week"
-                      ? addWeeks(d, -1)
-                      : addMonths(d, -1),
-                )
+                      ? addWeeks(anchor, -1)
+                      : addMonths(anchor, -1);
+                })
               }
               className="text-xs text-muted-foreground hover:text-foreground"
             >
@@ -435,13 +450,14 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <button
               type="button"
               onClick={() =>
-                setSelectedDate((d) =>
-                  view === "day"
-                    ? addDays(d, 1)
+                setSelectedDate((d) => {
+                  const anchor = d ?? new Date();
+                  return view === "day"
+                    ? addDays(anchor, 1)
                     : view === "week"
-                      ? addWeeks(d, 1)
-                      : addMonths(d, 1),
-                )
+                      ? addWeeks(anchor, 1)
+                      : addMonths(anchor, 1);
+                })
               }
               className="text-xs text-muted-foreground hover:text-foreground"
             >
