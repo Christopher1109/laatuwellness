@@ -88,6 +88,27 @@ function Cuenta() {
     enabled: Boolean(user),
   });
 
+  const merchOrders = useQuery({
+    queryKey: ["merch-orders", user?.id],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- order_code/external_ref no están en los tipos generados todavía
+      const { data, error } = await (supabase.from as any)("pos_sales")
+        .select("id, order_code, status, total_cents, created_at")
+        .eq("user_id", user!.id)
+        .not("order_code", "is", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as {
+        id: string;
+        order_code: string | null;
+        status: string;
+        total_cents: number;
+        created_at: string;
+      }[];
+    },
+    enabled: Boolean(user),
+  });
+
   const plans = useQuery({
     queryKey: ["plans"],
     queryFn: async () => {
@@ -382,6 +403,45 @@ function Cuenta() {
               </ul>
             </div>
           </div>
+        </div>
+      </section>
+      <section className="border-t border-border">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
+          <p className="eyebrow">Mis pedidos de Merch</p>
+          <ul className="mt-6 divide-y divide-border border-y border-border text-sm">
+            {(merchOrders.data ?? []).length === 0 ? (
+              <li className="py-5 text-muted-foreground">Sin pedidos de Merch todavía.</li>
+            ) : (
+              (merchOrders.data ?? []).map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div>
+                    <p className="font-mono">{o.order_code ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                        new Date(o.created_at),
+                      )}
+                    </p>
+                  </div>
+                  <span className="text-muted-foreground">{money(o.total_cents)}</span>
+                  <span
+                    className={
+                      o.status === "entregado"
+                        ? "text-muted-foreground"
+                        : o.status === "listo"
+                          ? "text-emerald-700"
+                          : "text-amber-700"
+                    }
+                  >
+                    {o.status === "pendiente"
+                      ? "Preparando"
+                      : o.status === "listo"
+                        ? "Listo para recoger"
+                        : "Entregado"}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
         </div>
       </section>
       {buying ? (

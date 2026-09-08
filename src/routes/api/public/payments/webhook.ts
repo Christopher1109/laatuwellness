@@ -32,6 +32,25 @@ async function fulfill(params: {
   if (error) console.error("fulfill_plan_purchase failed", error);
 }
 
+async function fulfillMerch(params: {
+  userId?: string;
+  productId?: string;
+  qty?: string;
+  externalRef: string;
+}) {
+  if (!params.userId || !params.productId) {
+    console.error("Webhook de merch sin userId/productId en metadata", params);
+    return;
+  }
+  const { error } = await (getSupabase().rpc as any)("fulfill_merch_order", {
+    _user_id: params.userId,
+    _product_id: params.productId,
+    _qty: Number(params.qty ?? "1"),
+    _external_ref: params.externalRef,
+  });
+  if (error) console.error("fulfill_merch_order failed", error);
+}
+
 async function handleWebhook(req: Request, env: StripeEnv) {
   const event = await verifyWebhook(req, env);
 
@@ -39,11 +58,20 @@ async function handleWebhook(req: Request, env: StripeEnv) {
     case "checkout.session.completed": {
       const session = event.data.object;
       if (session.payment_status !== "unpaid") {
-        await fulfill({
-          userId: session.metadata?.userId,
-          planId: session.metadata?.planId,
-          externalRef: `session_${session.id}`,
-        });
+        if (session.metadata?.kind === "merch") {
+          await fulfillMerch({
+            userId: session.metadata?.userId,
+            productId: session.metadata?.productId,
+            qty: session.metadata?.qty,
+            externalRef: `session_${session.id}`,
+          });
+        } else {
+          await fulfill({
+            userId: session.metadata?.userId,
+            planId: session.metadata?.planId,
+            externalRef: `session_${session.id}`,
+          });
+        }
       }
       break;
     }
