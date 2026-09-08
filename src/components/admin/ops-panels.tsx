@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
@@ -2107,10 +2107,63 @@ type CouponRow = {
   active: boolean;
 };
 
+function CouponRedemptionsRow({ couponId }: { couponId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["coupon-redemptions", couponId],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coupon_redemptions no está en los tipos generados
+      const { data: redemptions, error } = await (supabase.from as any)("coupon_redemptions")
+        .select("id, user_id, created_at")
+        .eq("coupon_id", couponId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const userIds = (redemptions ?? []).map((r: { user_id: string }) => r.user_id);
+      const { data: profiles } = userIds.length
+        ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
+        : { data: [] as { id: string; full_name: string; email: string }[] };
+      return (redemptions ?? []).map((r: { id: string; user_id: string; created_at: string }) => ({
+        ...r,
+        profile: profiles?.find((p) => p.id === r.user_id),
+      }));
+    },
+  });
+
+  return (
+    <tr className="border-b border-border bg-muted/30 last:border-0">
+      <td colSpan={6} className="px-4 py-4">
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Cargando…</p>
+        ) : (data ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nadie ha usado este cupón todavía.</p>
+        ) : (
+          <ul className="space-y-1.5 text-xs">
+            {(data ?? []).map(
+              (r: {
+                id: string;
+                created_at: string;
+                profile?: { full_name: string; email: string };
+              }) => (
+              <li key={r.id} className="flex items-center justify-between gap-4">
+                <span>{r.profile?.full_name || r.profile?.email || "Cliente"}</span>
+                <span className="text-muted-foreground">
+                  {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
+                    new Date(r.created_at),
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function CouponsPanel() {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [viewingUsesId, setViewingUsesId] = useState<string | null>(null);
 
   const { data } = useQuery({
     queryKey: ["admin-coupons"],
@@ -2194,22 +2247,32 @@ export function CouponsPanel() {
                   onSave={(row) => save.mutate({ ...row, id: c.id })}
                 />
               ) : (
-                <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-mono">{c.code}</td>
-                  <td className="px-4 py-3">{c.reward_tokens} clase(s)</td>
-                  <td className="px-4 py-3">{c.max_uses ?? "Ilimitado"}</td>
-                  <td className="px-4 py-3">{c.times_used}</td>
-                  <td className="px-4 py-3">{c.active ? "Sí" : "No"}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(c.id)}
-                      className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
-                    >
-                      Editar
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={c.id}>
+                  <tr className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-mono">{c.code}</td>
+                    <td className="px-4 py-3">{c.reward_tokens} clase(s)</td>
+                    <td className="px-4 py-3">{c.max_uses ?? "Ilimitado"}</td>
+                    <td className="px-4 py-3">{c.times_used}</td>
+                    <td className="px-4 py-3">{c.active ? "Sí" : "No"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setViewingUsesId(viewingUsesId === c.id ? null : c.id)}
+                        className="mr-4 text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                      >
+                        {viewingUsesId === c.id ? "Ocultar usos" : "Ver usos"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(c.id)}
+                        className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                  {viewingUsesId === c.id ? <CouponRedemptionsRow couponId={c.id} /> : null}
+                </Fragment>
               ),
             )}
             {creating ? (
@@ -3811,7 +3874,17 @@ export function FinancePanel() {
   );
   const [tokenCategoryFilter, setTokenCategoryFilter] = useState<string>("todas");
 
+  const defaultFrom = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const defaultTo = useMemo(() => now.toISOString().slice(0, 10), [now]);
+  const [rangeFromStr, setRangeFromStr] = useState(defaultFrom);
+  const [rangeToStr, setRangeToStr] = useState(defaultTo);
+
   // Últimas 8 semanas + 2 semanas de proyección (promedio de las últimas 4).
+  // El trend semanal siempre termina hoy, independiente del filtro de rango.
   const weeks = useMemo(() => {
     const list: { start: Date; end: Date; label: string }[] = [];
     for (let i = 7; i >= 0; i--) {
@@ -3822,25 +3895,33 @@ export function FinancePanel() {
     return list;
   }, [now]);
 
+  // Rango que sí controla el filtro: por default, mes en curso a hoy.
   const monthStart = useMemo(() => {
-    const d = new Date();
-    d.setDate(1);
+    const d = new Date(`${rangeFromStr}T00:00:00`);
     d.setHours(0, 0, 0, 0);
     return d;
-  }, []);
+  }, [rangeFromStr]);
+  const rangeEnd = useMemo(() => {
+    const d = new Date(`${rangeToStr}T23:59:59.999`);
+    return d;
+  }, [rangeToStr]);
 
   const { data } = useQuery({
-    queryKey: ["finance-month", monthStart.toISOString(), weeks[0]?.start.toISOString()],
+    queryKey: ["finance-month", monthStart.toISOString(), rangeEnd.toISOString(), weeks[0]?.start.toISOString()],
     queryFn: async () => {
       const fromIso = monthStart.toISOString();
-      const toIso = now.toISOString();
+      const toIso = rangeEnd.toISOString();
       const trendFromIso = weeks[0]!.start.toISOString();
+      // El fetch tiene que cubrir lo que sea más amplio: las 8 semanas del
+      // trend, o el rango de fechas que eligió el usuario.
+      const fetchFromIso =
+        new Date(fromIso) < new Date(trendFromIso) ? fromIso : trendFromIso;
 
       const { data: transactions } = await supabase
         .from("transactions")
         .select("amount_cents, status, created_at, user_id, plan:token_plans(category, name)")
         .eq("status", "completed")
-        .gte("created_at", trendFromIso)
+        .gte("created_at", fetchFromIso)
         .lte("created_at", toIso);
 
       const tokensByCategory = new Map<string, number>();
@@ -3869,7 +3950,7 @@ export function FinancePanel() {
       const { data: saleItems } = await supabase
         .from("pos_sale_items")
         .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id)")
-        .gte("sale.created_at", trendFromIso)
+        .gte("sale.created_at", fetchFromIso)
         .lte("sale.created_at", toIso);
       const productIds = Array.from(
         new Set((saleItems ?? []).map((i) => i.product_id).filter(Boolean)),
@@ -4060,8 +4141,40 @@ export function FinancePanel() {
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="text-xs">
+          <span className="eyebrow">Desde</span>
+          <input
+            type="date"
+            value={rangeFromStr}
+            onChange={(e) => setRangeFromStr(e.target.value)}
+            className={input}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Hasta</span>
+          <input
+            type="date"
+            value={rangeToStr}
+            onChange={(e) => setRangeToStr(e.target.value)}
+            className={input}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setRangeFromStr(defaultFrom);
+            setRangeToStr(defaultTo);
+          }}
+          className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+        >
+          Este mes
+        </button>
+      </div>
       <p className="text-sm text-muted-foreground">
-        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} a hoy.
+        Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} al{" "}
+        {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(rangeEnd)}. El gráfico
+        de tendencia semanal siempre muestra las últimas 8 semanas, sin importar este filtro.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-3">
