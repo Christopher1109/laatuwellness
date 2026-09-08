@@ -1258,6 +1258,10 @@ export type Database = {
       client_place_order:
         | { Args: { _items: Json }; Returns: string }
         | { Args: { _items: Json; _note?: string }; Returns: string }
+      fulfill_merch_cart_order: {
+        Args: { _external_ref: string; _items: Json; _user_id: string }
+        Returns: string
+      }
       fulfill_merch_order: {
         Args: {
           _external_ref: string
