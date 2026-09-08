@@ -2940,14 +2940,91 @@ export function PayrollPanel() {
     },
   });
 
+  const { data: allTiers } = useQuery({
+    queryKey: ["payroll-coach-tiers"],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coach_rate_tiers no está en los tipos generados todavía
+      const { data, error } = await (supabase.from as any)("coach_rate_tiers")
+        .select("*")
+        .order("min_attendance");
+      if (error) throw error;
+      return data as { coach_id: string; min_attendance: number; rate_cents: number }[];
+    },
+  });
+
+  const coachIdsWithTiers = useMemo(
+    () => new Set((allTiers ?? []).map((t) => t.coach_id)),
+    [allTiers],
+  );
+
+  const { data: coachClasses } = useQuery({
+    queryKey: ["payroll-coach-classes", from, to, Array.from(coachIdsWithTiers).join(",")],
+    enabled: coachIdsWithTiers.size > 0,
+    queryFn: async () => {
+      const fromIso = new Date(from).toISOString();
+      const toIso = new Date(new Date(to).getTime() + 24 * 60 * 60 * 1000).toISOString();
+      const { data: classesData, error } = await supabase
+        .from("classes")
+        .select("id, coach_id")
+        .in("coach_id", Array.from(coachIdsWithTiers))
+        .gte("starts_at", fromIso)
+        .lt("starts_at", toIso);
+      if (error) throw error;
+      const classIds = (classesData ?? []).map((c) => c.id);
+      const { data: bookings } = classIds.length
+        ? await supabase
+            .from("bookings")
+            .select("class_id")
+            .eq("status", "reservada")
+            .in("class_id", classIds)
+        : { data: [] as { class_id: string }[] };
+      const attendanceByClass = new Map<string, number>();
+      for (const b of bookings ?? []) {
+        attendanceByClass.set(b.class_id, (attendanceByClass.get(b.class_id) ?? 0) + 1);
+      }
+      return (classesData ?? []).map((c) => ({
+        coach_id: c.coach_id as string,
+        attendance: attendanceByClass.get(c.id) ?? 0,
+      }));
+    },
+  });
+
+  // Precio fijo por clase: el rango con el min_attendance más alto que no
+  // se pase de la asistencia real de esa clase.
+  const tierRateFor = (coachId: string, attendance: number) => {
+    const tiers = (allTiers ?? [])
+      .filter((t) => t.coach_id === coachId)
+      .sort((a, b) => a.min_attendance - b.min_attendance);
+    let rate = 0;
+    for (const t of tiers) {
+      if (attendance >= t.min_attendance) rate = t.rate_cents;
+    }
+    return rate;
+  };
+
   const rows = useMemo(() => {
     return (staff ?? []).map((s) => {
+      const hasTiers = coachIdsWithTiers.has(s.id);
+      if (hasTiers) {
+        const classesForCoach = (coachClasses ?? []).filter((c) => c.coach_id === s.id);
+        const base = classesForCoach.reduce(
+          (sum, c) => sum + tierRateFor(s.id, c.attendance),
+          0,
+        );
+        return {
+          staff: s,
+          hours: classesForCoach.length,
+          base,
+          hasUpload: true,
+          byOccupancy: true,
+        };
+      }
       const hoursRow = (hoursRows ?? []).find((h) => h.staff_id === s.id);
       const hours = hoursRow?.hours ?? 0;
       const base = Math.round(hours * s.hourly_rate_cents);
-      return { staff: s, hours, base, hasUpload: Boolean(hoursRow) };
+      return { staff: s, hours, base, hasUpload: Boolean(hoursRow), byOccupancy: false };
     });
-  }, [staff, hoursRows]);
+  }, [staff, hoursRows, coachClasses, coachIdsWithTiers, allTiers]);
 
   const { data: adjustmentsByStaff } = useQuery({
     queryKey: ["payroll-adjustments", from, to],
@@ -3171,7 +3248,11 @@ export function PayrollPanel() {
             <p className="text-xs text-muted-foreground">{r.staff.role}</p>
             <p className="mt-2 text-lg">{money(r.total)}</p>
             <p className="text-[0.65rem] text-muted-foreground">
-              {r.hasUpload ? `${r.hours.toFixed(1)} h` : "Sin horas subidas"}
+              {r.byOccupancy
+                ? `${r.hours} ${r.hours === 1 ? "clase" : "clases"} · por ocupación`
+                : r.hasUpload
+                  ? `${r.hours.toFixed(1)} h`
+                  : "Sin horas subidas"}
             </p>
           </button>
         ))}
@@ -4099,7 +4180,122 @@ function CoachDetailPopout({ coachId, onClose }: { coachId: string; onClose: () 
           <li className="py-6 text-muted-foreground">Sin clases en este rango.</li>
         ) : null}
       </ul>
+
+      <div className="mt-8 border-t border-border pt-6">
+        <CoachRateTiersEditor coachId={coachId} />
+      </div>
     </Popout>
+  );
+}
+
+function CoachRateTiersEditor({ coachId }: { coachId: string }) {
+  const qc = useQueryClient();
+  const [minAttendance, setMinAttendance] = useState("");
+  const [rate, setRate] = useState("");
+
+  const { data: tiers } = useQuery({
+    queryKey: ["coach-rate-tiers", coachId],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coach_rate_tiers no está en los tipos generados todavía
+      const { data, error } = await (supabase.from as any)("coach_rate_tiers")
+        .select("*")
+        .eq("coach_id", coachId)
+        .order("min_attendance");
+      if (error) throw error;
+      return data as { id: string; min_attendance: number; rate_cents: number }[];
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coach_rate_tiers no está en los tipos generados todavía
+      const { error } = await (supabase.from as any)("coach_rate_tiers").insert({
+        coach_id: coachId,
+        min_attendance: Number(minAttendance),
+        rate_cents: Math.round(Number(rate) * 100),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Rango agregado.");
+      setMinAttendance("");
+      setRate("");
+      void qc.invalidateQueries({ queryKey: ["coach-rate-tiers", coachId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo agregar."),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coach_rate_tiers no está en los tipos generados todavía
+      const { error } = await (supabase.from as any)("coach_rate_tiers").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["coach-rate-tiers", coachId] }),
+  });
+
+  return (
+    <div>
+      <p className="eyebrow">Pago por ocupación del salón</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Precio fijo por clase según cuántas personas asistieron. Se aplica el rango más alto que
+        no se pase de la asistencia real. Si no configuras nada aquí, este coach sigue cobrando
+        por hora como de costumbre.
+      </p>
+
+      <ul className="mt-4 divide-y divide-border border-y border-border text-sm">
+        {(tiers ?? []).map((t) => (
+          <li key={t.id} className="flex items-center justify-between gap-4 py-2.5">
+            <span>Desde {t.min_attendance} {t.min_attendance === 1 ? "persona" : "personas"}</span>
+            <span className="flex items-center gap-3">
+              <span className="font-mono">{money(t.rate_cents)} / clase</span>
+              <button
+                type="button"
+                onClick={() => remove.mutate(t.id)}
+                className="text-xs uppercase tracking-wide text-muted-foreground hover:text-destructive"
+              >
+                Quitar
+              </button>
+            </span>
+          </li>
+        ))}
+        {(tiers ?? []).length === 0 ? (
+          <li className="py-3 text-muted-foreground">Sin rangos configurados.</li>
+        ) : null}
+      </ul>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="text-xs">
+          <span className="eyebrow">Desde (personas)</span>
+          <input
+            type="number"
+            min="0"
+            value={minAttendance}
+            onChange={(e) => setMinAttendance(e.target.value)}
+            className={`${input} w-32`}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Precio por clase (MXN)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            className={`${input} w-32`}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => add.mutate()}
+          disabled={!minAttendance || !rate || add.isPending}
+          className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
+        >
+          + Agregar rango
+        </button>
+      </div>
+    </div>
   );
 }
 
