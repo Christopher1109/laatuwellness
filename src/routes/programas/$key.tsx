@@ -203,47 +203,24 @@ function ProgramaDetalle() {
       <section>
         <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
           <p className="eyebrow">Sesiones</p>
-          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">Compra tus accesos.</h2>
+          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
+            ¿Todavía no tienes accesos?
+          </h2>
           <p className="mt-5 max-w-lg text-muted-foreground">
-            Los tokens sirven para cualquier programa. Reserva con ellos y cancela hasta 12 horas
-            antes sin perderlos.
+            Los paquetes de movimiento, contraste y recuperación viven todos en un solo lugar,
+            segmentados y ordenados por precio.
           </p>
-
-          <div className="mt-12 grid gap-px bg-border sm:grid-cols-3">
-            {(plans ?? []).map((p) => (
-              <div key={p.id} className="bg-background p-8">
-                <h3 className="text-lg">{p.name}</h3>
-                <p className="mt-3 text-3xl tabular-nums">
-                  ${(p.price_cents / 100).toLocaleString("es-MX")}
-                </p>
-                <p className="mt-1 text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-                  {p.tokens} {p.tokens === 1 ? "token" : "tokens"}
-                </p>
-                {user ? (
-                  <button
-                    onClick={() => setBuying(p as unknown as CheckoutPlan)}
-                    className="mt-7 w-full border border-foreground py-3 text-[0.68rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
-                  >
-                    Comprar
-                  </button>
-                ) : (
-                  <Link
-                    to="/auth"
-                    className="mt-7 block w-full border border-foreground py-3 text-center text-[0.68rem] uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
-                  >
-                    Entrar para comprar
-                  </Link>
-                )}
-              </div>
-            ))}
-          </div>
+          <Link
+            to="/paquetes"
+            className="mt-8 inline-block bg-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] text-background transition-opacity hover:opacity-85"
+          >
+            Ver paquetes
+          </Link>
 
           <Constellation className="mt-20 opacity-50" />
         </div>
       </section>
-      {buying ? (
-        <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
-      ) : null}
     </SiteLayout>
+
   );
 }
