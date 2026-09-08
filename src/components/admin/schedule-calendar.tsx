@@ -82,6 +82,15 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   const [view, setView] = useState<ViewMode>("day");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
   const [openClassId, setOpenClassId] = useState<string | null>(null);
+  // Reloj interno: se fija al montar (evita desfase con el render del servidor)
+  // y se actualiza cada 30 s para que el estado de cada clase se vea al entrar.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
 
   const { start, end } = useMemo(() => rangeForView(selectedDate, view), [selectedDate, view]);
 
