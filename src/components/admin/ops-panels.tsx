@@ -18,6 +18,7 @@ import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
+import { SignaturePad } from "@/components/signature-pad";
 
 export const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
@@ -140,7 +141,12 @@ const ORDER_STATUS_FLOW: Record<string, { next: string | null; label: string }> 
 
 export function PendingOrdersPanel() {
   const qc = useQueryClient();
+  const { staffProfile } = useAuth();
   const [filter, setFilter] = useState<"activos" | "todos">("activos");
+  const [signingOrder, setSigningOrder] = useState<{ id: string; clientName: string } | null>(
+    null,
+  );
+  const [signature, setSignature] = useState<string | null>(null);
 
   const { data: orders } = useQuery({
     queryKey: ["pending-orders"],
@@ -181,6 +187,29 @@ export function PendingOrdersPanel() {
     onError: () => toast.error("No se pudo actualizar el pedido."),
   });
 
+  const deliverWithWaiver = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      if (!signature) throw new Error("Falta la firma del cliente.");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merch_pickup_waivers no está en los tipos generados todavía
+      const { error: waiverError } = await (supabase.from as any)("merch_pickup_waivers").insert({
+        sale_id: id,
+        signature_data: signature,
+        full_name: signingOrder?.clientName ?? "",
+        staff_id: staffProfile?.id ?? null,
+      });
+      if (waiverError) throw waiverError;
+      const { error } = await supabase.from("pos_sales").update({ status: "entregado" }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Entregado y waiver firmado.");
+      setSigningOrder(null);
+      setSignature(null);
+      void qc.invalidateQueries({ queryKey: ["pending-orders"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo registrar la entrega."),
+  });
+
   const visible = (orders ?? []).filter((o) =>
     filter === "activos" ? o.status !== "entregado" : true,
   );
@@ -203,13 +232,18 @@ export function PendingOrdersPanel() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((o) => {
           const flow = ORDER_STATUS_FLOW[o.status] ?? { next: null, label: o.status };
+          const clientName = o.client?.full_name || o.client?.email || "Cliente";
+          const isDeliverStep = flow.next === "entregado";
           return (
             <div key={o.id} className="border border-border p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {o.client?.full_name || o.client?.email || "Cliente"}
-                  </p>
+                  <p className="truncate text-sm font-medium">{clientName}</p>
+                  {(o as unknown as { order_code?: string }).order_code ? (
+                    <p className="font-mono text-[0.65rem] text-muted-foreground">
+                      {(o as unknown as { order_code?: string }).order_code}
+                    </p>
+                  ) : null}
                   <p className="text-[0.65rem] text-muted-foreground">
                     {new Intl.DateTimeFormat("es-MX", {
                       dateStyle: "short",
@@ -240,7 +274,11 @@ export function PendingOrdersPanel() {
               <p className="mt-2 text-sm">{money(o.total_cents)}</p>
               {flow.next ? (
                 <button
-                  onClick={() => advance.mutate({ id: o.id, next: flow.next! })}
+                  onClick={() =>
+                    isDeliverStep
+                      ? setSigningOrder({ id: o.id, clientName })
+                      : advance.mutate({ id: o.id, next: flow.next! })
+                  }
                   disabled={advance.isPending}
                   className="mt-3 w-full bg-foreground px-3 py-2 text-[0.62rem] uppercase tracking-[0.1em] text-background disabled:opacity-50"
                 >
@@ -254,6 +292,48 @@ export function PendingOrdersPanel() {
           <p className="col-span-full text-muted-foreground">Sin pedidos en este filtro.</p>
         ) : null}
       </div>
+
+      {signingOrder ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => {
+            setSigningOrder(null);
+            setSignature(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md bg-background p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="eyebrow">Entrega de Merch</p>
+            <h3 className="mt-2 text-lg">{signingOrder.clientName}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Pide al cliente que firme aquí confirmando que recibió su pedido completo.
+            </p>
+            <div className="mt-4">
+              <SignaturePad onChange={setSignature} />
+            </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => {
+                  setSigningOrder(null);
+                  setSignature(null);
+                }}
+                className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deliverWithWaiver.mutate({ id: signingOrder.id })}
+                disabled={!signature || deliverWithWaiver.isPending}
+                className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-background disabled:opacity-50"
+              >
+                Confirmar entrega
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

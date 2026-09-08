@@ -17,6 +17,7 @@ import {
   PackageOpen,
   ScrollText,
   Ticket,
+  ClipboardCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ import {
   FinancePanel,
   DashboardPanel,
   CouponsPanel,
+  CheckInPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -68,6 +70,7 @@ function Admin() {
           items: [
             { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
+            { key: "check-in", label: "Check-in", icon: ClipboardCheck },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
             { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
             { key: "inventario", label: "Inventario", icon: Package },
@@ -147,6 +150,7 @@ function Admin() {
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
       {activeKey === "pos" ? <POSPanel /> : null}
+      {activeKey === "check-in" ? <CheckInPanel /> : null}
       {activeKey === "pedidos" ? <PendingOrdersPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}

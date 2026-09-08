@@ -17,6 +17,7 @@ import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as FuelRouteImport } from './routes/fuel'
 import { Route as HorariosRouteImport } from './routes/horarios'
+import { Route as MerchRouteImport } from './routes/merch'
 import { Route as NosotrosRouteImport } from './routes/nosotros'
 import { Route as PaquetesRouteImport } from './routes/paquetes'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -65,6 +66,11 @@ const FuelRoute = FuelRouteImport.update({
 const HorariosRoute = HorariosRouteImport.update({
   id: '/horarios',
   path: '/horarios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MerchRoute = MerchRouteImport.update({
+  id: '/merch',
+  path: '/merch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NosotrosRoute = NosotrosRouteImport.update({
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/contacto': typeof ContactoRoute
   '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
+  '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
   '/paquetes': typeof PaquetesRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/contacto': typeof ContactoRoute
   '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
+  '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
   '/paquetes': typeof PaquetesRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/contacto': typeof ContactoRoute
   '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
+  '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
   '/paquetes': typeof PaquetesRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/fuel'
     | '/horarios'
+    | '/merch'
     | '/nosotros'
     | '/paquetes'
     | '/reset-password'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/fuel'
     | '/horarios'
+    | '/merch'
     | '/nosotros'
     | '/paquetes'
     | '/reset-password'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/contacto'
     | '/fuel'
     | '/horarios'
+    | '/merch'
     | '/nosotros'
     | '/paquetes'
     | '/reset-password'
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   ContactoRoute: typeof ContactoRoute
   FuelRoute: typeof FuelRoute
   HorariosRoute: typeof HorariosRoute
+  MerchRoute: typeof MerchRoute
   NosotrosRoute: typeof NosotrosRoute
   PaquetesRoute: typeof PaquetesRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -313,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/horarios'
       fullPath: '/horarios'
       preLoaderRoute: typeof HorariosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/merch': {
+      id: '/merch'
+      path: '/merch'
+      fullPath: '/merch'
+      preLoaderRoute: typeof MerchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nosotros': {
@@ -412,6 +432,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactoRoute: ContactoRoute,
   FuelRoute: FuelRoute,
   HorariosRoute: HorariosRoute,
+  MerchRoute: MerchRoute,
   NosotrosRoute: NosotrosRoute,
   PaquetesRoute: PaquetesRoute,
   ResetPasswordRoute: ResetPasswordRoute,

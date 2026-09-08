@@ -170,3 +170,73 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       return { error: getStripeErrorMessage(error) };
     }
   });
+
+export const createMerchCheckoutSession = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      productId: string;
+      productName: string;
+      priceCents: number;
+      qty: number;
+      customerEmail?: string;
+      userId?: string;
+      returnUrl: string;
+      environment: StripeEnv;
+    }) => {
+      if (!/^[a-zA-Z0-9-]+$/.test(data.productId)) throw new Error("Invalid productId");
+      if (!Number.isInteger(data.qty) || data.qty < 1 || data.qty > 20) {
+        throw new Error("Invalid qty");
+      }
+      if (!Number.isInteger(data.priceCents) || data.priceCents < 1) {
+        throw new Error("Invalid priceCents");
+      }
+      return data;
+    },
+  )
+  .handler(async ({ data }): Promise<CheckoutSessionResult> => {
+    try {
+      const stripe = createStripeClient(data.environment);
+
+      const customerId =
+        data.customerEmail || data.userId
+          ? await resolveOrCreateCustomer(stripe, {
+              ...(data.customerEmail ? { email: data.customerEmail } : {}),
+              ...(data.userId ? { userId: data.userId } : {}),
+            })
+          : undefined;
+
+      const metadata: Record<string, string> = {
+        kind: "merch",
+        productId: data.productId,
+        qty: String(data.qty),
+      };
+      if (data.userId) metadata["userId"] = data.userId;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "mxn",
+              unit_amount: data.priceCents,
+              product_data: { name: data.productName },
+            },
+            quantity: data.qty,
+          },
+        ],
+        mode: "payment",
+        ui_mode: "embedded_page",
+        return_url: data.returnUrl,
+        automatic_tax: { enabled: true },
+        ...(customerId && {
+          customer: customerId,
+          customer_update: { address: "auto" as const, name: "auto" as const },
+        }),
+        payment_intent_data: { description: `Merch: ${data.productName} x${data.qty}` },
+        metadata,
+      });
+
+      return { clientSecret: session.client_secret ?? "" };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
+  });

@@ -16,6 +16,7 @@ const NAV = [
   { to: "/horarios", label: "Horarios" },
   { to: "/paquetes", label: "Paquetes" },
   { to: "/fuel", label: "Fuel" },
+  { to: "/merch", label: "Merch" },
   { to: "/contacto", label: "Contacto" },
 ] as const;
 
