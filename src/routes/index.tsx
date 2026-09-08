@@ -29,7 +29,7 @@ export const Route = createFileRoute("/")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:title", content: "Läätu Wellness — Encuentra paz en el caos" },
+      { property: "og:title", content: "Läätu Wellness — Ábrete a la posibilidad del camino" },
       {
         property: "og:description",
         content:
@@ -64,13 +64,13 @@ function Home() {
           <div className="flex flex-col justify-center py-14 pr-0 sm:py-20 lg:py-32 lg:pr-16">
             <Coordinates className="rise" />
             <h1 className="statement rise mt-6 text-[clamp(2.6rem,10vw,5.5rem)] leading-[0.95] sm:mt-8">
-              Encuentra paz
+              Ábrete a la posibilidad
               <br />
-              en el caos.
+              del camino.
             </h1>
             <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
               Pilates Reformer, clases en Mat y recuperación en un mismo lugar. Diez personas
-              por salón, para que alguien mire tu proceso.
+              por salón.
             </p>
             <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
