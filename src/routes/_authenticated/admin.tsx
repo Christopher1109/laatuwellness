@@ -36,6 +36,7 @@ import {
   CoachProfilePanel,
   FinancePanel,
   DashboardPanel,
+  StaffHomePanel,
   CouponsPanel,
   CheckInPanel,
   MerchPanel,
@@ -106,10 +107,29 @@ function Admin() {
       : isStaff
         ? [
             {
+              items: [{ key: "inicio", label: "Inicio", icon: Home }],
+            },
+            {
+              label: "Operación",
               items: [
+                { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
+                {
+                  key: "horarios-consultorio",
+                  label: "Horarios de consultorio",
+                  icon: Stethoscope,
+                },
+                { key: "check-in", label: "Check-in", icon: ClipboardCheck },
                 { key: "pos", label: "Punto de venta", icon: ShoppingCart },
                 { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
                 { key: "inventario", label: "Inventario", icon: Package },
+              ],
+            },
+            {
+              label: "Negocio",
+              items: [
+                { key: "clientes", label: "Clientes", icon: Contact },
+                { key: "paquetes", label: "Paquetes", icon: Tag },
+                { key: "cupones", label: "Cupones", icon: Ticket },
               ],
             },
           ]
@@ -144,7 +164,13 @@ function Admin() {
       title="Panel del estudio"
       subtitle={staffProfile?.role}
     >
-      {activeKey === "inicio" ? <DashboardPanel onGoTo={(key) => setActive(key)} /> : null}
+      {activeKey === "inicio" ? (
+        isAdmin ? (
+          <DashboardPanel onGoTo={(key) => setActive(key)} />
+        ) : (
+          <StaffHomePanel onGoTo={(key) => setActive(key)} />
+        )
+      ) : null}
       {activeKey === "horarios-clases" ? (
         <AdminSchedulePanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
       ) : null}
@@ -159,9 +185,9 @@ function Admin() {
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
-      {activeKey === "paquetes" ? <PackagesPanel /> : null}
+      {activeKey === "paquetes" ? <PackagesPanel readOnly={!isAdmin} /> : null}
       {activeKey === "merch" ? <MerchPanel /> : null}
-      {activeKey === "cupones" ? <CouponsPanel /> : null}
+      {activeKey === "cupones" ? <CouponsPanel readOnly={!isAdmin} /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "kardex" ? <KardexPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}

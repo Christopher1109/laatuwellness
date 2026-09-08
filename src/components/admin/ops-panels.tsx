@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search } from "lucide-react";
+import { Search, ShoppingCart, Users, ClipboardCheck } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -1187,6 +1187,30 @@ export function StaffDirectoryPanel() {
 // DASHBOARD (Inicio) — resumen general con clases de hoy, nuevos clientes y
 // accesos rápidos.
 // ============================================================================
+const STAFF_HOME_BUTTONS = [
+  { key: "pos", label: "Punto de venta", icon: ShoppingCart },
+  { key: "horarios-clases", label: "Reservaciones y créditos", icon: Users },
+  { key: "check-in", label: "Check-in", icon: ClipboardCheck },
+] as const;
+
+export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+  return (
+    <div className="mx-auto grid max-w-4xl gap-6 py-6 sm:grid-cols-3">
+      {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onGoTo(key)}
+          className="flex flex-col items-center justify-center gap-4 border border-border bg-background p-10 text-center transition-colors hover:border-foreground hover:bg-muted"
+        >
+          <Icon className="h-10 w-10" />
+          <span className="text-lg">{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DashboardPanel({ onGoTo }: { onGoTo: (key: string) => void }) {
   const todayBounds = useMemo(() => {
     const start = new Date();
@@ -2316,7 +2340,7 @@ function MerchEditCard({
   );
 }
 
-export function PackagesPanel() {
+export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -2342,41 +2366,66 @@ export function PackagesPanel() {
 
   return (
     <div className="space-y-8">
-      <button
-        type="button"
-        onClick={() => setCreating(true)}
-        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
-      >
-        + Agregar paquete
-      </button>
+      {readOnly ? (
+        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          Solo lectura — pide a un admin que haga cambios aquí.
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+        >
+          + Agregar paquete
+        </button>
+      )}
 
       {grouped.map(([category, items]) => (
         <div key={category}>
           <p className="mb-3 eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {items.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setOpenId(p.id)}
-                className={`border p-4 text-left hover:border-foreground/40 ${p.active ? "border-border" : "border-border opacity-45"}`}
-              >
-                <p className="truncate text-sm font-medium">{p.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {money(p.price_cents)} · {p.tokens} créditos
-                </p>
-                {!p.active ? (
-                  <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
-                ) : null}
-              </button>
-            ))}
+            {items.map((p) =>
+              readOnly ? (
+                <div
+                  key={p.id}
+                  className={`border p-4 text-left ${p.active ? "border-border" : "border-border opacity-45"}`}
+                >
+                  <p className="truncate text-sm font-medium">{p.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {money(p.price_cents)} · {p.tokens} créditos
+                  </p>
+                  {!p.active ? (
+                    <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
+                  ) : null}
+                </div>
+              ) : (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setOpenId(p.id)}
+                  className={`border p-4 text-left hover:border-foreground/40 ${p.active ? "border-border" : "border-border opacity-45"}`}
+                >
+                  <p className="truncate text-sm font-medium">{p.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {money(p.price_cents)} · {p.tokens} créditos
+                  </p>
+                  {!p.active ? (
+                    <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
+                  ) : null}
+                </button>
+              ),
+            )}
           </div>
         </div>
       ))}
       {grouped.length === 0 ? <p className="text-muted-foreground">Sin paquetes todavía.</p> : null}
 
-      {openPlan ? <PackageEditPopout plan={openPlan} onClose={() => setOpenId(null)} /> : null}
-      {creating ? <PackageEditPopout plan={null} onClose={() => setCreating(false)} /> : null}
+      {!readOnly && openPlan ? (
+        <PackageEditPopout plan={openPlan} onClose={() => setOpenId(null)} />
+      ) : null}
+      {!readOnly && creating ? (
+        <PackageEditPopout plan={null} onClose={() => setCreating(false)} />
+      ) : null}
     </div>
   );
 }
@@ -2443,7 +2492,7 @@ function CouponRedemptionsRow({ couponId }: { couponId: string }) {
   );
 }
 
-export function CouponsPanel() {
+export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -2501,13 +2550,19 @@ export function CouponsPanel() {
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setCreating(true)}
-        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
-      >
-        + Agregar cupón
-      </button>
+      {readOnly ? (
+        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          Solo lectura — pide a un admin que haga cambios aquí.
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+        >
+          + Agregar cupón
+        </button>
+      )}
 
       <div className="overflow-x-auto border border-border">
         <table className="w-full text-sm">
@@ -2546,20 +2601,22 @@ export function CouponsPanel() {
                       >
                         {viewingUsesId === c.id ? "Ocultar usos" : "Ver usos"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(c.id)}
-                        className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
-                      >
-                        Editar
-                      </button>
+                      {readOnly ? null : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(c.id)}
+                          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                        >
+                          Editar
+                        </button>
+                      )}
                     </td>
                   </tr>
                   {viewingUsesId === c.id ? <CouponRedemptionsRow couponId={c.id} /> : null}
                 </Fragment>
               ),
             )}
-            {creating ? (
+            {!readOnly && creating ? (
               <CouponEditRow
                 coupon={null}
                 onCancel={() => setCreating(false)}

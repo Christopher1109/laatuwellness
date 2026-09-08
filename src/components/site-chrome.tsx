@@ -64,7 +64,7 @@ export function SiteHeader() {
                 </Link>
               ) : isStaff ? (
                 <Link
-                  to="/staff"
+                  to="/admin"
                   className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground"
                 >
                   Staff
@@ -148,7 +148,7 @@ export function SiteHeader() {
               </Link>
             ) : user && isStaff ? (
               <Link
-                to="/staff"
+                to="/admin"
                 onClick={() => setOpen(false)}
                 className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
               >
