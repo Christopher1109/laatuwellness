@@ -181,7 +181,6 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   });
 
   const byDay = useMemo(() => {
-    const now = Date.now();
     const groups = new Map<string, ClassRow[]>();
     for (const c of classes ?? []) {
       const key = format(new Date(c.starts_at), "yyyy-MM-dd");
