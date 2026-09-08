@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { dayLabel, timeLabel } from "@/components/schedule";
 import { Wordmark } from "@/components/brand";
-import { WhatsAppButton } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
@@ -79,15 +78,15 @@ function AppShell() {
   if (!user) return <AppLoginGate />;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-background">
       <AppTopBar />
-      <main className="flex-1 pb-24">
+      <main className="flex-1 pb-28">
         {tab === "horarios" ? <HorariosTab /> : null}
         {tab === "reservas" ? <ReservasTab /> : null}
         {tab === "creditos" ? <CreditosTab /> : null}
         {tab === "tienda" ? <TiendaTab /> : null}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
         <div className="mx-auto flex max-w-md items-stretch">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -108,7 +107,6 @@ function AppShell() {
           })}
         </div>
       </nav>
-      <WhatsAppButton />
     </div>
   );
 }
@@ -314,6 +312,22 @@ function HorariosTab() {
     (myBookings ?? []).filter((b) => b.status === "lista_espera").map((b) => b.class_id),
   );
 
+  // Las clases que ya empezaron no se pueden reservar — se ocultan. Entre
+  // las que quedan, las que todavía tienen lugar van primero; las llenas
+  // (solo lista de espera) van al final.
+  const visibleClasses = useMemo(() => {
+    const now = Date.now();
+    return (classes ?? [])
+      .filter((c) => new Date(c.starts_at).getTime() > now)
+      .slice()
+      .sort((a, b) => {
+        const aFull = a.taken >= a.capacity ? 1 : 0;
+        const bFull = b.taken >= b.capacity ? 1 : 0;
+        if (aFull !== bFull) return aFull - bFull;
+        return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+      });
+  }, [classes]);
+
   const monthGrid = useMemo(() => {
     const start = new Date(monthCursor);
     const startDow = start.getDay();
@@ -410,7 +424,7 @@ function HorariosTab() {
 
       <div className="space-y-2.5 px-5 py-5">
         {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
-        {(classes ?? []).map((c) => {
+        {visibleClasses.map((c) => {
           const full = c.taken >= c.capacity;
           const mine = bookedIds.has(c.id);
           const waiting = waitlistedIds.has(c.id);
@@ -462,7 +476,7 @@ function HorariosTab() {
             </button>
           );
         })}
-        {!isLoading && (classes ?? []).length === 0 ? (
+        {!isLoading && visibleClasses.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">Sin clases este día.</p>
         ) : null}
       </div>
@@ -1130,7 +1144,7 @@ function TiendaTab() {
       ) : null}
 
       {itemCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background p-4">
+        <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button
             onClick={() => setConfirming(true)}
             className="flex w-full items-center justify-between bg-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] text-background"

@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Constellation, Coordinates, BirdBadge, Wordmark, PatternField } from "@/components/brand";
@@ -41,6 +42,18 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const navigate = useNavigate();
+
+  // En celular, la experiencia principal es la app (horarios, reservas,
+  // créditos, tienda) — no esta página informativa. Se detecta por ancho
+  // de pantalla (más confiable entre navegadores que el user-agent) y se
+  // manda directo, sin preguntar.
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      navigate({ to: "/app", replace: true });
+    }
+  }, [navigate]);
+
   const { data: modules } = useQuery({
     queryKey: ["site-modules"],
     queryFn: async () => {
