@@ -185,6 +185,15 @@ function Admin() {
           />
         )
       ) : null}
+      {activeKey === "panel-staff" ? (
+        <StaffHomePanel
+          onGoTo={(key, moduleKey) => {
+            setFocusModule(moduleKey ?? null);
+            setActive(key);
+          }}
+        />
+      ) : null}
+
       {activeKey === "horarios-clases" ? (
         <AdminSchedulePanel
           modules={focusModule ? [focusModule] : [...CLASS_MODULES]}
