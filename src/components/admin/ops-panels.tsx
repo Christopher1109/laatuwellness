@@ -1193,7 +1193,12 @@ const STAFF_HOME_BUTTONS = [
   { key: "check-in", label: "Check-in", icon: ClipboardCheck },
 ] as const;
 
-export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+export function StaffHomePanel({
+  onGoTo,
+}: {
+  onGoTo: (key: string, moduleKey?: string) => void;
+}) {
+
   return (
     <div className="mx-auto grid max-w-4xl gap-6 py-6 sm:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
