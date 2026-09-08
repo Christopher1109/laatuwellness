@@ -474,8 +474,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
-                  const finished = endTime.getTime() <= Date.now();
-                  const inProgress = !finished && new Date(c.starts_at).getTime() <= Date.now();
+                  const finished = endTime.getTime() <= now;
+                  const inProgress = !finished && new Date(c.starts_at).getTime() <= now;
                   return (
                     <button
                       type="button"
