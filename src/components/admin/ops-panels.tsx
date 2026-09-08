@@ -2310,7 +2310,7 @@ function MerchEditCard({
 
   return (
     <form
-      className="col-span-full border border-border p-5"
+      className="border border-border p-5"
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
