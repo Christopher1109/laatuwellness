@@ -2274,9 +2274,11 @@ function MerchEditCard({
   product,
   onCancel,
   onSave,
+  onDelete,
 }: {
   product: (Tables<"products"> & { description?: string }) | null;
   onCancel: () => void;
+  onDelete?: () => void;
   onSave: (row: {
     name: string;
     price_cents: number;
@@ -2286,6 +2288,7 @@ function MerchEditCard({
     image_url: string | null;
   }) => void;
 }) {
+
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [uploading, setUploading] = useState(false);
 
