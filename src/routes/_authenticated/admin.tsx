@@ -137,6 +137,8 @@ function Admin() {
 
   const firstKey = groups[0]?.items[0]?.key ?? "";
   const [active, setActive] = useState(firstKey);
+  const [focusModule, setFocusModule] = useState<string | null>(null);
+
   const activeKey = groups.flatMap((g) => g.items).some((i) => i.key === active)
     ? active
     : firstKey;
