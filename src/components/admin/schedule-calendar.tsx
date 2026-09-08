@@ -201,7 +201,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       );
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [classes]);
+  }, [classes, now]);
 
 
   const monthGrid = useMemo(() => {
