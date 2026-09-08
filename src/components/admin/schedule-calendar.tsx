@@ -366,7 +366,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <div className="mb-2 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setMonthCursor((m) => addMonths(m, -1))}
+                onClick={() => setMonthCursor((m) => addMonths(m ?? new Date(), -1))}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 aria-label="Mes anterior"
               >
@@ -377,7 +377,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               </span>
               <button
                 type="button"
-                onClick={() => setMonthCursor((m) => addMonths(m, 1))}
+                onClick={() => setMonthCursor((m) => addMonths(m ?? new Date(), 1))}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 aria-label="Mes siguiente"
               >
@@ -395,13 +395,13 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   type="button"
                   key={d.toISOString()}
                   onClick={() => {
-                    setSelectedDate(d);
+                    setSelectedDate(startOfDay(d));
                     setView("day");
                   }}
                   className={cn(
                     "py-1 text-[0.65rem]",
-                    !isSameMonth(d, monthCursor) && "text-muted-foreground/40",
-                    isSameDay(d, selectedDate) && "bg-foreground text-background",
+                    !isSameMonth(d, monthCursor ?? new Date()) && "text-muted-foreground/40",
+                    isSameDay(d, selectedDate ?? new Date()) && "bg-foreground text-background",
                   )}
                 >
                   {format(d, "d")}
@@ -430,13 +430,14 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <button
               type="button"
               onClick={() =>
-                setSelectedDate((d) =>
-                  view === "day"
-                    ? addDays(d, -1)
+                setSelectedDate((d) => {
+                  const anchor = d ?? new Date();
+                  return view === "day"
+                    ? addDays(anchor, -1)
                     : view === "week"
-                      ? addWeeks(d, -1)
-                      : addMonths(d, -1),
-                )
+                      ? addWeeks(anchor, -1)
+                      : addMonths(anchor, -1);
+                })
               }
               className="text-xs text-muted-foreground hover:text-foreground"
             >
@@ -448,13 +449,14 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             <button
               type="button"
               onClick={() =>
-                setSelectedDate((d) =>
-                  view === "day"
-                    ? addDays(d, 1)
+                setSelectedDate((d) => {
+                  const anchor = d ?? new Date();
+                  return view === "day"
+                    ? addDays(anchor, 1)
                     : view === "week"
-                      ? addWeeks(d, 1)
-                      : addMonths(d, 1),
-                )
+                      ? addWeeks(anchor, 1)
+                      : addMonths(anchor, 1);
+                })
               }
               className="text-xs text-muted-foreground hover:text-foreground"
             >
