@@ -241,6 +241,11 @@ export function SiteFooter() {
               <p className="eyebrow">Contacto</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
                 <li>
+                  <Link to="/contacto" className="hover:text-foreground">
+                    Escríbenos
+                  </Link>
+                </li>
+                <li>
                   <a
                     href="https://instagram.com/laatuwellness"
                     target="_blank"
@@ -251,23 +256,13 @@ export function SiteFooter() {
                   </a>
                 </li>
                 <li>
-                  {/* TODO: enlazar la tienda de suplementos definitiva */}
-                  <a
-                    href="https://instagram.com/laatuwellness"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-foreground"
-                  >
-                    Suplementos
-                  </a>
-                </li>
-                <li>
                   <a href="mailto:lore@laatuwellness.com" className="hover:text-foreground">
                     lore@laatuwellness.com
                   </a>
                 </li>
               </ul>
             </div>
+
           </div>
         </div>
 
