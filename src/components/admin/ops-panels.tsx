@@ -2395,7 +2395,7 @@ function MerchEditCard({
         />
       </label>
 
-      <div className="mt-4 flex gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
         <button
           type="button"
           onClick={onCancel}
@@ -2410,10 +2410,20 @@ function MerchEditCard({
         >
           Guardar
         </button>
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="w-full border border-destructive px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-destructive hover:bg-destructive hover:text-background"
+          >
+            Eliminar producto
+          </button>
+        ) : null}
       </div>
     </form>
   );
 }
+
 
 export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
