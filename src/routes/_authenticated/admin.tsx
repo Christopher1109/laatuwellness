@@ -164,7 +164,11 @@ function Admin() {
     <AdminShell
       groups={groups}
       active={activeKey}
-      onSelect={setActive}
+      onSelect={(k) => {
+        setFocusModule(null);
+        setActive(k);
+      }}
+
       title="Panel del estudio"
       subtitle={staffProfile?.role}
     >
