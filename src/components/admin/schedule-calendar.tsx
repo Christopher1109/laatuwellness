@@ -466,6 +466,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
+                  const finished = endTime.getTime() <= Date.now();
+                  const inProgress = !finished && new Date(c.starts_at).getTime() <= Date.now();
                   return (
                     <button
                       type="button"
@@ -474,18 +476,21 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                       className={cn(
                         "flex flex-col gap-2.5 rounded-lg border border-border bg-background p-3.5 text-left shadow-sm transition-colors hover:border-foreground/30 hover:shadow",
                         view !== "day" && "gap-1.5 p-2.5",
+                        finished && "border-transparent bg-muted/60 opacity-60 shadow-none",
+                        inProgress && "border-emerald-500/60",
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground">
-                            {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·
-                            Clase
+                            {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·{" "}
+                            {finished ? "Concluida" : inProgress ? "En curso" : "Clase"}
                           </p>
                           <p className="truncate text-sm font-semibold">
                             {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
                           </p>
                         </div>
+
                         <Avatar className="h-8 w-8 shrink-0">
                           {avatar ? <AvatarImage src={avatar} alt="" /> : null}
                           <AvatarFallback className="text-[0.6rem]">
