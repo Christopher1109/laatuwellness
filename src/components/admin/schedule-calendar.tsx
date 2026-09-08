@@ -172,13 +172,29 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   });
 
   const byDay = useMemo(() => {
+    const now = Date.now();
     const groups = new Map<string, ClassRow[]>();
     for (const c of classes ?? []) {
       const key = format(new Date(c.starts_at), "yyyy-MM-dd");
       groups.set(key, [...(groups.get(key) ?? []), c]);
     }
+    // Las clases que ya terminaron se mandan al final del día y se atenúan,
+    // para que la primera tarjeta sea siempre la que sigue o la que está en curso.
+    for (const [k, items] of groups) {
+      const done = (c: ClassRow) =>
+        new Date(c.starts_at).getTime() + c.duration_min * 60000 <= now ? 1 : 0;
+      groups.set(
+        k,
+        [...items].sort(
+          (a, b) =>
+            done(a) - done(b) ||
+            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+        ),
+      );
+    }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [classes]);
+
 
   const monthGrid = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
