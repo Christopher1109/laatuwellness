@@ -103,6 +103,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   const { start, end } = useMemo(() => rangeForView(selectedDate, view), [selectedDate, view]);
 
   const { data: classes } = useQuery({
+    enabled: selectedDate != null,
     queryKey: ["admin-schedule-classes", modules.join(","), start.toISOString(), end.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
