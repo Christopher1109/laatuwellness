@@ -1,14 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Constellation, Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-import { useAuth } from "@/hooks/useAuth";
-import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
