@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -82,6 +82,15 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   const [view, setView] = useState<ViewMode>("day");
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
   const [openClassId, setOpenClassId] = useState<string | null>(null);
+  // Reloj interno: se fija al montar (evita desfase con el render del servidor)
+  // y se actualiza cada 30 s para que el estado de cada clase se vea al entrar.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
 
   const { start, end } = useMemo(() => rangeForView(selectedDate, view), [selectedDate, view]);
 
@@ -172,7 +181,6 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   });
 
   const byDay = useMemo(() => {
-    const now = Date.now();
     const groups = new Map<string, ClassRow[]>();
     for (const c of classes ?? []) {
       const key = format(new Date(c.starts_at), "yyyy-MM-dd");
@@ -193,7 +201,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       );
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [classes]);
+  }, [classes, now]);
 
 
   const monthGrid = useMemo(() => {
@@ -466,8 +474,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
-                  const finished = endTime.getTime() <= Date.now();
-                  const inProgress = !finished && new Date(c.starts_at).getTime() <= Date.now();
+                  const finished = endTime.getTime() <= now;
+                  const inProgress = !finished && new Date(c.starts_at).getTime() <= now;
                   return (
                     <button
                       type="button"
