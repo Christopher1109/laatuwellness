@@ -124,6 +124,14 @@ export function SiteHeader() {
               </Link>
             ))}
             <Link
+              to="/contacto"
+              onClick={() => setOpen(false)}
+              className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
+            >
+              Contacto
+            </Link>
+
+            <Link
               to="/horarios"
               onClick={() => setOpen(false)}
               className="mt-3 bg-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
