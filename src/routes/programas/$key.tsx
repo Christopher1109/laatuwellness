@@ -64,8 +64,7 @@ export const Route = createFileRoute("/programas/$key")({
 
 function ProgramaDetalle() {
   const { key } = Route.useParams();
-  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
-  const { user } = useAuth();
+
 
   const { data: modulo, isLoading } = useQuery({
     queryKey: ["site-module", key],
