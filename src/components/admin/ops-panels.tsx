@@ -2032,6 +2032,290 @@ const CATEGORY_LABELS: Record<string, string> = {
   convenio: "Convenios corporativos",
 };
 
+export function MerchPanel() {
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ["admin-merch"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("category", "merch")
+        .order("name");
+      if (error) throw error;
+      return data as (Tables<"products"> & { description?: string })[];
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (row: {
+      id?: string;
+      name: string;
+      price_cents: number;
+      stock: number;
+      description: string;
+      active: boolean;
+      image_url: string | null;
+    }) => {
+      const payload = {
+        name: row.name,
+        price_cents: row.price_cents,
+        stock: row.stock,
+        description: row.description,
+        active: row.active,
+        image_url: row.image_url,
+        category: "merch",
+      };
+      if (row.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "description" no está en los tipos generados todavía
+        const { error } = await (supabase.from("products").update as any)(payload).eq(
+          "id",
+          row.id,
+        );
+        if (error) throw error;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "description" no está en los tipos generados todavía
+        const { error } = await (supabase.from("products").insert as any)(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Producto guardado.");
+      setEditingId(null);
+      setCreating(false);
+      void qc.invalidateQueries({ queryKey: ["admin-merch"] });
+      void qc.invalidateQueries({ queryKey: ["merch-products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="eyebrow">Merch</p>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Lo que edites aquí (foto, precio, descripción, activo/inactivo) se refleja directo en{" "}
+          <span className="font-mono">/merch</span>, la tienda pública.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+      >
+        + Agregar producto
+      </button>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {creating ? (
+          <MerchEditCard
+            product={null}
+            onCancel={() => setCreating(false)}
+            onSave={(row) => save.mutate(row)}
+          />
+        ) : null}
+        {(data ?? []).map((p) =>
+          editingId === p.id ? (
+            <MerchEditCard
+              key={p.id}
+              product={p}
+              onCancel={() => setEditingId(null)}
+              onSave={(row) => save.mutate({ ...row, id: p.id })}
+            />
+          ) : (
+            <div key={p.id} className="border border-border p-4">
+              <div className="flex aspect-square items-center justify-center bg-muted">
+                {p.image_url ? (
+                  <img
+                    src={p.image_url}
+                    alt={p.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <p className="px-4 text-center text-xs text-muted-foreground">Sin foto</p>
+                )}
+              </div>
+              <div className="mt-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">{money(p.price_cents)}</p>
+                </div>
+                <span
+                  className={`shrink-0 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] ${
+                    p.active ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {p.active ? "Publicado" : "Oculto"}
+                </span>
+              </div>
+              {p.description ? (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">Stock: {p.stock}</p>
+              <button
+                type="button"
+                onClick={() => setEditingId(p.id)}
+                className="mt-3 w-full border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+              >
+                Editar
+              </button>
+            </div>
+          ),
+        )}
+        {(data ?? []).length === 0 && !creating ? (
+          <p className="text-sm text-muted-foreground">Sin productos de Merch todavía.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MerchEditCard({
+  product,
+  onCancel,
+  onSave,
+}: {
+  product: (Tables<"products"> & { description?: string }) | null;
+  onCancel: () => void;
+  onSave: (row: {
+    name: string;
+    price_cents: number;
+    stock: number;
+    description: string;
+    active: boolean;
+    image_url: string | null;
+  }) => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+      const { error } = await supabase.storage.from("product-photos").upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("product-photos").getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+      toast.success("Foto subida.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo subir la foto.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <form
+      className="col-span-full border border-border p-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        onSave({
+          name: String(f.get("name") || ""),
+          price_cents: Math.round(Number(f.get("price") || 0) * 100),
+          stock: Number(f.get("stock") || 0),
+          description: String(f.get("description") || ""),
+          active: f.get("active") === "on",
+          image_url: imageUrl,
+        });
+      }}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <span className="eyebrow">Foto</span>
+          <div className="mt-2 flex aspect-square items-center justify-center bg-muted">
+            {imageUrl ? (
+              <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <p className="px-4 text-center text-xs text-muted-foreground">Sin foto todavía</p>
+            )}
+          </div>
+          <label className="mt-2 block">
+            <span className="sr-only">Subir foto</span>
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+              className="w-full text-xs"
+            />
+          </label>
+          {uploading ? <p className="mt-1 text-xs text-muted-foreground">Subiendo…</p> : null}
+        </div>
+
+        <div className="space-y-3">
+          <label className="block text-xs">
+            <span className="eyebrow">Nombre</span>
+            <input name="name" defaultValue={product?.name ?? ""} required className={input} />
+          </label>
+          <label className="block text-xs">
+            <span className="eyebrow">Precio (MXN)</span>
+            <input
+              name="price"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={product ? (product.price_cents / 100).toFixed(2) : ""}
+              required
+              className={input}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="eyebrow">Stock</span>
+            <input
+              name="stock"
+              type="number"
+              min="0"
+              defaultValue={product?.stock ?? 0}
+              required
+              className={input}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" name="active" defaultChecked={product?.active ?? true} />
+            <span className="eyebrow">Publicado en /merch</span>
+          </label>
+        </div>
+      </div>
+
+      <label className="mt-4 block text-xs">
+        <span className="eyebrow">Descripción (se ve en la tienda pública)</span>
+        <textarea
+          name="description"
+          rows={3}
+          defaultValue={product?.description ?? ""}
+          className={`${input} resize-none`}
+        />
+      </label>
+
+      <div className="mt-4 flex gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em]"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={uploading}
+          className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-background disabled:opacity-50"
+        >
+          Guardar
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function PackagesPanel() {
   const qc = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
