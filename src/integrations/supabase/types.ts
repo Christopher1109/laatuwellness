@@ -219,6 +219,38 @@ export type Database = {
           },
         ]
       }
+      coach_rate_tiers: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          min_attendance: number
+          rate_cents: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          min_attendance: number
+          rate_cents: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          min_attendance?: number
+          rate_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_rate_tiers_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coaches: {
         Row: {
           active: boolean
@@ -417,6 +449,48 @@ export type Database = {
           },
         ]
       }
+      merch_pickup_waivers: {
+        Row: {
+          full_name: string
+          id: string
+          sale_id: string
+          signature_data: string
+          signed_at: string
+          staff_id: string | null
+        }
+        Insert: {
+          full_name?: string
+          id?: string
+          sale_id: string
+          signature_data: string
+          signed_at?: string
+          staff_id?: string | null
+        }
+        Update: {
+          full_name?: string
+          id?: string
+          sale_id?: string
+          signature_data?: string
+          signed_at?: string
+          staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merch_pickup_waivers_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merch_pickup_waivers_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_adjustments: {
         Row: {
           amount_cents: number
@@ -538,7 +612,9 @@ export type Database = {
       pos_sales: {
         Row: {
           created_at: string
+          external_ref: string | null
           id: string
+          order_code: string | null
           payment_method: string
           sold_by: string | null
           status: string
@@ -547,7 +623,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          external_ref?: string | null
           id?: string
+          order_code?: string | null
           payment_method?: string
           sold_by?: string | null
           status?: string
@@ -556,7 +634,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          external_ref?: string | null
           id?: string
+          order_code?: string | null
           payment_method?: string
           sold_by?: string | null
           status?: string
@@ -571,6 +651,7 @@ export type Database = {
           category: string
           cost_cents: number
           created_at: string
+          description: string
           expires_at: string | null
           id: string
           image_url: string | null
@@ -587,6 +668,7 @@ export type Database = {
           category?: string
           cost_cents?: number
           created_at?: string
+          description?: string
           expires_at?: string | null
           id?: string
           image_url?: string | null
@@ -603,6 +685,7 @@ export type Database = {
           category?: string
           cost_cents?: number
           created_at?: string
+          description?: string
           expires_at?: string | null
           id?: string
           image_url?: string | null
@@ -1065,6 +1148,7 @@ export type Database = {
           category: string
           cost_cents: number
           created_at: string
+          description: string
           expires_at: string | null
           id: string
           image_url: string | null
@@ -1174,6 +1258,15 @@ export type Database = {
       client_place_order:
         | { Args: { _items: Json }; Returns: string }
         | { Args: { _items: Json; _note?: string }; Returns: string }
+      fulfill_merch_order: {
+        Args: {
+          _external_ref: string
+          _product_id: string
+          _qty: number
+          _user_id: string
+        }
+        Returns: string
+      }
       fulfill_plan_purchase: {
         Args: {
           _external_ref: string
