@@ -131,6 +131,22 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     },
   });
 
+  // Coaches "de verdad" (staff_profiles, role coach) para ligar coach_id a
+  // la clase — distinto de la tabla "coaches" (bios/fotos públicas).
+  const { data: staffCoaches } = useQuery({
+    queryKey: ["admin-schedule-staff-coaches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("id, full_name")
+        .eq("role", "coach")
+        .eq("active", true)
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const coachAvatar = (instructor: string) =>
     coaches?.find((c) => c.name.trim().toLowerCase() === instructor.trim().toLowerCase())
       ?.image_url ?? null;
@@ -140,6 +156,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       module_key: string;
       room: string;
       instructor: string;
+      coach_id: string | null;
       starts_at: string;
       capacity: number;
       duration_min: number;
@@ -190,6 +207,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               module_key: String(f.get("module_key") || modules[0]),
               room: String(f.get("room") || ""),
               instructor: String(f.get("instructor") || ""),
+              coach_id: String(f.get("coach_id") || "") || null,
               starts_at: new Date(local).toISOString(),
               capacity: Number(f.get("capacity") || 10),
               duration_min: Number(f.get("duration_min") || 50),
@@ -211,6 +229,24 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           <label className="text-xs">
             <span className="eyebrow">Salón / consultorio</span>
             <input name="room" placeholder="Reformer / Consultorio 1" className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Coach (para nómina)</span>
+            <select
+              name="coach_id"
+              className={input}
+              onChange={(e) => {
+                const name = e.target.selectedOptions[0]?.dataset["name"] ?? "";
+                if (instructorRef.current && name) instructorRef.current.value = name;
+              }}
+            >
+              <option value="">— sin asignar —</option>
+              {(staffCoaches ?? []).map((c) => (
+                <option key={c.id} value={c.id} data-name={c.full_name}>
+                  {c.full_name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-xs">
             <span className="eyebrow">Instructora / especialista</span>
