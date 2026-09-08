@@ -1366,45 +1366,64 @@ export function DashboardPanel({
         </div>
       </div>
 
+      {/* Tarjetas por salón: solo la clase en curso y las siguientes. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {DASHBOARD_MODULES.map((m) => {
+          const now = Date.now();
+          const upcoming = (todayClasses ?? [])
+            .filter((c) => c.module_key === m.key)
+            .filter((c) => new Date(c.starts_at).getTime() + c.duration_min * 60000 > now)
+            .slice(0, 3);
+          return (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => onGoTo("horarios-clases", m.key)}
+              className="flex flex-col gap-3 border border-border bg-background p-5 text-left transition-colors hover:border-foreground"
+            >
+              <p className="eyebrow">{m.label}</p>
+              {upcoming.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin clases por venir hoy.</p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {upcoming.map((c, i) => {
+                    const booked = counts?.get(c.id) ?? 0;
+                    const live = new Date(c.starts_at).getTime() <= now;
+                    return (
+                      <li key={c.id} className="text-sm">
+                        <p className={cn("tabular-nums", i === 0 && "font-semibold")}>
+                          {new Intl.DateTimeFormat("es-MX", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          }).format(new Date(c.starts_at))}{" "}
+                          · {c.instructor}
+                          {live ? (
+                            <span className="ml-2 text-[0.6rem] uppercase tracking-[0.1em] text-emerald-600">
+                              En curso
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {booked}/{c.capacity} ocupado · {c.room}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <span className="mt-auto pt-2 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+                Ver salón
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
         <div>
-          <p className="mb-3 eyebrow">Clases de hoy</p>
-          <ul className="divide-y divide-border border-y border-border text-sm">
-            {(todayClasses ?? []).map((c) => {
-              const booked = counts?.get(c.id) ?? 0;
-              const full = booked >= c.capacity;
-              return (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-                  <div className="min-w-0">
-                    <p>
-                      {new Intl.DateTimeFormat("es-MX", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      }).format(new Date(c.starts_at))}{" "}
-                      · {c.instructor} · {c.room}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {booked}/{c.capacity} ocupado
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => onGoTo("horarios-clases")}
-                    className={cn(
-                      "shrink-0 border px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.1em]",
-                      full ? "border-amber-500 text-amber-700" : "bg-foreground text-background",
-                    )}
-                  >
-                    {full ? "Lista de espera" : "Reservar"}
-                  </button>
-                </li>
-              );
-            })}
-            {(todayClasses ?? []).length === 0 ? (
-              <li className="py-6 text-muted-foreground">Sin clases hoy.</li>
-            ) : null}
-          </ul>
-        </div>
+          <p className="mb-3 eyebrow">Nuevos clientes</p>
+
 
         <div>
           <p className="mb-3 eyebrow">Nuevos clientes</p>
