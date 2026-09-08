@@ -1652,16 +1652,6 @@ export function ClientsPanel() {
           <li className="py-6 text-muted-foreground">Sin resultados.</li>
         ) : null}
       </ul>
-
-      {openClientId ? (
-        <ClientDetailDrawer
-          clientId={openClientId}
-          onClose={() => {
-            setOpenClientId(null);
-            void qc.invalidateQueries({ queryKey: ["admin-clients"] });
-          }}
-        />
-      ) : null}
     </div>
   );
 }
