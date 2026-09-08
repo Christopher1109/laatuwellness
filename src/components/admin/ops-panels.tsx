@@ -1559,7 +1559,22 @@ export function ClientsPanel() {
 
   const [openClientId, setOpenClientId] = useState<string | null>(null);
 
+  // La ficha del cliente se muestra dentro del mismo panel, conservando el
+  // menú lateral y el encabezado del ambiente administrativo.
+  if (openClientId) {
+    return (
+      <ClientDetailDrawer
+        clientId={openClientId}
+        onClose={() => {
+          setOpenClientId(null);
+          void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+        }}
+      />
+    );
+  }
+
   return (
+
     <div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="border border-border p-4">
