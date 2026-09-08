@@ -73,7 +73,7 @@ export function BrandLink({
       <Wordmark
         tone={tone}
         variant="principal"
-        className={size === "lg" ? "h-14 sm:h-[4.75rem]" : "h-12 sm:h-16"}
+        className={size === "lg" ? "h-16 sm:h-24" : "h-14 sm:h-20"}
       />
     </Link>
   );

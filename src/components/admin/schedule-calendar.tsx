@@ -9,6 +9,7 @@ import {
   endOfWeek,
   format,
   isSameDay,
+  startOfDay,
   isSameMonth,
   startOfMonth,
   startOfWeek,
@@ -46,15 +47,19 @@ function initials(name: string) {
     .join("");
 }
 
-function rangeForView(date: Date, view: ViewMode) {
-  if (view === "day") return { start: date, end: addDays(date, 1) };
+function rangeForView(date: Date | null, view: ViewMode) {
+  const anchor = date ?? new Date();
+  if (view === "day") {
+    const d = startOfDay(anchor);
+    return { start: d, end: addDays(d, 1) };
+  }
   if (view === "week") {
     return {
-      start: startOfWeek(date, { weekStartsOn: 1 }),
-      end: addDays(endOfWeek(date, { weekStartsOn: 1 }), 1),
+      start: startOfWeek(anchor, { weekStartsOn: 1 }),
+      end: addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1),
     };
   }
-  return { start: startOfMonth(date), end: addDays(endOfMonth(date), 1) };
+  return { start: startOfMonth(anchor), end: addDays(endOfMonth(anchor), 1) };
 }
 
 export function AdminSchedulePanel({ modules, title }: { modules: string[]; title: string }) {
@@ -78,14 +83,17 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     },
     enabled: isWeekendPick,
   });
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<ViewMode>("day");
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
+  const [monthCursor, setMonthCursor] = useState<Date | null>(null);
   const [openClassId, setOpenClassId] = useState<string | null>(null);
-  // Reloj interno: se fija al montar (evita desfase con el render del servidor)
-  // y se actualiza cada 30 s para que el estado de cada clase se vea al entrar.
+  // Al montar en cliente se fijan las fechas locales para evitar desfases de
+  // hidratación y para que la vista arranque siempre con el día de hoy completo.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    const today = new Date();
+    setSelectedDate(startOfDay(today));
+    setMonthCursor(startOfMonth(today));
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
