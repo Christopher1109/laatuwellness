@@ -213,6 +213,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
 
   const monthGrid = useMemo(() => {
+    if (!monthCursor) return [];
     const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
     const gridEnd = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 1 });
     const days: Date[] = [];
@@ -223,6 +224,10 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     }
     return days;
   }, [monthCursor]);
+
+  if (!selectedDate || !monthCursor) {
+    return <div className="py-12 text-center text-muted-foreground">Cargando calendario…</div>;
+  }
 
   return (
     <div>
