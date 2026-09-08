@@ -1420,13 +1420,10 @@ export function DashboardPanel({
         })}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+      <div>
         <div>
           <p className="mb-3 eyebrow">Nuevos clientes</p>
 
-
-        <div>
-          <p className="mb-3 eyebrow">Nuevos clientes</p>
           <ul className="divide-y divide-border border-y border-border text-sm">
             {(newSignups ?? []).map((s) => (
               <li key={s.id} className="flex items-center gap-3 py-3">
