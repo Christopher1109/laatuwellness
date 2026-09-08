@@ -1824,8 +1824,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     .join("");
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+    <div>
+      <div>
+
         <button
           onClick={onClose}
           className="mb-6 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
