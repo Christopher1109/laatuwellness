@@ -28,10 +28,6 @@ const VALORES = [
     body: "Medimos tu avance por tu constancia, no por una foto. Aplaude tus tropiezos: también son recorrido.",
   },
   {
-    title: "Salones de diez",
-    body: "Grupos pequeños para que tu instructora te vea toda la clase. Corrección real, ritmo propio.",
-  },
-  {
     title: "Longevidad",
     body: "Entrenamos para los próximos treinta años: fuerza, movilidad, respiración y sistema nervioso.",
   },
@@ -55,13 +51,13 @@ function Nosotros() {
           <div>
             <p className="eyebrow">La propuesta</p>
             <p className="mt-6 text-lg leading-relaxed">
-              Trabajamos con reformer, con recuperación por contraste y con acompañamiento integral.
-              Cada salón recibe un máximo de diez personas para que la atención sea individual
-              dentro de un grupo.
+              Trabajamos con reformer, con recuperación por contraste y con acompañamiento
+              integral, en salones pequeños pensados para que la atención sea individual dentro
+              de un grupo.
             </p>
             <p className="mt-5 text-muted-foreground">
-              No creemos en la intensidad como identidad. Creemos en la constancia, en la
-              respiración y en el espacio que se abre cuando dejas de competir contigo.
+              Creemos en la constancia, en la respiración y en el espacio que se abre cuando
+              dejas de competir contigo.
             </p>
           </div>
           <img
@@ -78,7 +74,7 @@ function Nosotros() {
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <Constellation className="mb-14 opacity-50" />
-          <div className="grid gap-px bg-border sm:grid-cols-2">
+          <div className="grid gap-px bg-border sm:grid-cols-3">
             {VALORES.map((v) => (
               <article key={v.title} className="bg-background p-8 sm:p-10">
                 <h2 className="text-xl">{v.title}</h2>

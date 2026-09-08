@@ -1193,23 +1193,35 @@ const STAFF_HOME_BUTTONS = [
   { key: "check-in", label: "Check-in", icon: ClipboardCheck },
 ] as const;
 
+const STAFF_HOME_DESCRIPTIONS: Record<string, string> = {
+  pos: "Cobra clases sueltas, Merch y Fuel en el mostrador.",
+  "horarios-clases": "Reserva o mete a alguien a una clase, revisa cupo.",
+  "check-in": "Marca la llegada de quien ya tiene su lugar reservado.",
+};
+
 export function StaffHomePanel({
   onGoTo,
 }: {
   onGoTo: (key: string, moduleKey?: string) => void;
 }) {
-
   return (
-    <div className="mx-auto grid max-w-4xl gap-6 py-6 sm:grid-cols-3">
+    <div className="mx-auto grid max-w-5xl gap-6 py-6 sm:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
         <button
           key={key}
           type="button"
           onClick={() => onGoTo(key)}
-          className="flex flex-col items-center justify-center gap-4 border border-border bg-background p-10 text-center transition-colors hover:border-foreground hover:bg-muted"
+          className="group flex flex-col items-start gap-5 border border-border bg-background p-8 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-md"
         >
-          <Icon className="h-10 w-10" />
-          <span className="text-lg">{label}</span>
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background transition-colors group-hover:bg-foreground/90">
+            <Icon className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-lg">{label}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {STAFF_HOME_DESCRIPTIONS[key] ?? ""}
+            </p>
+          </div>
         </button>
       ))}
     </div>
