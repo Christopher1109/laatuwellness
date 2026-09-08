@@ -137,9 +137,13 @@ function Admin() {
 
   const firstKey = groups[0]?.items[0]?.key ?? "";
   const [active, setActive] = useState(firstKey);
-  const activeKey = groups.flatMap((g) => g.items).some((i) => i.key === active)
-    ? active
-    : firstKey;
+  const [focusModule, setFocusModule] = useState<string | null>(null);
+
+  const activeKey =
+    active === "panel-staff" || groups.flatMap((g) => g.items).some((i) => i.key === active)
+      ? active
+      : firstKey;
+
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando…</div>;
@@ -160,20 +164,47 @@ function Admin() {
     <AdminShell
       groups={groups}
       active={activeKey}
-      onSelect={setActive}
+      onSelect={(k) => {
+        setFocusModule(null);
+        setActive(k);
+      }}
+
       title="Panel del estudio"
       subtitle={staffProfile?.role}
     >
       {activeKey === "inicio" ? (
         isAdmin ? (
-          <DashboardPanel onGoTo={(key) => setActive(key)} />
+          <DashboardPanel
+            onGoTo={(key, moduleKey) => {
+              setFocusModule(moduleKey ?? null);
+              setActive(key);
+            }}
+          />
         ) : (
-          <StaffHomePanel onGoTo={(key) => setActive(key)} />
+          <StaffHomePanel
+            onGoTo={(key, moduleKey) => {
+              setFocusModule(moduleKey ?? null);
+              setActive(key);
+            }}
+          />
         )
       ) : null}
-      {activeKey === "horarios-clases" ? (
-        <AdminSchedulePanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
+      {activeKey === "panel-staff" ? (
+        <StaffHomePanel
+          onGoTo={(key, moduleKey) => {
+            setFocusModule(moduleKey ?? null);
+            setActive(key);
+          }}
+        />
       ) : null}
+
+      {activeKey === "horarios-clases" ? (
+        <AdminSchedulePanel
+          modules={focusModule ? [focusModule] : [...CLASS_MODULES]}
+          title="Horarios de clases"
+        />
+      ) : null}
+
       {activeKey === "horarios-consultorio" ? (
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}

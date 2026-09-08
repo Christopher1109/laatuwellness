@@ -76,13 +76,17 @@ export function AdminShell({
         ))}
       </div>
       <div className="border-t border-white/10 px-3 py-4">
-        <a
-          href="/staff"
+        <button
+          onClick={() => {
+            onSelect("panel-staff");
+            setOpen(false);
+          }}
           className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-ivory/70 hover:bg-white/5 hover:text-ivory"
         >
           <Tablet className="h-4 w-4" />
           Panel de staff (iPad)
-        </a>
+        </button>
+
         <button
           onClick={() => supabase.auth.signOut().then(() => window.location.assign("/auth"))}
           className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-ivory/70 hover:bg-white/5 hover:text-ivory"

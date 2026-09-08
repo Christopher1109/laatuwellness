@@ -172,13 +172,29 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
   });
 
   const byDay = useMemo(() => {
+    const now = Date.now();
     const groups = new Map<string, ClassRow[]>();
     for (const c of classes ?? []) {
       const key = format(new Date(c.starts_at), "yyyy-MM-dd");
       groups.set(key, [...(groups.get(key) ?? []), c]);
     }
+    // Las clases que ya terminaron se mandan al final del día y se atenúan,
+    // para que la primera tarjeta sea siempre la que sigue o la que está en curso.
+    for (const [k, items] of groups) {
+      const done = (c: ClassRow) =>
+        new Date(c.starts_at).getTime() + c.duration_min * 60000 <= now ? 1 : 0;
+      groups.set(
+        k,
+        [...items].sort(
+          (a, b) =>
+            done(a) - done(b) ||
+            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+        ),
+      );
+    }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [classes]);
+
 
   const monthGrid = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
@@ -450,6 +466,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
+                  const finished = endTime.getTime() <= Date.now();
+                  const inProgress = !finished && new Date(c.starts_at).getTime() <= Date.now();
                   return (
                     <button
                       type="button"
@@ -458,18 +476,21 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                       className={cn(
                         "flex flex-col gap-2.5 rounded-lg border border-border bg-background p-3.5 text-left shadow-sm transition-colors hover:border-foreground/30 hover:shadow",
                         view !== "day" && "gap-1.5 p-2.5",
+                        finished && "border-transparent bg-muted/60 opacity-60 shadow-none",
+                        inProgress && "border-emerald-500/60",
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground">
-                            {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·
-                            Clase
+                            {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·{" "}
+                            {finished ? "Concluida" : inProgress ? "En curso" : "Clase"}
                           </p>
                           <p className="truncate text-sm font-semibold">
                             {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
                           </p>
                         </div>
+
                         <Avatar className="h-8 w-8 shrink-0">
                           {avatar ? <AvatarImage src={avatar} alt="" /> : null}
                           <AvatarFallback className="text-[0.6rem]">

@@ -1193,7 +1193,12 @@ const STAFF_HOME_BUTTONS = [
   { key: "check-in", label: "Check-in", icon: ClipboardCheck },
 ] as const;
 
-export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+export function StaffHomePanel({
+  onGoTo,
+}: {
+  onGoTo: (key: string, moduleKey?: string) => void;
+}) {
+
   return (
     <div className="mx-auto grid max-w-4xl gap-6 py-6 sm:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
@@ -1211,7 +1216,19 @@ export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string) => void }) {
   );
 }
 
-export function DashboardPanel({ onGoTo }: { onGoTo: (key: string) => void }) {
+const DASHBOARD_MODULES = [
+  { key: "reformer", label: "Reformer Studio" },
+  { key: "4mat", label: "4MAT Studio" },
+  { key: "contraste", label: "Contrast Therapy" },
+  { key: "rehabilitacion", label: "DorisFisio" },
+] as const;
+
+export function DashboardPanel({
+  onGoTo,
+}: {
+  onGoTo: (key: string, moduleKey?: string) => void;
+}) {
+
   const todayBounds = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -1349,48 +1366,64 @@ export function DashboardPanel({ onGoTo }: { onGoTo: (key: string) => void }) {
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div>
-          <p className="mb-3 eyebrow">Clases de hoy</p>
-          <ul className="divide-y divide-border border-y border-border text-sm">
-            {(todayClasses ?? []).map((c) => {
-              const booked = counts?.get(c.id) ?? 0;
-              const full = booked >= c.capacity;
-              return (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-                  <div className="min-w-0">
-                    <p>
-                      {new Intl.DateTimeFormat("es-MX", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      }).format(new Date(c.starts_at))}{" "}
-                      · {c.instructor} · {c.room}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {booked}/{c.capacity} ocupado
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => onGoTo("horarios-clases")}
-                    className={cn(
-                      "shrink-0 border px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.1em]",
-                      full ? "border-amber-500 text-amber-700" : "bg-foreground text-background",
-                    )}
-                  >
-                    {full ? "Lista de espera" : "Reservar"}
-                  </button>
-                </li>
-              );
-            })}
-            {(todayClasses ?? []).length === 0 ? (
-              <li className="py-6 text-muted-foreground">Sin clases hoy.</li>
-            ) : null}
-          </ul>
-        </div>
+      {/* Tarjetas por salón: solo la clase en curso y las siguientes. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {DASHBOARD_MODULES.map((m) => {
+          const now = Date.now();
+          const upcoming = (todayClasses ?? [])
+            .filter((c) => c.module_key === m.key)
+            .filter((c) => new Date(c.starts_at).getTime() + c.duration_min * 60000 > now)
+            .slice(0, 3);
+          return (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => onGoTo("horarios-clases", m.key)}
+              className="flex flex-col gap-3 border border-border bg-background p-5 text-left transition-colors hover:border-foreground"
+            >
+              <p className="eyebrow">{m.label}</p>
+              {upcoming.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin clases por venir hoy.</p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {upcoming.map((c, i) => {
+                    const booked = counts?.get(c.id) ?? 0;
+                    const live = new Date(c.starts_at).getTime() <= now;
+                    return (
+                      <li key={c.id} className="text-sm">
+                        <p className={cn("tabular-nums", i === 0 && "font-semibold")}>
+                          {new Intl.DateTimeFormat("es-MX", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          }).format(new Date(c.starts_at))}{" "}
+                          · {c.instructor}
+                          {live ? (
+                            <span className="ml-2 text-[0.6rem] uppercase tracking-[0.1em] text-emerald-600">
+                              En curso
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {booked}/{c.capacity} ocupado · {c.room}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <span className="mt-auto pt-2 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+                Ver salón
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
+      <div>
         <div>
           <p className="mb-3 eyebrow">Nuevos clientes</p>
+
           <ul className="divide-y divide-border border-y border-border text-sm">
             {(newSignups ?? []).map((s) => (
               <li key={s.id} className="flex items-center gap-3 py-3">
@@ -1526,7 +1559,22 @@ export function ClientsPanel() {
 
   const [openClientId, setOpenClientId] = useState<string | null>(null);
 
+  // La ficha del cliente se muestra dentro del mismo panel, conservando el
+  // menú lateral y el encabezado del ambiente administrativo.
+  if (openClientId) {
+    return (
+      <ClientDetailDrawer
+        clientId={openClientId}
+        onClose={() => {
+          setOpenClientId(null);
+          void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+        }}
+      />
+    );
+  }
+
   return (
+
     <div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="border border-border p-4">
@@ -1604,16 +1652,6 @@ export function ClientsPanel() {
           <li className="py-6 text-muted-foreground">Sin resultados.</li>
         ) : null}
       </ul>
-
-      {openClientId ? (
-        <ClientDetailDrawer
-          clientId={openClientId}
-          onClose={() => {
-            setOpenClientId(null);
-            void qc.invalidateQueries({ queryKey: ["admin-clients"] });
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -1791,8 +1829,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     .join("");
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+    <div>
+      <div>
+
         <button
           onClick={onClose}
           className="mb-6 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
@@ -2116,7 +2155,22 @@ export function MerchPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Producto eliminado.");
+      setEditingId(null);
+      void qc.invalidateQueries({ queryKey: ["admin-merch"] });
+      void qc.invalidateQueries({ queryKey: ["merch-products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
+
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Merch</p>
@@ -2135,76 +2189,96 @@ export function MerchPanel() {
       </button>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {creating ? (
-          <MerchEditCard
-            product={null}
-            onCancel={() => setCreating(false)}
-            onSave={(row) => save.mutate(row)}
-          />
-        ) : null}
-        {(data ?? []).map((p) =>
-          editingId === p.id ? (
-            <MerchEditCard
-              key={p.id}
-              product={p}
-              onCancel={() => setEditingId(null)}
-              onSave={(row) => save.mutate({ ...row, id: p.id })}
-            />
-          ) : (
-            <div key={p.id} className="border border-border p-4">
-              <div className="flex aspect-square items-center justify-center bg-muted">
-                {p.image_url ? (
-                  <img
-                    src={p.image_url}
-                    alt={p.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <p className="px-4 text-center text-xs text-muted-foreground">Sin foto</p>
-                )}
+        {(data ?? []).map((p) => (
+          <div key={p.id} className="border border-border p-4">
+            <div className="flex aspect-square items-center justify-center bg-muted">
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+              ) : (
+                <p className="px-4 text-center text-xs text-muted-foreground">Sin foto</p>
+              )}
+            </div>
+            <div className="mt-3 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{money(p.price_cents)}</p>
               </div>
-              <div className="mt-3 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">{money(p.price_cents)}</p>
-                </div>
-                <span
-                  className={`shrink-0 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] ${
-                    p.active ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {p.active ? "Publicado" : "Oculto"}
-                </span>
-              </div>
-              {p.description ? (
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
-              ) : null}
-              <p className="mt-1 text-xs text-muted-foreground">Stock: {p.stock}</p>
+              <span
+                className={`shrink-0 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] ${
+                  p.active ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {p.active ? "Publicado" : "Oculto"}
+              </span>
+            </div>
+            {p.description ? (
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted-foreground">Stock: {p.stock}</p>
+            <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => setEditingId(p.id)}
-                className="mt-3 w-full border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+                className="flex-1 border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
               >
                 Editar
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) {
+                    remove.mutate(p.id);
+                  }
+                }}
+                className="border border-destructive px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-destructive hover:bg-destructive hover:text-background"
+              >
+                Eliminar
+              </button>
             </div>
-          ),
-        )}
-        {(data ?? []).length === 0 && !creating ? (
+          </div>
+        ))}
+        {(data ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin productos de Merch todavía.</p>
         ) : null}
       </div>
+
+      {creating || editingId ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-10">
+          <div className="w-full max-w-xl bg-background shadow-2xl">
+            <MerchEditCard
+              product={editingId ? ((data ?? []).find((p) => p.id === editingId) ?? null) : null}
+              onCancel={() => {
+                setCreating(false);
+                setEditingId(null);
+              }}
+              onSave={(row) =>
+                save.mutate(editingId ? { ...row, id: editingId } : row)
+              }
+              {...(editingId
+                ? {
+                    onDelete: () => {
+                      if (confirm("¿Eliminar este producto?")) remove.mutate(editingId);
+                    },
+                  }
+                : {})}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+
 
 function MerchEditCard({
   product,
   onCancel,
   onSave,
+  onDelete,
 }: {
   product: (Tables<"products"> & { description?: string }) | null;
   onCancel: () => void;
+  onDelete?: () => void;
   onSave: (row: {
     name: string;
     price_cents: number;
@@ -2214,6 +2288,7 @@ function MerchEditCard({
     image_url: string | null;
   }) => void;
 }) {
+
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [uploading, setUploading] = useState(false);
 
@@ -2235,7 +2310,7 @@ function MerchEditCard({
 
   return (
     <form
-      className="col-span-full border border-border p-5"
+      className="border border-border p-5"
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -2320,7 +2395,7 @@ function MerchEditCard({
         />
       </label>
 
-      <div className="mt-4 flex gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
         <button
           type="button"
           onClick={onCancel}
@@ -2335,10 +2410,20 @@ function MerchEditCard({
         >
           Guardar
         </button>
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="w-full border border-destructive px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-destructive hover:bg-destructive hover:text-background"
+          >
+            Eliminar producto
+          </button>
+        ) : null}
       </div>
     </form>
   );
 }
+
 
 export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();

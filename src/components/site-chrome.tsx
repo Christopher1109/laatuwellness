@@ -17,7 +17,6 @@ const NAV = [
   { to: "/paquetes", label: "Paquetes" },
   { to: "/fuel", label: "Fuel" },
   { to: "/merch", label: "Merch" },
-  { to: "/contacto", label: "Contacto" },
 ] as const;
 
 export function SiteHeader() {
@@ -33,10 +32,10 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:h-32 sm:px-8">
-        <BrandLink size="lg" className="shrink-0" />
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-5 sm:h-20 sm:px-8">
+        <BrandLink className="shrink-0" />
 
-        <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-6 md:flex lg:gap-8">
+        <nav className="hidden flex-1 items-center justify-center gap-5 md:flex lg:gap-7">
           {NAV.map((item) => (
             <Link
               key={item.to}
@@ -50,6 +49,7 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
+
 
         <div className="hidden shrink-0 items-center gap-5 md:flex">
           {" "}
@@ -123,6 +123,14 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
+            <Link
+              to="/contacto"
+              onClick={() => setOpen(false)}
+              className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
+            >
+              Contacto
+            </Link>
+
             <Link
               to="/horarios"
               onClick={() => setOpen(false)}
@@ -241,6 +249,11 @@ export function SiteFooter() {
               <p className="eyebrow">Contacto</p>
               <ul className="mt-4 space-y-2 text-muted-foreground">
                 <li>
+                  <Link to="/contacto" className="hover:text-foreground">
+                    Escríbenos
+                  </Link>
+                </li>
+                <li>
                   <a
                     href="https://instagram.com/laatuwellness"
                     target="_blank"
@@ -251,23 +264,13 @@ export function SiteFooter() {
                   </a>
                 </li>
                 <li>
-                  {/* TODO: enlazar la tienda de suplementos definitiva */}
-                  <a
-                    href="https://instagram.com/laatuwellness"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-foreground"
-                  >
-                    Suplementos
-                  </a>
-                </li>
-                <li>
                   <a href="mailto:lore@laatuwellness.com" className="hover:text-foreground">
                     lore@laatuwellness.com
                   </a>
                 </li>
               </ul>
             </div>
+
           </div>
         </div>
 
