@@ -166,14 +166,28 @@ function Admin() {
     >
       {activeKey === "inicio" ? (
         isAdmin ? (
-          <DashboardPanel onGoTo={(key) => setActive(key)} />
+          <DashboardPanel
+            onGoTo={(key, moduleKey) => {
+              setFocusModule(moduleKey ?? null);
+              setActive(key);
+            }}
+          />
         ) : (
-          <StaffHomePanel onGoTo={(key) => setActive(key)} />
+          <StaffHomePanel
+            onGoTo={(key, moduleKey) => {
+              setFocusModule(moduleKey ?? null);
+              setActive(key);
+            }}
+          />
         )
       ) : null}
       {activeKey === "horarios-clases" ? (
-        <AdminSchedulePanel modules={[...CLASS_MODULES]} title="Horarios de clases" />
+        <AdminSchedulePanel
+          modules={focusModule ? [focusModule] : [...CLASS_MODULES]}
+          title="Horarios de clases"
+        />
       ) : null}
+
       {activeKey === "horarios-consultorio" ? (
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
