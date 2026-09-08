@@ -55,14 +55,26 @@ export function Wordmark({
   );
 }
 
-export function BrandLink({ className, tone = "ink" }: { className?: string; tone?: Tone }) {
+export function BrandLink({
+  className,
+  tone = "ink",
+  size = "default",
+}: {
+  className?: string;
+  tone?: Tone;
+  size?: "default" | "lg";
+}) {
   return (
     <Link
       to="/"
       aria-label="Läätu Wellness — Inicio"
       className={cn("flex items-center", className)}
     >
-      <Wordmark tone={tone} variant="principal" className="h-11 sm:h-20" />
+      <Wordmark
+        tone={tone}
+        variant="principal"
+        className={size === "lg" ? "h-12 sm:h-24" : "h-11 sm:h-20"}
+      />
     </Link>
   );
 }

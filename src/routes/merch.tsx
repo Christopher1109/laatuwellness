@@ -36,6 +36,7 @@ type Product = {
   price_cents: number;
   stock: number;
   image_url: string | null;
+  description: string | null;
 };
 
 function MerchEmbeddedCheckout({
@@ -87,12 +88,12 @@ function Merch() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price_cents, stock, image_url")
+        .select("id, name, price_cents, stock, image_url, description")
         .eq("category", "merch")
         .eq("active", true)
         .order("name");
       if (error) throw error;
-      return data as Product[];
+      return data as unknown as Product[];
     },
   });
 
@@ -145,6 +146,9 @@ function Merch() {
                     <p className="mt-1 font-mono text-sm text-muted-foreground">
                       {money(p.price_cents)}
                     </p>
+                    {p.description ? (
+                      <p className="mt-2 text-sm text-muted-foreground">{p.description}</p>
+                    ) : null}
                     {outOfStock ? (
                       <p className="mt-4 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                         Agotado

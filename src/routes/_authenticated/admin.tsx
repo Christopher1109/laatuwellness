@@ -38,6 +38,7 @@ import {
   DashboardPanel,
   CouponsPanel,
   CheckInPanel,
+  MerchPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -89,6 +90,7 @@ function Admin() {
           label: "Negocio",
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
+            { key: "merch", label: "Merch", icon: PackageOpen },
             { key: "cupones", label: "Cupones", icon: Ticket },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
@@ -158,6 +160,7 @@ function Admin() {
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel /> : null}
+      {activeKey === "merch" ? <MerchPanel /> : null}
       {activeKey === "cupones" ? <CouponsPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "kardex" ? <KardexPanel /> : null}

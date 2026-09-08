@@ -33,10 +33,10 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5 sm:h-28 sm:px-8">
-        <BrandLink />
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:h-32 sm:px-8">
+        <BrandLink size="lg" />
 
-        <nav className="ml-4 hidden items-center gap-5 md:flex lg:ml-8 lg:gap-7">
+        <nav className="ml-4 hidden items-center gap-5 md:flex lg:ml-10 lg:gap-8 xl:gap-10">
           {NAV.map((item) => (
             <Link
               key={item.to}
