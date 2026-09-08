@@ -240,3 +240,76 @@ export const createMerchCheckoutSession = createServerFn({ method: "POST" })
       return { error: getStripeErrorMessage(error) };
     }
   });
+
+export const createMerchCartCheckoutSession = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      items: { productId: string; productName: string; priceCents: number; qty: number }[];
+      customerEmail?: string;
+      userId?: string;
+      returnUrl: string;
+      environment: StripeEnv;
+    }) => {
+      if (!Array.isArray(data.items) || data.items.length === 0 || data.items.length > 20) {
+        throw new Error("Invalid items");
+      }
+      for (const it of data.items) {
+        if (!/^[a-zA-Z0-9-]+$/.test(it.productId)) throw new Error("Invalid productId");
+        if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > 20) throw new Error("Invalid qty");
+        if (!Number.isInteger(it.priceCents) || it.priceCents < 1) {
+          throw new Error("Invalid priceCents");
+        }
+      }
+      return data;
+    },
+  )
+  .handler(async ({ data }): Promise<CheckoutSessionResult> => {
+    try {
+      const stripe = createStripeClient(data.environment);
+
+      const customerId =
+        data.customerEmail || data.userId
+          ? await resolveOrCreateCustomer(stripe, {
+              ...(data.customerEmail ? { email: data.customerEmail } : {}),
+              ...(data.userId ? { userId: data.userId } : {}),
+            })
+          : undefined;
+
+      const itemsMetadata = JSON.stringify(
+        data.items.map((it) => ({ product_id: it.productId, qty: it.qty })),
+      );
+      if (itemsMetadata.length > 480) {
+        throw new Error("Demasiados productos en el carrito para procesar el pago.");
+      }
+
+      const metadata: Record<string, string> = {
+        kind: "merch_cart",
+        items: itemsMetadata,
+      };
+      if (data.userId) metadata["userId"] = data.userId;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: data.items.map((it) => ({
+          price_data: {
+            currency: "mxn",
+            unit_amount: it.priceCents,
+            product_data: { name: it.productName },
+          },
+          quantity: it.qty,
+        })),
+        mode: "payment",
+        ui_mode: "embedded_page",
+        return_url: data.returnUrl,
+        automatic_tax: { enabled: true },
+        ...(customerId && {
+          customer: customerId,
+          customer_update: { address: "auto" as const, name: "auto" as const },
+        }),
+        metadata,
+      });
+
+      return { clientSecret: session.client_secret ?? "" };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
+  });

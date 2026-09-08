@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import {
   BadgeCheck,
   CalendarDays,
@@ -20,6 +21,8 @@ import { WhatsAppButton } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { getStripe, getStripeEnvironment } from "@/lib/stripe";
+import { createMerchCartCheckoutSession } from "@/utils/payments.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
@@ -1020,6 +1023,7 @@ function TiendaTab() {
   const qc = useQueryClient();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [confirming, setConfirming] = useState(false);
+  const [paying, setPaying] = useState(false);
 
   const { data: products } = useQuery({
     queryKey: ["app-store-products"],
@@ -1072,24 +1076,6 @@ function TiendaTab() {
   }, [cart, products]);
 
   const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
-
-  const placeOrder = useMutation({
-    mutationFn: async () => {
-      const items = Object.entries(cart)
-        .filter(([, qty]) => qty > 0)
-        .map(([id, qty]) => ({ product_id: id, qty }));
-      if (items.length === 0) throw new Error("Agrega al menos un producto.");
-      const { error } = await supabase.rpc("client_place_order", { _items: items });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pedido enviado — págalo al recogerlo en el estudio.");
-      setCart({});
-      setConfirming(false);
-      void qc.invalidateQueries({ queryKey: ["app-my-orders"] });
-    },
-    onError: () => toast.error("No se pudo enviar el pedido."),
-  });
 
   const statusLabel: Record<string, string> = {
     pendiente: "Pendiente",
@@ -1178,6 +1164,11 @@ function TiendaTab() {
               >
                 {statusLabel[o.status] ?? o.status}
               </span>
+              {(o as unknown as { order_code?: string }).order_code ? (
+                <span className="ml-2 font-mono text-[0.6rem] text-muted-foreground">
+                  {(o as unknown as { order_code?: string }).order_code}
+                </span>
+              ) : null}
             </li>
           ))}
           {(myOrders ?? []).length === 0 ? (
@@ -1188,52 +1179,117 @@ function TiendaTab() {
 
       {confirming ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setConfirming(false)}
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-10"
+          onClick={() => !paying && setConfirming(false)}
         >
           <div className="w-full max-w-sm bg-background p-6" onClick={(e) => e.stopPropagation()}>
-            <p className="eyebrow">Confirmar pedido</p>
-            <ul className="mt-3 space-y-1 text-sm">
-              {Object.entries(cart)
-                .filter(([, qty]) => qty > 0)
-                .map(([id, qty]) => {
-                  const p = products?.find((p) => p.id === id);
-                  return (
-                    <li key={id} className="flex justify-between">
-                      <span>
-                        {qty}× {p?.name}
-                      </span>
-                      <span>{money((p?.price_cents ?? 0) * qty)}</span>
-                    </li>
-                  );
-                })}
-            </ul>
-            <div className="mt-3 flex justify-between border-t border-border pt-3 text-lg">
-              <span>Total</span>
-              <span>{money(total)}</span>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Se paga al recogerlo en el estudio (tarjeta o efectivo). Los pagos en línea llegan
-              pronto con Stripe.
-            </p>
-            <div className="mt-6 flex gap-2">
-              <button
-                onClick={() => setConfirming(false)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={placeOrder.isPending}
-                onClick={() => placeOrder.mutate()}
-                className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
-              >
-                {placeOrder.isPending ? "Enviando…" : "Enviar pedido"}
-              </button>
-            </div>
+            {!paying ? (
+              <>
+                <p className="eyebrow">Confirmar pedido</p>
+                <ul className="mt-3 space-y-1 text-sm">
+                  {Object.entries(cart)
+                    .filter(([, qty]) => qty > 0)
+                    .map(([id, qty]) => {
+                      const p = products?.find((p) => p.id === id);
+                      return (
+                        <li key={id} className="flex justify-between">
+                          <span>
+                            {qty}× {p?.name}
+                          </span>
+                          <span>{money((p?.price_cents ?? 0) * qty)}</span>
+                        </li>
+                      );
+                    })}
+                </ul>
+                <div className="mt-3 flex justify-between border-t border-border pt-3 text-lg">
+                  <span>Total</span>
+                  <span>{money(total)}</span>
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Se paga en línea ahora. Recoges tu pedido en el estudio — te avisamos cuando
+                  esté listo.
+                </p>
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={() => setConfirming(false)}
+                    className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => setPaying(true)}
+                    className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+                  >
+                    Pagar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="eyebrow">Pago seguro</p>
+                  <button
+                    onClick={() => {
+                      setPaying(false);
+                      setConfirming(false);
+                    }}
+                    className="text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <CartCheckout
+                  cart={cart}
+                  products={products ?? []}
+                  {...(user?.email ? { userEmail: user.email } : {})}
+                  {...(user?.id ? { userId: user.id } : {})}
+                />
+              </>
+            )}
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function CartCheckout({
+  cart,
+  products,
+  userEmail,
+  userId,
+}: {
+  cart: Record<string, number>;
+  products: { id: string; name: string; price_cents: number }[];
+  userEmail?: string;
+  userId?: string;
+}) {
+  const fetchClientSecret = async (): Promise<string> => {
+    const items = Object.entries(cart)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => {
+        const p = products.find((p) => p.id === id)!;
+        return { productId: p.id, productName: p.name, priceCents: p.price_cents, qty };
+      });
+    const result = await createMerchCartCheckoutSession({
+      data: {
+        items,
+        ...(userEmail ? { customerEmail: userEmail } : {}),
+        ...(userId ? { userId } : {}),
+        returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+        environment: getStripeEnvironment(),
+      },
+    });
+    if ("error" in result) throw new Error(result.error);
+    if (!result.clientSecret) throw new Error("Stripe no devolvió un client secret");
+    return result.clientSecret;
+  };
+
+  return (
+    <div id="checkout" className="max-h-[60vh] overflow-y-auto">
+      <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
+        <EmbeddedCheckout />
+      </EmbeddedCheckoutProvider>
     </div>
   );
 }

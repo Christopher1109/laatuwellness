@@ -113,6 +113,17 @@ export function SiteHeader() {
       {open ? (
         <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-border bg-background md:hidden">
           <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3 pb-6">
+            <Link
+              to="/app"
+              onClick={() => setOpen(false)}
+              className="mb-1 bg-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
+            >
+              Abrir la app · Horarios, reservas y créditos
+            </Link>
+            <p className="mb-3 mt-1 text-center text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+              Esto de abajo es la página informativa
+            </p>
+
             {NAV.map((item) => (
               <Link
                 key={item.to}
@@ -123,16 +134,9 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <Link
-              to="/contacto"
-              onClick={() => setOpen(false)}
-              className="py-3 text-sm uppercase tracking-[0.16em] text-muted-foreground"
-            >
-              Contacto
-            </Link>
 
             <Link
-              to="/horarios"
+              to="/app"
               onClick={() => setOpen(false)}
               className="mt-3 bg-foreground px-5 py-3.5 text-center text-[0.72rem] uppercase tracking-[0.16em] text-background"
             >
