@@ -125,9 +125,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     try {
       const stripe = createStripeClient(data.environment);
 
-      const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
-      const stripePrice = prices.data[0];
-      if (!stripePrice) throw new Error("Price not found");
+      const stripePrice = await stripe.prices.retrieve(data.priceId);
       const isRecurring = stripePrice.type === "recurring";
 
       const customerId =
