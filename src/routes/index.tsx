@@ -149,7 +149,7 @@ function Home() {
             Date un espacio para respirar.
           </p>
           <p className="mt-6 font-mono text-[0.68rem] uppercase tracking-[0.24em] opacity-70">
-            @laatu
+            @laatuwellness
           </p>
         </div>
       </section>

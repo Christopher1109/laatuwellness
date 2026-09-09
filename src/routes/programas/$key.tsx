@@ -184,26 +184,6 @@ function ProgramaDetalle() {
         </div>
       </section>
 
-      <section>
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-          <p className="eyebrow">Sesiones</p>
-          <h2 className="statement mt-4 text-[clamp(1.7rem,4vw,2.6rem)]">
-            ¿Todavía no tienes accesos?
-          </h2>
-          <p className="mt-5 max-w-lg text-muted-foreground">
-            Los paquetes de movimiento, contraste y recuperación viven todos en un solo lugar,
-            segmentados y ordenados por precio.
-          </p>
-          <Link
-            to="/paquetes"
-            className="mt-8 inline-block bg-foreground px-7 py-3.5 text-[0.7rem] uppercase tracking-[0.18em] text-background transition-opacity hover:opacity-85"
-          >
-            Ver paquetes
-          </Link>
-
-          <Constellation className="mt-20 opacity-50" />
-        </div>
-      </section>
     </SiteLayout>
 
   );
