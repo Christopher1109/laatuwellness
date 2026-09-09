@@ -277,19 +277,26 @@ function HorariosTab() {
         .lt("starts_at", dayBounds.end.toISOString())
         .order("starts_at");
       if (error) throw error;
-      return Promise.all(
-        (data ?? []).map(async (c) => {
-          const { data: taken } = await supabase.rpc("class_seats_taken", { _class_id: c.id });
-          const { data: waitlisted } = await supabase.rpc("class_waitlist_count", {
-            _class_id: c.id,
-          });
-          return {
-            ...c,
-            taken: (taken as number | null) ?? 0,
-            waitlisted: (waitlisted as number | null) ?? 0,
-          };
-        }),
+      const rows = data ?? [];
+      if (rows.length === 0) return [];
+      // Una sola llamada para la ocupación de todas las clases del día, en
+      // vez de 2 llamadas por cada una (antes eran hasta 30 idas y vueltas
+      // para un día con 15 clases).
+      const { data: occupancy, error: occError } = await (supabase.rpc as any)(
+        "class_occupancy_batch",
+        { _class_ids: rows.map((c) => c.id) },
       );
+      if (occError) throw occError;
+      const byId = new Map(
+        ((occupancy ?? []) as { class_id: string; taken: number; waitlisted: number }[]).map(
+          (o) => [o.class_id, o],
+        ),
+      );
+      return rows.map((c) => ({
+        ...c,
+        taken: byId.get(c.id)?.taken ?? 0,
+        waitlisted: byId.get(c.id)?.waitlisted ?? 0,
+      }));
     },
   });
 

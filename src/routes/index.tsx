@@ -108,6 +108,7 @@ function Home() {
               className="h-full w-full object-cover"
               loading="eager"
               decoding="async"
+              fetchPriority="high"
             />
           </div>
         </div>
