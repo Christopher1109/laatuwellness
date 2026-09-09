@@ -28,6 +28,7 @@ import { Route as CheckoutReturnRouteImport } from './routes/checkout/return'
 import { Route as ProgramasIndexRouteImport } from './routes/programas/index'
 import { Route as ProgramasKeyRouteImport } from './routes/programas/$key'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicWellhubWebhookRouteImport } from './routes/api/public/wellhub/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -124,6 +125,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWellhubWebhookRoute = ApiPublicWellhubWebhookRouteImport.update({
+  id: '/api/public/wellhub/webhook',
+  path: '/api/public/wellhub/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/programas/$key'
     | '/programas/'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/programas/$key'
     | '/programas'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   id:
     | '__root__'
     | '/'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/programas/$key'
     | '/programas/'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -268,6 +280,7 @@ export interface RootRouteChildren {
   ProgramasKeyRoute: typeof ProgramasKeyRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicWellhubWebhookRoute: typeof ApiPublicWellhubWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -405,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/wellhub/webhook': {
+      id: '/api/public/wellhub/webhook'
+      path: '/api/public/wellhub/webhook'
+      fullPath: '/api/public/wellhub/webhook'
+      preLoaderRoute: typeof ApiPublicWellhubWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -440,6 +460,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProgramasKeyRoute: ProgramasKeyRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicWellhubWebhookRoute: ApiPublicWellhubWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
