@@ -271,22 +271,26 @@ export function Schedule({
       if (moduleKey) q = q.eq("module_key", moduleKey);
       const { data, error } = await q.limit(120);
       if (error) throw error;
+      if (data.length === 0) return [];
 
-      return Promise.all(
-        data.map(async (c) => {
-          const { data: taken } = await supabase.rpc("class_seats_taken", {
-            _class_id: c.id,
-          });
-          const { data: waitlisted } = await supabase.rpc("class_waitlist_count", {
-            _class_id: c.id,
-          });
-          return {
-            ...c,
-            taken: (taken as number | null) ?? 0,
-            waitlisted: (waitlisted as number | null) ?? 0,
-          };
-        }),
+      // Una sola llamada para la ocupación de todas las clases, en vez de
+      // 2 llamadas por cada una (antes hasta 240 idas y vueltas en la
+      // vista de mes).
+      const { data: occupancy, error: occError } = await (supabase.rpc as any)(
+        "class_occupancy_batch",
+        { _class_ids: data.map((c) => c.id) },
       );
+      if (occError) throw occError;
+      const byId = new Map(
+        ((occupancy ?? []) as { class_id: string; taken: number; waitlisted: number }[]).map(
+          (o) => [o.class_id, o],
+        ),
+      );
+      return data.map((c) => ({
+        ...c,
+        taken: byId.get(c.id)?.taken ?? 0,
+        waitlisted: byId.get(c.id)?.waitlisted ?? 0,
+      }));
     },
   });
 
