@@ -1,7 +1,7 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
-import { Constellation, Coordinates } from "@/components/brand";
+import { Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { whatsappHref } from "@/components/whatsapp-button";
 import { supabase } from "@/integrations/supabase/client";
