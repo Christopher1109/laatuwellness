@@ -1252,6 +1252,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      class_occupancy_batch: {
+        Args: { _class_ids: string[] }
+        Returns: {
+          class_id: string
+          taken: number
+          waitlisted: number
+        }[]
+      }
       class_seats_taken: { Args: { _class_id: string }; Returns: number }
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
