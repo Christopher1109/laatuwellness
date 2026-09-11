@@ -40,6 +40,7 @@ import {
   CouponsPanel,
   CheckInPanel,
   MerchPanel,
+  GoodesPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -92,6 +93,7 @@ function Admin() {
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
             { key: "merch", label: "Merch", icon: PackageOpen },
+            { key: "goodes", label: "Goodes", icon: Tag },
             { key: "cupones", label: "Cupones", icon: Ticket },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
@@ -218,6 +220,7 @@ function Admin() {
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel readOnly={!isAdmin} /> : null}
       {activeKey === "merch" ? <MerchPanel /> : null}
+      {activeKey === "goodes" ? <GoodesPanel /> : null}
       {activeKey === "cupones" ? <CouponsPanel readOnly={!isAdmin} /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "kardex" ? <KardexPanel /> : null}

@@ -398,9 +398,29 @@ export function POSPanel() {
 
   const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
+  // Cada marca cobra en una terminal física distinta de Clip -- si el
+  // carrito mezcla Läätu y Goodes, no se puede cobrar en un solo pago.
+  const cartBrands = useMemo(() => {
+    if (!products) return [] as string[];
+    const brands = new Set<string>();
+    for (const [id, qty] of Object.entries(cart)) {
+      if (qty <= 0) continue;
+      const p = products.find((p) => p.id === id) as unknown as { brand?: string } | undefined;
+      brands.add(p?.brand ?? "laatu");
+    }
+    return Array.from(brands);
+  }, [cart, products]);
+  const isMixedBrand = cartBrands.length > 1;
+  const cartBrand = cartBrands[0] ?? "laatu";
+
   const checkout = useMutation({
     mutationFn: async () => {
       if (!matchedClient) throw new Error("Busca al cliente por correo antes de cobrar.");
+      if (isMixedBrand) {
+        throw new Error(
+          "El carrito mezcla productos de Läätu y Goodes — cóbralos por separado, cada uno en su terminal.",
+        );
+      }
       const items = Object.entries(cart)
         .filter(([, qty]) => qty > 0)
         .map(([id, qty]) => {
@@ -413,10 +433,11 @@ export function POSPanel() {
           };
         });
       if (items.length === 0) throw new Error("Agrega al menos un producto");
-      const { error } = await supabase.rpc("pos_checkout", {
+      const { error } = await (supabase.rpc as any)("pos_checkout", {
         _user_id: matchedClient.id,
         _payment_method: payment,
         _items: items,
+        _brand: cartBrand,
       });
       if (error) throw error;
     },
@@ -447,13 +468,21 @@ export function POSPanel() {
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((p) => {
             const qty = cart[p.id] ?? 0;
+            const brand = (p as unknown as { brand?: string }).brand ?? "laatu";
             return (
               <div
                 key={p.id}
                 className={`flex items-center justify-between gap-3 border p-4 transition-colors ${qty > 0 ? "border-foreground" : "border-border"}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate">{p.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate">{p.name}</p>
+                    {brand === "goodes" ? (
+                      <span className="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
+                        Goodes
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {money(p.price_cents)} · stock {p.stock} {p.unit}
                   </p>
@@ -552,8 +581,24 @@ export function POSPanel() {
           </select>
         </label>
         <p className="text-2xl">{money(total)}</p>
+        {itemCount > 0 && !isMixedBrand ? (
+          <p
+            className={`border px-3 py-2 text-xs uppercase tracking-[0.08em] ${
+              cartBrand === "goodes"
+                ? "border-amber-600/40 bg-amber-500/10 text-amber-800"
+                : "border-border bg-muted text-muted-foreground"
+            }`}
+          >
+            Cobra en la terminal: {cartBrand === "goodes" ? "Goodes" : "Läätu"}
+          </p>
+        ) : null}
+        {isMixedBrand ? (
+          <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            Este carrito mezcla Läätu y Goodes — cóbralos por separado, cada uno en su terminal.
+          </p>
+        ) : null}
         <button
-          disabled={checkout.isPending || itemCount === 0 || !matchedClient}
+          disabled={checkout.isPending || itemCount === 0 || !matchedClient || isMixedBrand}
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
@@ -2106,6 +2151,182 @@ const CATEGORY_LABELS: Record<string, string> = {
   recuperacion: "Contrast (recuperación)",
   convenio: "Convenios corporativos",
 };
+
+// ============================================================================
+// GOODES — productos de la marca aliada, SOLO se venden en persona (nunca
+// en la página web). Se guardan con brand='goodes' en vez de category
+// 'merch', así jamás aparecen en /merch ni en la Tienda de /app aunque
+// alguien active la casilla "Publicado" por error.
+// ============================================================================
+export function GoodesPanel() {
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ["admin-goodes"],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- brand no está en los tipos generados todavía
+      const { data, error } = await (supabase.from("products").select as any)("*")
+        .eq("brand", "goodes")
+        .order("name");
+      if (error) throw error;
+      return data as (Tables<"products"> & { description?: string; brand?: string })[];
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (row: {
+      id?: string;
+      name: string;
+      price_cents: number;
+      stock: number;
+      description: string;
+      active: boolean;
+      image_url: string | null;
+    }) => {
+      const payload = {
+        name: row.name,
+        price_cents: row.price_cents,
+        stock: row.stock,
+        description: row.description,
+        active: row.active,
+        image_url: row.image_url,
+        category: "goodes",
+        brand: "goodes",
+      };
+      if (row.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- brand/description no están en los tipos generados
+        const { error } = await (supabase.from("products").update as any)(payload).eq(
+          "id",
+          row.id,
+        );
+        if (error) throw error;
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- brand/description no están en los tipos generados
+        const { error } = await (supabase.from("products").insert as any)(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Producto de Goodes guardado.");
+      setEditingId(null);
+      setCreating(false);
+      void qc.invalidateQueries({ queryKey: ["admin-goodes"] });
+      void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Producto eliminado.");
+      setEditingId(null);
+      void qc.invalidateQueries({ queryKey: ["admin-goodes"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="eyebrow">Goodes</p>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Productos de la marca Goodes — solo se venden en el mostrador, en la terminal de Clip
+          de Goodes. Nunca aparecen en la página web ni en la app.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setCreating(true)}
+        className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
+      >
+        + Agregar producto de Goodes
+      </button>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {(data ?? []).map((p) => (
+          <div key={p.id} className="border border-border p-4">
+            <div className="flex aspect-square items-center justify-center bg-muted">
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+              ) : (
+                <p className="px-4 text-center text-xs text-muted-foreground">Sin foto</p>
+              )}
+            </div>
+            <div className="mt-3 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{money(p.price_cents)}</p>
+              </div>
+              <span
+                className={`shrink-0 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] ${
+                  p.active ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {p.active ? "Activo" : "Oculto"}
+              </span>
+            </div>
+            {p.description ? (
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted-foreground">Stock: {p.stock}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingId(p.id)}
+                className="flex-1 border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) {
+                    remove.mutate(p.id);
+                  }
+                }}
+                className="border border-destructive px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-destructive hover:bg-destructive hover:text-background"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        ))}
+        {(data ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin productos de Goodes todavía.</p>
+        ) : null}
+      </div>
+
+      {creating || editingId ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-10">
+          <div className="w-full max-w-xl bg-background shadow-2xl">
+            <MerchEditCard
+              product={editingId ? ((data ?? []).find((p) => p.id === editingId) ?? null) : null}
+              onCancel={() => {
+                setCreating(false);
+                setEditingId(null);
+              }}
+              onSave={(row) => save.mutate(editingId ? { ...row, id: editingId } : row)}
+              {...(editingId
+                ? {
+                    onDelete: () => {
+                      if (confirm("¿Eliminar este producto?")) remove.mutate(editingId);
+                    },
+                  }
+                : {})}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function MerchPanel() {
   const qc = useQueryClient();

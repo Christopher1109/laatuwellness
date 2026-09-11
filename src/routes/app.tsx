@@ -1056,7 +1056,9 @@ function TiendaTab() {
         .order("category")
         .order("name");
       if (error) throw error;
-      return data;
+      // brand no está en los tipos generados todavía; se filtra aquí en vez
+      // de en la consulta SQL para no perder el tipado del resto.
+      return (data ?? []).filter((p) => (p as unknown as { brand?: string }).brand !== "goodes");
     },
   });
 
