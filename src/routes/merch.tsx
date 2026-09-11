@@ -88,12 +88,15 @@ function Merch() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price_cents, stock, image_url, description")
+        .select("id, name, price_cents, stock, image_url, description, brand")
         .eq("category", "merch")
         .eq("active", true)
         .order("name");
       if (error) throw error;
-      return data as unknown as Product[];
+      const filtered = (data ?? []).filter(
+        (p) => (p as unknown as { brand?: string }).brand !== "goodes",
+      );
+      return filtered as unknown as Product[];
     },
   });
 
