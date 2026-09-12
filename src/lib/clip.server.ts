@@ -25,8 +25,8 @@ export interface ClipPaymentLink {
   paymentRequestId: string;
   paymentRequestUrl: string;
   status: string;
-  qrImageUrl?: string;
-  expiresAt?: string;
+  qrImageUrl?: string | undefined;
+  expiresAt?: string | undefined;
 }
 
 function normalizeAmount(cents: number): number {
@@ -49,10 +49,10 @@ export async function createClipPaymentLink(
   };
 
   if (input.metadata && Object.keys(input.metadata).length) {
-    body.metadata = input.metadata;
+    body["metadata"] = input.metadata;
   }
   if (input.expiresAt) {
-    body.expires_at = input.expiresAt;
+    body["expires_at"] = input.expiresAt;
   }
 
   const response = await fetch(`${CLIP_API_BASE}/checkout`, {
@@ -83,9 +83,9 @@ export async function createClipPaymentLink(
 export interface ClipPaymentStatus {
   paymentRequestId: string;
   status: string;
-  amount?: number;
-  currency?: string;
-  metadata?: Record<string, string> | null;
+  amount?: number | undefined;
+  currency?: string | undefined;
+  metadata?: Record<string, string> | null | undefined;
 }
 
 export async function getClipPaymentStatus(paymentRequestId: string): Promise<ClipPaymentStatus> {
@@ -123,29 +123,29 @@ export function getClipErrorMessage(error: unknown): string {
   return "No pudimos comunicarnos con Clip. Intenta de nuevo.";
 }
 
-export async function fulfillClipOrder(supabaseAdmin: any, order: Record<string, any>) {
-  const externalRef = order.external_ref ?? `clip_${order.payment_request_id}`;
+export async function fulfillClipOrder(supabaseAdmin: any, order: any) {
+  const externalRef = order["external_ref"] ?? `clip_${order["payment_request_id"]};
 
-  if (order.kind === "plan") {
+  if (order["kind"] === "plan") {
     const { error } = await (supabaseAdmin.rpc as any)("fulfill_plan_purchase", {
-      _user_id: order.user_id,
-      _plan_id: order.plan_id,
+      _user_id: order["user_id"],
+      _plan_id: order["plan_id"],
       _external_ref: externalRef,
       _payment_method: "tarjeta",
     });
     if (error) throw new Error(`fulfill_plan_purchase: ${JSON.stringify(error)}`);
-  } else if (order.kind === "merch") {
+  } else if (order["kind"] === "merch") {
     const { error } = await (supabaseAdmin.rpc as any)("fulfill_merch_order", {
-      _user_id: order.user_id,
-      _product_id: order.product_id,
-      _qty: order.qty ?? 1,
+      _user_id: order["user_id"],
+      _product_id: order["product_id"],
+      _qty: order["qty"] ?? 1,
       _external_ref: externalRef,
     });
     if (error) throw new Error(`fulfill_merch_order: ${JSON.stringify(error)}`);
-  } else if (order.kind === "merch_cart") {
+  } else if (order["kind"] === "merch_cart") {
     const { error } = await (supabaseAdmin.rpc as any)("fulfill_merch_cart_order", {
-      _user_id: order.user_id,
-      _items: order.items ?? [],
+      _user_id: order["user_id"],
+      _items: order["items"] ?? [],
       _external_ref: externalRef,
     });
     if (error) throw new Error(`fulfill_merch_cart_order: ${JSON.stringify(error)}`);
