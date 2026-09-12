@@ -27,6 +27,7 @@ import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/
 import { Route as CheckoutReturnRouteImport } from './routes/checkout/return'
 import { Route as ProgramasIndexRouteImport } from './routes/programas/index'
 import { Route as ProgramasKeyRouteImport } from './routes/programas/$key'
+import { Route as ApiPublicClipWebhookRouteImport } from './routes/api/public/clip/webhook'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -118,6 +119,11 @@ const ProgramasKeyRoute = ProgramasKeyRouteImport.update({
   path: '/programas/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicClipWebhookRoute = ApiPublicClipWebhookRouteImport.update({
+  id: '/api/public/clip/webhook',
+  path: '/api/public/clip/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
+  '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas': typeof ProgramasIndexRoute
+  '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/checkout/return': typeof CheckoutReturnRoute
   '/programas/$key': typeof ProgramasKeyRoute
   '/programas/': typeof ProgramasIndexRoute
+  '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/programas/$key'
     | '/programas/'
+    | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/programas/$key'
     | '/programas'
+    | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/programas/$key'
     | '/programas/'
+    | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -267,6 +279,7 @@ export interface RootRouteChildren {
   CheckoutReturnRoute: typeof CheckoutReturnRoute
   ProgramasKeyRoute: typeof ProgramasKeyRoute
   ProgramasIndexRoute: typeof ProgramasIndexRoute
+  ApiPublicClipWebhookRoute: typeof ApiPublicClipWebhookRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProgramasKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/clip/webhook': {
+      id: '/api/public/clip/webhook'
+      path: '/api/public/clip/webhook'
+      fullPath: '/api/public/clip/webhook'
+      preLoaderRoute: typeof ApiPublicClipWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -439,6 +459,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutReturnRoute: CheckoutReturnRoute,
   ProgramasKeyRoute: ProgramasKeyRoute,
   ProgramasIndexRoute: ProgramasIndexRoute,
+  ApiPublicClipWebhookRoute: ApiPublicClipWebhookRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
