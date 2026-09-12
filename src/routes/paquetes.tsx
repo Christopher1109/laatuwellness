@@ -6,8 +6,7 @@ import { Constellation } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
-import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
+import { PlanCheckoutModal } from "@/components/payments/plan-checkout-modal";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
