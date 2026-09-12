@@ -59,9 +59,9 @@ function Paquetes() {
   const [buying, setBuying] = useState<{
     id: string;
     name: string;
-    price: number;
+    price_cents: number;
     tokens: number;
-    priceId: string;
+    currency?: string;
   } | null>(null);
 
   const { data: plans, isLoading } = useQuery({
