@@ -11,6 +11,7 @@ export interface CheckoutPlan {
   currency?: string;
   stripe_price_id?: string | null;
   recurring?: boolean;
+  clip_recurring_link_url?: string | null;
 }
 
 export function planPriceId(plan: {
@@ -71,6 +72,13 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
         plan_id: plan.id,
       });
       if (error) throw error;
+      if (plan.clip_recurring_link_url) {
+        // El link ya existe (uno solo por membresía, reutilizable) -- se
+        // manda a la persona directo a inscribirse con su propia tarjeta,
+        // el staff solo confirma después que sí quedó activa en Clip.
+        window.location.href = plan.clip_recurring_link_url;
+        return;
+      }
       setRequested(true);
     } catch (error) {
       toast.error(
@@ -120,16 +128,20 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Las membresías se inscriben directamente contigo para activar el cobro
-                  automático mensual. Envía tu solicitud y el equipo de Läätu te contacta para
-                  completarla.
+                  {plan.clip_recurring_link_url
+                    ? "Al continuar, te vamos a mandar directo a inscribir tu tarjeta para el cobro automático mensual."
+                    : "Las membresías se inscriben directamente contigo para activar el cobro automático mensual. Envía tu solicitud y el equipo de Läätu te contacta para completarla."}
                 </p>
                 <button
                   onClick={handleRequestMembership}
                   disabled={loading}
                   className="mt-5 w-full bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85 disabled:opacity-50"
                 >
-                  {loading ? "Enviando…" : "Solicitar membresía"}
+                  {loading
+                    ? "Un momento…"
+                    : plan.clip_recurring_link_url
+                      ? "Continuar mi inscripción"
+                      : "Solicitar membresía"}
                 </button>
               </>
             )

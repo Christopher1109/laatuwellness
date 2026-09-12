@@ -3217,12 +3217,13 @@ function PackageEditPopout({
             price_cents: Math.round(Number(f.get("price") || 0) * 100),
             tokens: Number(f.get("tokens") || 1),
             recurring: f.get("recurring") === "on",
+            clip_recurring_link_url: String(f.get("clip_recurring_link_url") || "") || null,
             validity_days: f.get("validity_days") ? Number(f.get("validity_days")) : null,
             includes: String(f.get("includes") || ""),
             terms: String(f.get("terms") || ""),
             active: plan ? plan.active : true,
             sort_order: plan?.sort_order ?? 0,
-          });
+          } as unknown as TablesInsert<"token_plans">);
         }}
       >
         <label className="block text-xs">
@@ -3291,6 +3292,23 @@ function PackageEditPopout({
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" name="recurring" defaultChecked={plan?.recurring} />
           Cargo mensual recurrente
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">
+            Link de Pagos Recurrentes de Clip (solo para membresías)
+          </span>
+          <input
+            name="clip_recurring_link_url"
+            defaultValue={(plan as unknown as { clip_recurring_link_url?: string })
+              ?.clip_recurring_link_url ?? ""}
+            placeholder="https://pago.clip.mx/..."
+            className={input}
+          />
+          <p className="mt-1 text-[0.65rem] text-muted-foreground">
+            Créalo una sola vez en el Dashboard de Clip → Pagos Digitales → Link de pago →
+            recurrente. Se puede compartir con más de una persona, no hay que generar uno por
+            cliente.
+          </p>
         </label>
         <label className="block text-xs">
           <span className="eyebrow">Incluye (una línea por elemento)</span>
