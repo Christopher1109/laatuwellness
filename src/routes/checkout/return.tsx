@@ -24,12 +24,12 @@ export const Route = createFileRoute("/checkout/return")({
       },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>): { clip_order_id?: string; error?: boolean } =>
-    ({
-      clip_order_id:
-        typeof search["clip_order_id"] === "string" ? (search["clip_order_id"] as string) : undefined,
-      error: search["error"] === "1" || search["error"] === 1,
-    }),
+  validateSearch: (search: Record<string, unknown>): { clip_order_id?: string; error?: boolean } => {
+    const clip_order_id =
+      typeof search["clip_order_id"] === "string" ? (search["clip_order_id"] as string) : undefined;
+    const error = search["error"] === "1" || search["error"] === 1;
+    return clip_order_id === undefined ? { error } : { clip_order_id, error };
+  },
   component: CheckoutReturn,
 });
 
