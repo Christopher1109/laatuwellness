@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import {
   BadgeCheck,
   CalendarDays,
@@ -20,8 +19,7 @@ import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
-import { getStripe, getStripeEnvironment } from "@/lib/stripe";
-import { createMerchCartCheckoutSession } from "@/utils/payments.functions";
+import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
@@ -1240,34 +1238,47 @@ function TiendaTab() {
                     Cancelar
                   </button>
                   <button
-                    onClick={() => setPaying(true)}
-                    className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      setPaying(true);
+                      const items = Object.entries(cart)
+                        .filter(([, qty]) => qty > 0)
+                        .map(([id, qty]) => {
+                          const p = products?.find((p) => p.id === id)!;
+                          return {
+                            productId: p.id,
+                            productName: p.name,
+                            priceCents: p.price_cents,
+                            qty,
+                          };
+                        });
+                      try {
+                        const result = await createMerchCartClipCheckout({
+                          data: { items, origin: window.location.origin },
+                        });
+                        if (result.paymentUrl) {
+                          window.location.href = result.paymentUrl;
+                        } else {
+                          throw new Error("Clip no devolvió un link de pago.");
+                        }
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error ? error.message : "No se pudo iniciar el pago.",
+                        );
+                        setPaying(false);
+                      }
+                    }}
+                    disabled={paying}
+                    className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
                   >
-                    Pagar
+                    {paying ? "Preparando…" : "Pagar"}
                   </button>
                 </div>
               </>
             ) : (
-              <>
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="eyebrow">Pago seguro</p>
-                  <button
-                    onClick={() => {
-                      setPaying(false);
-                      setConfirming(false);
-                    }}
-                    className="text-xs uppercase tracking-[0.14em] text-muted-foreground"
-                  >
-                    Cerrar
-                  </button>
-                </div>
-                <CartCheckout
-                  cart={cart}
-                  products={products ?? []}
-                  {...(user?.email ? { userEmail: user.email } : {})}
-                  {...(user?.id ? { userId: user.id } : {})}
-                />
-              </>
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Redirigiendo a Clip…
+              </div>
             )}
           </div>
         </div>
@@ -1276,43 +1287,3 @@ function TiendaTab() {
   );
 }
 
-function CartCheckout({
-  cart,
-  products,
-  userEmail,
-  userId,
-}: {
-  cart: Record<string, number>;
-  products: { id: string; name: string; price_cents: number }[];
-  userEmail?: string;
-  userId?: string;
-}) {
-  const fetchClientSecret = async (): Promise<string> => {
-    const items = Object.entries(cart)
-      .filter(([, qty]) => qty > 0)
-      .map(([id, qty]) => {
-        const p = products.find((p) => p.id === id)!;
-        return { productId: p.id, productName: p.name, priceCents: p.price_cents, qty };
-      });
-    const result = await createMerchCartCheckoutSession({
-      data: {
-        items,
-        ...(userEmail ? { customerEmail: userEmail } : {}),
-        ...(userId ? { userId } : {}),
-        returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-        environment: getStripeEnvironment(),
-      },
-    });
-    if ("error" in result) throw new Error(result.error);
-    if (!result.clientSecret) throw new Error("Stripe no devolvió un client secret");
-    return result.clientSecret;
-  };
-
-  return (
-    <div id="checkout" className="max-h-[60vh] overflow-y-auto">
-      <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
-        <EmbeddedCheckout />
-      </EmbeddedCheckoutProvider>
-    </div>
-  );
-}

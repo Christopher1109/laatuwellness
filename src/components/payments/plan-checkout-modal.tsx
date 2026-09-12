@@ -1,5 +1,6 @@
-import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
-import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
+import { useState } from "react";
+import { toast } from "sonner";
+import { createPlanClipCheckout } from "@/utils/clip.functions";
 
 export interface CheckoutPlan {
   id: string;
@@ -31,7 +32,28 @@ interface PlanCheckoutModalProps {
 }
 
 export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProps) {
-  const priceId = planPriceId(plan);
+  const [loading, setLoading] = useState(false);
+
+  const handlePay = async () => {
+    if (!user?.id) {
+      toast.error("Inicia sesión para comprar.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await createPlanClipCheckout({
+        data: { planId: plan.id, origin: window.location.origin },
+      });
+      if (result.paymentUrl) {
+        window.location.href = result.paymentUrl;
+      } else {
+        throw new Error("Clip no devolvió un link de pago.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo iniciar el pago.");
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -42,10 +64,9 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
         className="relative w-full max-w-md overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <PaymentTestModeBanner />
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
-            <p className="eyebrow text-[0.6rem]">Pago seguro</p>
+            <p className="eyebrow text-[0.6rem]">Pago seguro con Clip</p>
             <h3 className="mt-1 truncate text-base font-medium">
               {plan.name} · {money(plan.price_cents, plan.currency ?? "MXN")}
             </h3>
@@ -60,21 +81,18 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
             Cerrar
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto p-3 sm:p-4">
-          {priceId ? (
-            <StripeEmbeddedCheckout
-              priceId={priceId}
-              planId={plan.id}
-              {...(user?.email ? { customerEmail: user.email } : {})}
-              {...(user?.id ? { userId: user.id } : {})}
-              returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
-            />
-          ) : (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              Este paquete todavía no tiene pago en línea configurado. Escríbenos por WhatsApp
-              y lo resolvemos contigo.
-            </p>
-          )}
+        <div className="p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground">
+            Serás redirigido a Clip para completar tu pago con tarjeta. Al volver,
+            tus créditos se acreditarán automáticamente.
+          </p>
+          <button
+            onClick={handlePay}
+            disabled={loading}
+            className="mt-5 w-full bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85 disabled:opacity-50"
+          >
+            {loading ? "Preparando pago…" : "Continuar al pago"}
+          </button>
         </div>
       </div>
     </div>
