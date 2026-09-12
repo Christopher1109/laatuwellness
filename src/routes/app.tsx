@@ -1238,34 +1238,47 @@ function TiendaTab() {
                     Cancelar
                   </button>
                   <button
-                    onClick={() => setPaying(true)}
-                    className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      setPaying(true);
+                      const items = Object.entries(cart)
+                        .filter(([, qty]) => qty > 0)
+                        .map(([id, qty]) => {
+                          const p = products?.find((p) => p.id === id)!;
+                          return {
+                            productId: p.id,
+                            productName: p.name,
+                            priceCents: p.price_cents,
+                            qty,
+                          };
+                        });
+                      try {
+                        const result = await createMerchCartClipCheckout({
+                          data: { items, origin: window.location.origin },
+                        });
+                        if (result.paymentUrl) {
+                          window.location.href = result.paymentUrl;
+                        } else {
+                          throw new Error("Clip no devolvió un link de pago.");
+                        }
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error ? error.message : "No se pudo iniciar el pago.",
+                        );
+                        setPaying(false);
+                      }
+                    }}
+                    disabled={paying}
+                    className="flex-1 bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
                   >
-                    Pagar
+                    {paying ? "Preparando…" : "Pagar"}
                   </button>
                 </div>
               </>
             ) : (
-              <>
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="eyebrow">Pago seguro</p>
-                  <button
-                    onClick={() => {
-                      setPaying(false);
-                      setConfirming(false);
-                    }}
-                    className="text-xs uppercase tracking-[0.14em] text-muted-foreground"
-                  >
-                    Cerrar
-                  </button>
-                </div>
-                <CartCheckout
-                  cart={cart}
-                  products={products ?? []}
-                  {...(user?.email ? { userEmail: user.email } : {})}
-                  {...(user?.id ? { userId: user.id } : {})}
-                />
-              </>
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Redirigiendo a Clip…
+              </div>
             )}
           </div>
         </div>
