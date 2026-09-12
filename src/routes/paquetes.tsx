@@ -93,13 +93,12 @@ function Paquetes() {
       navigate({ to: "/auth" });
       return;
     }
-    const priceId = ((p as unknown as { stripe_price_id?: string }).stripe_price_id ?? "").trim();
     setBuying({
       id: p.id,
       name: p.name,
-      price: p.price_cents,
+      price_cents: p.price_cents,
       tokens: p.tokens,
-      priceId,
+      currency: p.currency ?? "MXN",
     });
   };
 
