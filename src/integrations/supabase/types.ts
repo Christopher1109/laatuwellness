@@ -219,6 +219,81 @@ export type Database = {
           },
         ]
       }
+      clip_orders: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          description: string
+          external_ref: string | null
+          fulfilled: boolean
+          id: string
+          items: Json | null
+          kind: string
+          metadata: Json | null
+          payment_request_id: string | null
+          plan_id: string | null
+          product_id: string | null
+          qty: number | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          description: string
+          external_ref?: string | null
+          fulfilled?: boolean
+          id?: string
+          items?: Json | null
+          kind: string
+          metadata?: Json | null
+          payment_request_id?: string | null
+          plan_id?: string | null
+          product_id?: string | null
+          qty?: number | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          description?: string
+          external_ref?: string | null
+          fulfilled?: boolean
+          id?: string
+          items?: Json | null
+          kind?: string
+          metadata?: Json | null
+          payment_request_id?: string | null
+          plan_id?: string | null
+          product_id?: string | null
+          qty?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clip_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "token_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clip_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_rate_tiers: {
         Row: {
           coach_id: string
