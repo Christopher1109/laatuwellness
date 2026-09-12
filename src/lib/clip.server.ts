@@ -124,7 +124,7 @@ export function getClipErrorMessage(error: unknown): string {
 }
 
 export async function fulfillClipOrder(supabaseAdmin: any, order: any) {
-  const externalRef = order["external_ref"] ?? `clip_${order["payment_request_id"]};
+  const externalRef = order["external_ref"] ?? `clip_${order["payment_request_id"]}`;
 
   if (order["kind"] === "plan") {
     const { error } = await (supabaseAdmin.rpc as any)("fulfill_plan_purchase", {
