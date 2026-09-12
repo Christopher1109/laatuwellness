@@ -2810,6 +2810,122 @@ function CouponRedemptionsRow({ couponId }: { couponId: string }) {
   );
 }
 
+// ============================================================================
+// Solicitudes de membresía: como Clip no tiene API de suscripciones, una
+// membresía comprada en línea no se cobra sola -- el cliente manda una
+// solicitud, el staff la inscribe a mano en Pagos Recurrentes de Clip, y
+// aquí la marca como completada para que se activen sus créditos.
+// ============================================================================
+export function MembershipRequestsPanel() {
+  const qc = useQueryClient();
+  const { staffProfile } = useAuth();
+  const [filter, setFilter] = useState<"pendiente" | "todas">("pendiente");
+
+  const { data } = useQuery({
+    queryKey: ["membership-requests"],
+    queryFn: async () => {
+      const { data: requests, error } = await (supabase.from as any)("membership_requests")
+        .select("*")
+        .order("requested_at", { ascending: false });
+      if (error) throw error;
+      const rows = (requests ?? []) as {
+        id: string;
+        user_id: string;
+        plan_id: string;
+        status: string;
+        requested_at: string;
+      }[];
+      const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+      const planIds = Array.from(new Set(rows.map((r) => r.plan_id)));
+      const { data: profiles } = userIds.length
+        ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
+        : { data: [] as { id: string; full_name: string; email: string }[] };
+      const { data: plans } = planIds.length
+        ? await supabase.from("token_plans").select("id, name, price_cents").in("id", planIds)
+        : { data: [] as { id: string; name: string; price_cents: number }[] };
+      return rows.map((r) => ({
+        ...r,
+        profile: profiles?.find((p) => p.id === r.user_id),
+        plan: plans?.find((p) => p.id === r.plan_id),
+      }));
+    },
+  });
+
+  const complete = useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await (supabase.rpc as any)("complete_membership_request", {
+        _request_id: requestId,
+        _staff_id: staffProfile?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Membresía activada.");
+      void qc.invalidateQueries({ queryKey: ["membership-requests"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo completar."),
+  });
+
+  const visible = (data ?? []).filter((r) => (filter === "pendiente" ? r.status === "pendiente" : true));
+
+  return (
+    <div>
+      <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
+        Cuando alguien solicita una membresía en línea, aparece aquí. Inscríbela primero en{" "}
+        <strong>Pagos Recurrentes</strong> desde el dashboard de Clip (con la tarjeta de la
+        persona), y hasta entonces márcala como completada — eso es lo que le da sus créditos en
+        Läätu.
+      </p>
+      <div className="mb-4 flex gap-1.5">
+        {(["pendiente", "todas"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${filter === f ? "border-foreground bg-foreground text-background" : "border-input"}`}
+          >
+            {f === "pendiente" ? "Pendientes" : "Todas"}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((r) => (
+          <div key={r.id} className="border border-border p-4">
+            <p className="text-sm font-medium">{r.profile?.full_name || r.profile?.email}</p>
+            <p className="text-xs text-muted-foreground">{r.profile?.email}</p>
+            <p className="mt-2 text-sm">{r.plan?.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {money(r.plan?.price_cents ?? 0)} / mes
+            </p>
+            <p className="mt-2 text-[0.65rem] text-muted-foreground">
+              Solicitada:{" "}
+              {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
+                new Date(r.requested_at),
+              )}
+            </p>
+            {r.status === "pendiente" ? (
+              <button
+                onClick={() => complete.mutate(r.id)}
+                disabled={complete.isPending}
+                className="mt-3 w-full bg-foreground px-3 py-2 text-[0.62rem] uppercase tracking-[0.1em] text-background disabled:opacity-50"
+              >
+                Ya la inscribí en Clip — activar
+              </button>
+            ) : (
+              <span className="mt-3 inline-block bg-emerald-500/10 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] text-emerald-700">
+                Inscrita
+              </span>
+            )}
+          </div>
+        ))}
+        {visible.length === 0 ? (
+          <p className="col-span-full text-muted-foreground">Sin solicitudes en este filtro.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);

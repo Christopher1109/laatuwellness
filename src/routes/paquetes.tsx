@@ -62,6 +62,7 @@ function Paquetes() {
     price_cents: number;
     tokens: number;
     currency?: string;
+    recurring?: boolean;
   } | null>(null);
 
   const { data: plans, isLoading } = useQuery({
@@ -99,6 +100,7 @@ function Paquetes() {
       price_cents: p.price_cents,
       tokens: p.tokens,
       currency: p.currency ?? "MXN",
+      recurring: p.recurring ?? false,
     });
   };
 
