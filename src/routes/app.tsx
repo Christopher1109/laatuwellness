@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import {
   BadgeCheck,
   CalendarDays,
@@ -20,8 +19,7 @@ import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
-import { getStripe, getStripeEnvironment } from "@/lib/stripe";
-import { createMerchCartCheckoutSession } from "@/utils/payments.functions";
+import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
