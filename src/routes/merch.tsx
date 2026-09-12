@@ -1,13 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+import { toast } from "sonner";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
-import { PaymentTestModeBanner } from "@/components/payments/PaymentTestModeBanner";
-import { getStripe, getStripeEnvironment } from "@/lib/stripe";
-import { createMerchCheckoutSession } from "@/utils/payments.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { createMerchClipCheckout } from "@/utils/clip.functions";
 
 export const Route = createFileRoute("/merch")({
   head: () => ({
@@ -39,48 +37,10 @@ type Product = {
   description: string | null;
 };
 
-function MerchEmbeddedCheckout({
-  product,
-  qty,
-  userEmail,
-  userId,
-}: {
-  product: Product;
-  qty: number;
-  userEmail?: string;
-  userId?: string;
-}) {
-  const fetchClientSecret = async (): Promise<string> => {
-    const result = await createMerchCheckoutSession({
-      data: {
-        productId: product.id,
-        productName: product.name,
-        priceCents: product.price_cents,
-        qty,
-        ...(userEmail ? { customerEmail: userEmail } : {}),
-        ...(userId ? { userId } : {}),
-        returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-        environment: getStripeEnvironment(),
-      },
-    });
-    if ("error" in result) throw new Error(result.error);
-    if (!result.clientSecret) throw new Error("Stripe no devolvió un client secret");
-    return result.clientSecret;
-  };
-
-  return (
-    <div id="checkout" className="max-h-[55vh] overflow-y-auto">
-      <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
-        <EmbeddedCheckout />
-      </EmbeddedCheckoutProvider>
-    </div>
-  );
-}
-
 function Merch() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [buying, setBuying] = useState<{ product: Product; qty: number } | null>(null);
+  const [paying, setPaying] = useState<string | null>(null);
   const [qtyByProduct, setQtyByProduct] = useState<Record<string, number>>({});
 
   const { data: products, isLoading } = useQuery({
@@ -100,12 +60,31 @@ function Merch() {
     },
   });
 
-  const handleBuyClick = (p: Product) => {
+  const handleBuy = async (product: Product, qty: number) => {
     if (!user) {
       navigate({ to: "/auth" });
       return;
     }
-    setBuying({ product: p, qty: qtyByProduct[p.id] ?? 1 });
+    setPaying(product.id);
+    try {
+      const result = await createMerchClipCheckout({
+        data: {
+          productId: product.id,
+          productName: product.name,
+          priceCents: product.price_cents,
+          qty,
+          origin: window.location.origin,
+        },
+      });
+      if (result.paymentUrl) {
+        window.location.href = result.paymentUrl;
+      } else {
+        throw new Error("Clip no devolvió un link de pago.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo iniciar el pago.");
+      setPaying(null);
+    }
   };
 
   return (
@@ -129,6 +108,7 @@ function Merch() {
               {(products ?? []).map((p) => {
                 const qty = qtyByProduct[p.id] ?? 1;
                 const outOfStock = p.stock <= 0;
+                const busy = paying === p.id;
                 return (
                   <div key={p.id} className="flex flex-col bg-background p-6 sm:p-7">
                     <div className="constellation grain flex aspect-square items-center justify-center bg-muted">
@@ -177,10 +157,11 @@ function Merch() {
                           )}
                         </select>
                         <button
-                          onClick={() => handleBuyClick(p)}
-                          className="flex-1 bg-foreground px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85"
+                          onClick={() => handleBuy(p, qty)}
+                          disabled={busy}
+                          className="flex-1 bg-foreground px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85 disabled:opacity-50"
                         >
-                          Comprar
+                          {busy ? "Preparando…" : "Comprar"}
                         </button>
                       </div>
                     )}
@@ -195,40 +176,6 @@ function Merch() {
           </p>
         </div>
       </section>
-
-      {buying ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
-          onClick={() => setBuying(null)}
-        >
-          <div className="w-full max-w-2xl bg-background" onClick={(e) => e.stopPropagation()}>
-            <PaymentTestModeBanner />
-            <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-              <div>
-                <p className="eyebrow">Pago seguro</p>
-                <h3 className="mt-2 text-lg">
-                  {buying.product.name} · {buying.qty}× ·{" "}
-                  {money(buying.product.price_cents * buying.qty)}
-                </h3>
-              </div>
-              <button
-                onClick={() => setBuying(null)}
-                className="border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em]"
-              >
-                Cerrar
-              </button>
-            </div>
-            <div className="p-4 sm:p-6">
-              <MerchEmbeddedCheckout
-                product={buying.product}
-                qty={buying.qty}
-                {...(user?.email ? { userEmail: user.email } : {})}
-                {...(user?.id ? { userId: user.id } : {})}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </SiteLayout>
   );
 }
