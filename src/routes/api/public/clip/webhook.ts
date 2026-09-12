@@ -3,7 +3,6 @@ import {
   getClipPaymentStatus,
   fulfillClipOrder,
   isClipPaymentCompleted,
-  mapClipStatus as mapClipStatusInternal,
 } from "@/lib/clip.server";
 
 function mapClipStatus(status: string): string {
