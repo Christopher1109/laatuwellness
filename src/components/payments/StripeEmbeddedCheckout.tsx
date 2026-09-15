@@ -34,7 +34,7 @@ export function StripeEmbeddedCheckout({
   };
 
   return (
-    <div id="checkout" className="max-h-[55vh] overflow-y-auto">
+    <div id="checkout" className="max-h-[70vh] min-h-[24rem] overflow-y-auto">
       <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
         <EmbeddedCheckout />
       </EmbeddedCheckoutProvider>

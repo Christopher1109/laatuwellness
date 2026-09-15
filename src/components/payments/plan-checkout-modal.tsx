@@ -66,7 +66,7 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
+        className="relative w-full max-w-xl overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
