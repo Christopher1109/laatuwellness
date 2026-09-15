@@ -24,11 +24,19 @@ export const Route = createFileRoute("/checkout/return")({
       },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>): { clip_order_id?: string; error?: boolean } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { clip_order_id?: string; session_id?: string; error?: boolean } => {
     const clip_order_id =
       typeof search["clip_order_id"] === "string" ? (search["clip_order_id"] as string) : undefined;
+    const session_id =
+      typeof search["session_id"] === "string" ? (search["session_id"] as string) : undefined;
     const error = search["error"] === "1" || search["error"] === 1;
-    return clip_order_id === undefined ? { error } : { clip_order_id, error };
+    return {
+      ...(clip_order_id !== undefined ? { clip_order_id } : {}),
+      ...(session_id !== undefined ? { session_id } : {}),
+      error,
+    };
   },
   component: CheckoutReturn,
 });
@@ -36,6 +44,9 @@ export const Route = createFileRoute("/checkout/return")({
 function CheckoutReturn() {
   const search = Route.useSearch();
   const orderId = search.clip_order_id;
+  // Stripe (membresías): el webhook aplica la compra por su cuenta: aquí
+  // solo se refresca el saldo, no hay estado que consultar como con Clip.
+  const stripeSessionId = search.session_id;
   const hasError = search.error;
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -66,7 +77,10 @@ function CheckoutReturn() {
   let title = "No encontramos tu pago.";
   let intro = "Si crees que hubo un error, escríbenos por WhatsApp y lo revisamos contigo.";
 
-  if (hasError) {
+  if (stripeSessionId) {
+    title = "Gracias por tu compra.";
+    intro = "Tu membresía se está activando — tus créditos aparecen en tu cuenta en un momento.";
+  } else if (hasError) {
     title = "El pago no se completó.";
     intro = "Puedes intentar de nuevo. Si el cargo ya apareció en tu cuenta, espera unos minutos.";
   } else if (!orderId) {
