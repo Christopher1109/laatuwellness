@@ -44,12 +44,15 @@ export const Route = createFileRoute("/")({
 function Home() {
   const navigate = useNavigate();
 
-  // En celular, la experiencia principal es la app (horarios, reservas,
-  // créditos, tienda) — no esta página informativa. Se detecta por ancho
-  // de pantalla (más confiable entre navegadores que el user-agent) y se
-  // manda directo, sin preguntar.
+  // El modo app (horarios, reservas, créditos, tienda) solo se abre cuando
+  // el sitio se lanza desde el acceso directo instalado en la pantalla de
+  // inicio (PWA standalone). Navegando por internet —aunque sea en celular
+  // y con sesión iniciada— la portada siempre muestra la página web.
   useEffect(() => {
-    if (window.innerWidth < 768) {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (standalone) {
       navigate({ to: "/app", replace: true });
     }
   }, [navigate]);
