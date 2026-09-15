@@ -125,7 +125,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     try {
       const stripe = createStripeClient(data.environment);
 
-      const stripePrice = await stripe.prices.retrieve(data.priceId);
+      // El plan guarda el id legible del precio (lookup_key), estable entre
+      // el entorno de pruebas y el de producción.
+      const prices = await stripe.prices.list({ lookup_keys: [data.priceId], limit: 1 });
+      const stripePrice = prices.data[0] ?? (await stripe.prices.retrieve(data.priceId));
       const isRecurring = stripePrice.type === "recurring";
 
       const customerId =
