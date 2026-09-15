@@ -74,11 +74,11 @@ export function InstallPrompt() {
   return (
     <div
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label="Instalar Läätu"
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-shadow/60 p-4 backdrop-blur-sm sm:items-center"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center p-3 sm:inset-x-auto sm:right-4"
     >
-      <div className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto border border-border bg-background p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_30px_80px_-30px_rgba(39,40,56,0.6)] sm:p-8">
+      <div className="pointer-events-auto relative max-h-[80dvh] w-full max-w-md overflow-y-auto border border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_30px_80px_-30px_rgba(39,40,56,0.6)] sm:p-6">
         <button
           onClick={() => close()}
           aria-label="Cerrar"
