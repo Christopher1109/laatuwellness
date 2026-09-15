@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { BrandLink } from "@/components/brand";
+import { takePostAuthRoute } from "@/hooks/use-standalone";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -42,7 +43,11 @@ type Mode = "in" | "up" | "forgot";
 // Si el correo con el que se inicia sesión pertenece a un usuario
 // administrativo/operativo (staff_profiles), lo mandamos a la zona
 // administrativa en lugar de la zona de cliente ("/cuenta").
-async function resolveLandingRoute(userId: string | undefined): Promise<"/admin" | "/cuenta"> {
+async function resolveLandingRoute(
+  userId: string | undefined,
+): Promise<"/admin" | "/cuenta" | "/app"> {
+  // Si veníamos del acceso directo instalado, regresamos a la app.
+  if (takePostAuthRoute() === "/app") return "/app";
   if (!userId) return "/cuenta";
   const { data } = await supabase
     .from("staff_profiles")
