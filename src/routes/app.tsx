@@ -21,6 +21,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
+import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
 import { cn } from "@/lib/utils";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
