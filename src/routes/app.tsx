@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
+import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
 import { cn } from "@/lib/utils";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
@@ -110,6 +111,25 @@ function AppShell() {
 }
 
 function AppLoginGate() {
+  const navigate = useNavigate();
+  const standalone = useStandalone();
+
+  // Desde el acceso directo instalado no preguntamos nada: la sesión se
+  // guarda en el dispositivo y, si expiró, vamos directo a iniciar sesión.
+  useEffect(() => {
+    if (!standalone) return;
+    rememberPostAuthRoute("/app");
+    navigate({ to: "/auth", replace: true });
+  }, [standalone, navigate]);
+
+  if (standalone) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-foreground text-background">
+        <p className="text-sm text-background/70">Abriendo tu cuenta…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-foreground px-6 text-center text-background">
       <Wordmark tone="ivory" className="h-10" />
