@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { toast } from "sonner";
+import { useState } from "react";
 import { createPlanClipCheckout } from "@/utils/clip.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { StripeEmbeddedCheckout } from "@/components/payments/StripeEmbeddedCheckout";
 
 export interface CheckoutPlan {
   id: string;
@@ -11,12 +11,9 @@ export interface CheckoutPlan {
   currency?: string;
   stripe_price_id?: string | null;
   recurring?: boolean;
-  clip_recurring_link_url?: string | null;
 }
 
-export function planPriceId(plan: {
-  stripe_price_id?: string | null;
-}): string {
+export function planPriceId(plan: { stripe_price_id?: string | null }): string {
   return (plan.stripe_price_id ?? "").trim();
 }
 
@@ -34,11 +31,15 @@ interface PlanCheckoutModalProps {
   onClose: () => void;
 }
 
+// Membresías (cargo mensual recurrente) -> Stripe, que sí cobra
+// automático de verdad. Todo lo demás (paquetes, Align, Contrast) -> Clip,
+// pago único. Ver conversación del 12/sept/2026: Clip no tiene API de
+// suscripciones disponible para la cuenta de Läätu.
 export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProps) {
   const [loading, setLoading] = useState(false);
-  const [requested, setRequested] = useState(false);
+  const priceId = planPriceId(plan);
 
-  const handlePay = async () => {
+  const handleClipPay = async () => {
     if (!user?.id) {
       toast.error("Inicia sesión para comprar.");
       return;
@@ -59,39 +60,9 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
     }
   };
 
-  const handleRequestMembership = async () => {
-    if (!user?.id) {
-      toast.error("Inicia sesión para continuar.");
-      return;
-    }
-    setLoading(true);
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- membership_requests no está en los tipos generados todavía
-      const { error } = await (supabase.from as any)("membership_requests").insert({
-        user_id: user.id,
-        plan_id: plan.id,
-      });
-      if (error) throw error;
-      if (plan.clip_recurring_link_url) {
-        // El link ya existe (uno solo por membresía, reutilizable) -- se
-        // manda a la persona directo a inscribirse con su propia tarjeta,
-        // el staff solo confirma después que sí quedó activa en Clip.
-        window.location.href = plan.clip_recurring_link_url;
-        return;
-      }
-      setRequested(true);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo enviar tu solicitud.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 py-10"
       onClick={onClose}
     >
       <div
@@ -101,7 +72,7 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             <p className="eyebrow text-[0.6rem]">
-              {plan.recurring ? "Membresía" : "Pago seguro con Clip"}
+              {plan.recurring ? "Membresía · pago seguro con Stripe" : "Pago seguro con Clip"}
             </p>
             <h3 className="mt-1 truncate text-base font-medium">
               {plan.name} · {money(plan.price_cents, plan.currency ?? "MXN")}
@@ -120,39 +91,28 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
         </div>
         <div className="p-4 sm:p-6">
           {plan.recurring ? (
-            requested ? (
-              <p className="text-sm text-muted-foreground">
-                ¡Listo! Un miembro del equipo te va a contactar en las próximas horas para
-                completar tu inscripción y activar el cobro automático mensual.
-              </p>
+            priceId ? (
+              <StripeEmbeddedCheckout
+                priceId={priceId}
+                planId={plan.id}
+                {...(user?.email ? { customerEmail: user.email } : {})}
+                {...(user?.id ? { userId: user.id } : {})}
+                returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
+              />
             ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  {plan.clip_recurring_link_url
-                    ? "Al continuar, te vamos a mandar directo a inscribir tu tarjeta para el cobro automático mensual."
-                    : "Las membresías se inscriben directamente contigo para activar el cobro automático mensual. Envía tu solicitud y el equipo de Läätu te contacta para completarla."}
-                </p>
-                <button
-                  onClick={handleRequestMembership}
-                  disabled={loading}
-                  className="mt-5 w-full bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85 disabled:opacity-50"
-                >
-                  {loading
-                    ? "Un momento…"
-                    : plan.clip_recurring_link_url
-                      ? "Continuar mi inscripción"
-                      : "Solicitar membresía"}
-                </button>
-              </>
+              <p className="text-sm text-muted-foreground">
+                Esta membresía todavía no tiene un precio de Stripe configurado. Contacta al
+                equipo de Läätu para inscribirte.
+              </p>
             )
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Serás redirigido a Clip para completar tu pago con tarjeta. Al volver,
-                tus créditos se acreditarán automáticamente.
+                Serás redirigido a Clip para completar tu pago con tarjeta. Al volver, tus
+                créditos se acreditarán automáticamente.
               </p>
               <button
-                onClick={handlePay}
+                onClick={handleClipPay}
                 disabled={loading}
                 className="mt-5 w-full bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background transition-opacity hover:opacity-85 disabled:opacity-50"
               >

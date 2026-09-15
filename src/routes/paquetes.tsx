@@ -63,7 +63,7 @@ function Paquetes() {
     tokens: number;
     currency?: string;
     recurring?: boolean;
-    clip_recurring_link_url?: string | null;
+    stripe_price_id?: string | null;
   } | null>(null);
 
   const { data: plans, isLoading } = useQuery({
@@ -102,9 +102,8 @@ function Paquetes() {
       tokens: p.tokens,
       currency: p.currency ?? "MXN",
       recurring: p.recurring ?? false,
-      clip_recurring_link_url:
-        (p as unknown as { clip_recurring_link_url?: string | null }).clip_recurring_link_url ??
-        null,
+      stripe_price_id:
+        (p as unknown as { stripe_price_id?: string | null }).stripe_price_id ?? null,
     });
   };
 

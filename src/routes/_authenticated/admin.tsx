@@ -19,7 +19,6 @@ import {
   Ticket,
   ClipboardCheck,
 } from "lucide-react";
-import { BadgeCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminShell, type AdminNavGroup } from "@/components/admin/admin-shell";
@@ -42,7 +41,6 @@ import {
   CheckInPanel,
   MerchPanel,
   GoodesPanel,
-  MembershipRequestsPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -94,7 +92,6 @@ function Admin() {
           label: "Negocio",
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
-            { key: "solicitudes-membresia", label: "Solicitudes de membresía", icon: BadgeCheck },
             { key: "merch", label: "Merch", icon: PackageOpen },
             { key: "goodes", label: "Goodes", icon: Tag },
             { key: "cupones", label: "Cupones", icon: Ticket },
@@ -222,7 +219,6 @@ function Admin() {
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? <PackagesPanel readOnly={!isAdmin} /> : null}
-      {activeKey === "solicitudes-membresia" ? <MembershipRequestsPanel /> : null}
       {activeKey === "merch" ? <MerchPanel /> : null}
       {activeKey === "goodes" ? <GoodesPanel /> : null}
       {activeKey === "cupones" ? <CouponsPanel readOnly={!isAdmin} /> : null}
