@@ -316,7 +316,9 @@ export function PageHeader({
           {title}
         </h1>
         {intro ? (
-          <p className="rise mt-6 max-w-xl text-base text-muted-foreground">{intro}</p>
+          <p className="rise mt-6 max-w-xl whitespace-pre-line text-base text-muted-foreground">
+            {intro}
+          </p>
         ) : null}
       </div>
     </section>

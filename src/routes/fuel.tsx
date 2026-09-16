@@ -127,23 +127,14 @@ function Fuel() {
             <p className="eyebrow">Smoothies</p>
             <ul className="mt-4 divide-y divide-border">
               {SMOOTHIES.map((s) => (
-                <li key={s.nombre} className="flex items-baseline justify-between gap-4 py-3">
-                  <div>
-                    <span className="text-base">{s.nombre}</span>
-                    <span className="ml-3 text-xs text-muted-foreground">{s.desc}</span>
-                  </div>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
-                    {money(s.precio)}
-                  </span>
+                <li key={s.nombre} className="py-3">
+                  <span className="text-base">{s.nombre}</span>
+                  <span className="ml-3 text-xs text-muted-foreground">{s.desc}</span>
                 </li>
               ))}
-              {SMOOTHIE_ADDONS.map(([nombre, precio]) => (
-                <li
-                  key={nombre}
-                  className="flex items-center justify-between gap-4 py-3 text-sm text-muted-foreground"
-                >
-                  <span>+ {nombre}</span>
-                  <span className="font-mono tabular-nums">{precio}</span>
+              {SMOOTHIE_ADDONS.map(([nombre]) => (
+                <li key={nombre} className="py-3 text-sm text-muted-foreground">
+                  + {nombre}
                 </li>
               ))}
             </ul>
@@ -153,34 +144,20 @@ function Fuel() {
             <p className="eyebrow">Coffee &amp; Matcha</p>
             <ul className="mt-4 divide-y divide-border">
               {COFFEE.map((c) => (
-                <li key={c.nombre} className="flex items-baseline justify-between gap-4 py-3">
-                  <div>
-                    <span className="text-base">{c.nombre}</span>
-                    <span className="ml-3 text-xs text-muted-foreground">{c.modo}</span>
-                  </div>
-                  <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
-                    {money(c.precio)}
-                  </span>
+                <li key={c.nombre} className="py-3">
+                  <span className="text-base">{c.nombre}</span>
+                  <span className="ml-3 text-xs text-muted-foreground">{c.modo}</span>
                 </li>
               ))}
-              {COFFEE_ADDONS.map(([nombre, precio]) => (
-                <li
-                  key={nombre}
-                  className="flex items-center justify-between gap-4 py-3 text-sm text-muted-foreground"
-                >
-                  <span>+ {nombre}</span>
-                  <span className="font-mono tabular-nums">{precio}</span>
+              {COFFEE_ADDONS.map(([nombre]) => (
+                <li key={nombre} className="py-3 text-sm text-muted-foreground">
+                  + {nombre}
                 </li>
               ))}
             </ul>
             <p className="mt-4 text-xs text-muted-foreground">Leches: {LECHES}</p>
           </div>
           </div>
-
-
-          <p className="mt-10 text-center font-mono text-[0.65rem] uppercase tracking-[0.22em] text-muted-foreground">
-            Precios en MXN · disponibilidad en el estudio
-          </p>
         </div>
       </section>
 
