@@ -41,6 +41,7 @@ import {
   CheckInPanel,
   MerchPanel,
   GoodesPanel,
+  SchedulePlannerPanel,
   input,
 } from "@/components/admin/ops-panels";
 
@@ -71,6 +72,7 @@ function Admin() {
         {
           label: "Operación",
           items: [
+            { key: "programacion", label: "Programación de clases", icon: CalendarDays },
             { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
             { key: "check-in", label: "Check-in", icon: ClipboardCheck },
@@ -200,6 +202,7 @@ function Admin() {
         />
       ) : null}
 
+      {activeKey === "programacion" ? <SchedulePlannerPanel /> : null}
       {activeKey === "horarios-clases" ? (
         <AdminSchedulePanel
           modules={focusModule ? [focusModule] : [...CLASS_MODULES]}

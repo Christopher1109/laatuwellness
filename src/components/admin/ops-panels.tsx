@@ -4411,6 +4411,321 @@ export function TimeClockPanel() {
 // COACHES — vista admin: elige un coach y ve sus clases de hoy/semana/mes y
 // cuántas reservaciones ha tenido.
 // ============================================================================
+// ============================================================================
+// Programación de clases: plantilla semanal tipo hoja de cálculo. Cada
+// celda (hora x día) se asigna a un coach y se colorea según quién es.
+// Al publicar, genera las clases reales de las próximas semanas.
+// ============================================================================
+const SCHEDULE_MODULES = [
+  { key: "reformer", label: "Reformer" },
+  { key: "4mat", label: "4mat" },
+  { key: "rehabilitacion", label: "Consultorio (DorisFisio)" },
+] as const;
+
+const WEEKDAY_LABELS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+const CELL_COLORS = [
+  "bg-rose-200 text-rose-900",
+  "bg-sky-200 text-sky-900",
+  "bg-amber-200 text-amber-900",
+  "bg-emerald-200 text-emerald-900",
+  "bg-violet-200 text-violet-900",
+  "bg-orange-200 text-orange-900",
+  "bg-teal-200 text-teal-900",
+  "bg-pink-200 text-pink-900",
+  "bg-lime-200 text-lime-900",
+  "bg-cyan-200 text-cyan-900",
+];
+
+function colorForCoach(coachId: string | null, rotation: boolean, coachIds: string[]) {
+  if (rotation) return "bg-slate-300 text-slate-800";
+  if (!coachId) return "bg-background text-muted-foreground";
+  const idx = coachIds.indexOf(coachId);
+  return CELL_COLORS[idx % CELL_COLORS.length];
+}
+
+type TemplateRow = {
+  id: string;
+  module_key: string;
+  weekday: number;
+  start_time: string;
+  coach_id: string | null;
+  is_rotation: boolean;
+  room: string;
+  capacity: number;
+  duration_min: number;
+};
+
+export function SchedulePlannerPanel() {
+  const qc = useQueryClient();
+  const [moduleKey, setModuleKey] = useState<string>("reformer");
+  const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
+  const [newTime, setNewTime] = useState("");
+  const [weeksToPublish, setWeeksToPublish] = useState(4);
+
+  const { data: templates } = useQuery({
+    queryKey: ["schedule-templates", moduleKey],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("schedule_templates")
+        .select("*")
+        .eq("module_key", moduleKey)
+        .order("start_time");
+      if (error) throw error;
+      return data as TemplateRow[];
+    },
+  });
+
+  const { data: coaches } = useQuery({
+    queryKey: ["schedule-planner-coaches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("id, full_name")
+        .eq("role", "coach")
+        .eq("active", true)
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const coachIds = useMemo(() => (coaches ?? []).map((c) => c.id), [coaches]);
+  const coachName = (id: string | null) =>
+    (coaches ?? []).find((c) => c.id === id)?.full_name ?? "";
+
+  const times = useMemo(
+    () => Array.from(new Set((templates ?? []).map((t) => t.start_time.slice(0, 5)))).sort(),
+    [templates],
+  );
+
+  const cellFor = (weekday: number, time: string) =>
+    (templates ?? []).find((t) => t.weekday === weekday && t.start_time.slice(0, 5) === time);
+
+  const upsert = useMutation({
+    mutationFn: async (row: {
+      weekday: number;
+      time: string;
+      coach_id: string | null;
+      is_rotation: boolean;
+    }) => {
+      const { error } = await (supabase.from as any)("schedule_templates").upsert(
+        {
+          module_key: moduleKey,
+          weekday: row.weekday,
+          start_time: row.time,
+          coach_id: row.coach_id,
+          is_rotation: row.is_rotation,
+          room: SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label ?? "",
+          capacity: moduleKey === "rehabilitacion" ? 1 : 10,
+          duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
+        },
+        { onConflict: "module_key,weekday,start_time" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setEditingCell(null);
+      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeCell = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase.from as any)("schedule_templates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setEditingCell(null);
+      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+    },
+  });
+
+  const publish = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("publish_schedule_template", {
+        _module_key: moduleKey,
+        _weeks: weeksToPublish,
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (created) => {
+      toast.success(`Listo: ${created} clases nuevas generadas.`);
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo publicar."),
+  });
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {SCHEDULE_MODULES.map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => setModuleKey(m.key)}
+            className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${moduleKey === m.key ? "border-foreground bg-foreground text-background" : "border-input"}`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
+        Arma el patrón de la semana una vez: cada celda es un coach asignado a esa hora y día.
+        Cuando esté listo, dale a "Publicar" para generar las clases reales de las próximas
+        semanas — es seguro darle varias veces, no duplica lo que ya existe.
+      </p>
+
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <th className="w-20 px-3 py-2 text-left text-[0.65rem] uppercase text-muted-foreground">
+                Hora
+              </th>
+              {WEEKDAY_LABELS.map((d) => (
+                <th
+                  key={d}
+                  className="px-2 py-2 text-left text-[0.65rem] uppercase text-muted-foreground"
+                >
+                  {d}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {times.map((time) => (
+              <tr key={time} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 font-mono text-xs">{time}</td>
+                {WEEKDAY_LABELS.map((_, weekday) => {
+                  const cell = cellFor(weekday, time);
+                  const isEditing =
+                    editingCell?.weekday === weekday && editingCell?.time === time;
+                  return (
+                    <td key={weekday} className="p-1 align-top">
+                      {isEditing ? (
+                        <div className="flex flex-col gap-1 border border-foreground bg-background p-1.5">
+                          <select
+                            className="text-xs"
+                            defaultValue={cell?.is_rotation ? "rotation" : (cell?.coach_id ?? "")}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "clear") {
+                                if (cell) removeCell.mutate(cell.id);
+                                else setEditingCell(null);
+                                return;
+                              }
+                              upsert.mutate({
+                                weekday,
+                                time,
+                                coach_id: v === "rotation" ? null : v || null,
+                                is_rotation: v === "rotation",
+                              });
+                            }}
+                          >
+                            <option value="">— vacío —</option>
+                            <option value="rotation">Rotación (fin de semana)</option>
+                            {(coaches ?? []).map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.full_name}
+                              </option>
+                            ))}
+                            {cell ? <option value="clear">Quitar celda</option> : null}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCell(null)}
+                            className="text-[0.6rem] uppercase text-muted-foreground"
+                          >
+                            Cerrar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingCell({ weekday, time })}
+                          className={cn(
+                            "flex h-12 w-full items-center justify-center px-1 text-center text-[0.7rem] leading-tight transition-opacity hover:opacity-80",
+                            colorForCoach(cell?.coach_id ?? null, cell?.is_rotation ?? false, coachIds),
+                          )}
+                        >
+                          {cell?.is_rotation
+                            ? "Rotación"
+                            : cell?.coach_id
+                              ? coachName(cell.coach_id)
+                              : cell
+                                ? "Pendiente"
+                                : ""}
+                        </button>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {times.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
+                  Sin horas configuradas todavía para {SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label}.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="text-xs">
+          <span className="eyebrow">Agregar hora nueva</span>
+          <input
+            type="time"
+            value={newTime}
+            onChange={(e) => setNewTime(e.target.value)}
+            className={`${input} w-32`}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={!newTime}
+          onClick={() => {
+            setEditingCell({ weekday: 0, time: newTime });
+            setNewTime("");
+          }}
+          className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
+        >
+          + Agregar renglón de hora
+        </button>
+      </div>
+
+      <div className="mt-8 flex flex-wrap items-end gap-3 border-t border-border pt-6">
+        <label className="text-xs">
+          <span className="eyebrow">Publicar próximas</span>
+          <select
+            value={weeksToPublish}
+            onChange={(e) => setWeeksToPublish(Number(e.target.value))}
+            className={`${input} w-28`}
+          >
+            {[2, 4, 6, 8].map((n) => (
+              <option key={n} value={n}>
+                {n} semanas
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => publish.mutate()}
+          disabled={publish.isPending}
+          className="bg-foreground px-5 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+        >
+          {publish.isPending ? "Publicando…" : "Publicar horario"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function CoachesPanel() {
   const { data: coaches } = useQuery({
     queryKey: ["admin-coaches-list"],
