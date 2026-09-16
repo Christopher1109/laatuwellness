@@ -26,6 +26,14 @@ export const Route = createFileRoute("/programas/")({
   component: Programas,
 });
 
+const PROGRAM_BULLETS: Record<string, string[]> = {
+  reformer: ["Trabajo de fuerza, control y movilidad sobre reformer.", "Capacidad 10 personas."],
+  "4mat": [
+    "Clase de piso en 4mat de fuerza funcional, movilidad o yoga.",
+    "Capacidad 10 personas.",
+  ],
+};
+
 function Programas() {
   const { data } = useQuery({
     queryKey: ["site-modules"],
@@ -48,7 +56,7 @@ function Programas() {
       <PageHeader
         eyebrow="Programas"
         title="Elige por dónde empezar."
-        intro="Cada programa tiene su propio horario y su propio paquete de sesiones. Entra, revisa los cupos y reserva."
+        intro={"Cada programa tiene su propio horario y su propio paquete de sesiones.\nEntra, revisa los cupos y reserva."}
       />
 
       <section className="relative overflow-hidden border-b border-border">
@@ -67,9 +75,19 @@ function Programas() {
                   <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} className="mt-1" />
                   <span>
                     <span className="block text-xl">{m.name}</span>
-                    <span className="mt-3 block text-sm text-muted-foreground">
-                      {m.description}
-                    </span>
+                    {PROGRAM_BULLETS[m.key] ? (
+                      <span className="mt-3 block space-y-1 text-sm text-muted-foreground">
+                        {PROGRAM_BULLETS[m.key]!.map((line) => (
+                          <span key={line} className="block">
+                            · {line}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="mt-3 block text-sm text-muted-foreground">
+                        {m.description}
+                      </span>
+                    )}
                     <span className="mt-5 block text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground group-hover:text-foreground">
                       Ver horarios →
                     </span>

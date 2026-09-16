@@ -17,6 +17,14 @@ import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
 const editorial2 = "/foto-editorial/laatu-editorial-2.jpg";
 const editorial3 = "/foto-editorial/laatu-editorial-3.jpg";
+
+const PROGRAM_BULLETS: Record<string, string[]> = {
+  reformer: ["Trabajo de fuerza, control y movilidad sobre reformer.", "Capacidad 10 personas."],
+  "4mat": [
+    "Clase de piso en 4mat de fuerza funcional, movilidad o yoga.",
+    "Capacidad 10 personas.",
+  ],
+};
 void foto1;
 
 export const Route = createFileRoute("/")({
@@ -85,8 +93,7 @@ function Home() {
               del camino.
             </h1>
             <p className="rise mt-6 max-w-md text-base text-muted-foreground sm:mt-8 sm:text-lg">
-              Pilates Reformer, clases en Mat y recuperación en un mismo lugar. Diez personas
-              por salón.
+              Pilates Reformer, clases en Mat y recuperación en un mismo lugar.
             </p>
             <div className="rise mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:flex sm:flex-wrap">
               <Link
@@ -188,7 +195,15 @@ function Home() {
                 >
                   <BirdBadge variant={((i % 3) + 1) as 1 | 2 | 3} />
                   <h3 className="mt-6 text-xl">{m.name}</h3>
-                  <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
+                  {PROGRAM_BULLETS[m.key] ? (
+                    <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      {PROGRAM_BULLETS[m.key]!.map((line) => (
+                        <li key={line}>· {line}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">{m.description}</p>
+                  )}
                   <span className="mt-auto pt-6 text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground transition-colors group-hover:text-foreground">
                     Ver horarios →
                   </span>
@@ -224,11 +239,11 @@ function Home() {
 
           <div className="mt-12 grid gap-px bg-current/15 sm:mt-16 md:grid-cols-3">
             {[
-              ["01", "Smoothies", "Blush, Indigo, Lift y Verde. Preparados al momento, $125."],
+              ["01", "Smoothies", "Blush, Indigo, Lift y Verde. Preparados al momento."],
               [
                 "02",
                 "Coffee & Matcha",
-                "Latte, capu, flat, brew y matcha. Leches vegetales sin costo extra.",
+                "Latte, capu, flat, brew y matcha. Leches vegetales disponibles.",
               ],
               ["03", "Add-ons", "Proteína, colágeno y jarabes de temporada."],
             ].map(([num, titulo, desc]) => (
@@ -241,7 +256,7 @@ function Home() {
           </div>
 
           <p className="mt-10 max-w-xl font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
-            Fuel vive dentro del estudio · pide lo que se te antoje
+            Fuel vive dentro del estudio
           </p>
         </div>
       </section>

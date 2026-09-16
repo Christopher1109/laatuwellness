@@ -95,7 +95,7 @@ export function InstallPrompt() {
 
         <p className="eyebrow mt-6">Läätu en tu bolsillo</p>
         <h2 className="statement mt-3 text-[1.4rem] leading-tight sm:text-[1.7rem]">
-          Tennos en la comodidad de tu mano.
+          En la comodidad de tu mano.
         </h2>
         <p className="mt-4 text-sm text-muted-foreground">
           Agrega Läätu a tu pantalla de inicio y reserva tus clases en un toque, sin abrir el
