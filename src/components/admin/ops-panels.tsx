@@ -1300,6 +1300,7 @@ export function DashboardPanel({
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("active", true)
         .gte("starts_at", todayBounds.start.toISOString())
         .lt("starts_at", todayBounds.end.toISOString())
         .order("starts_at");
