@@ -126,53 +126,106 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
     },
   });
 
+  // Agrupado por día para que el horario se lea como una agenda y no como
+  // una lista corrida de fechas repetidas.
+  const grupos = (() => {
+    const map = new Map<string, ClassRow[]>();
+    for (const c of classes ?? []) {
+      const key = new Intl.DateTimeFormat("es-MX", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(new Date(c.starts_at));
+      map.set(key, [...(map.get(key) ?? []), c]);
+    }
+    return [...map.entries()];
+  })();
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/70 p-4 py-10 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div className="w-full max-w-lg bg-background" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
-            <p className="eyebrow">Próximos 7 días</p>
-            <h3 className="mt-2 text-lg">{coach.name}</h3>
+      <div
+        className="w-full max-w-xl border border-border bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/40 px-6 py-5 sm:px-8">
+          <div className="flex items-center gap-4">
+            <div className="hidden h-14 w-14 shrink-0 overflow-hidden bg-muted sm:block">
+              {coach.image_url ? (
+                <img
+                  src={coach.image_url}
+                  alt={coach.name}
+                  className="h-full w-full object-cover grayscale"
+                />
+              ) : (
+                <BirdBadge variant={2} size="sm" />
+              )}
+            </div>
+            <div>
+              <p className="eyebrow">Próximos 7 días</p>
+              <h3 className="mt-1.5 text-lg leading-tight">{coach.name}</h3>
+              {coach.specialty ? (
+                <p className="text-xs text-muted-foreground">{coach.specialty}</p>
+              ) : null}
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em]"
+            aria-label="Cerrar"
+            className="shrink-0 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
           >
             Cerrar
           </button>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto p-6">
+        <div className="max-h-[62vh] overflow-y-auto px-6 py-2 sm:px-8">
           {!staffMatch ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="py-8 text-sm text-muted-foreground">
               Todavía no hay horario público para {coach.name}.
             </p>
           ) : isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
-          ) : (classes ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="py-8 text-sm text-muted-foreground">Cargando…</p>
+          ) : grupos.length === 0 ? (
+            <p className="py-8 text-sm text-muted-foreground">
               Sin clases programadas en los próximos 7 días.
             </p>
           ) : (
-            <ul className="divide-y divide-border">
-              {(classes ?? []).map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-4 py-3 text-sm">
-                  <span>
-                    {new Intl.DateTimeFormat("es-MX", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    }).format(new Date(c.starts_at))}
-                  </span>
-                  <span className="text-muted-foreground">{c.room}</span>
-                </li>
-              ))}
-            </ul>
+            grupos.map(([dia, items]) => (
+              <div key={dia} className="py-4">
+                <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
+                  {dia}
+                </p>
+                <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {items.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 border border-border px-4 py-3"
+                    >
+                      <span className="text-base tabular-nums">
+                        {new Intl.DateTimeFormat("es-MX", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        }).format(new Date(c.starts_at))}
+                      </span>
+                      <span className="truncate text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        {c.room}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
           )}
+        </div>
+        <div className="border-t border-border px-6 py-4 sm:px-8">
+          <a
+            href="/horarios"
+            className="inline-block bg-foreground px-5 py-2.5 text-[0.66rem] uppercase tracking-[0.16em] text-background"
+          >
+            Reservar un lugar
+          </a>
         </div>
       </div>
     </div>
