@@ -4554,13 +4554,11 @@ export function SchedulePlannerPanel() {
   const coachName = (id: string | null) =>
     (coaches ?? []).find((c) => c.id === id)?.full_name ?? "";
 
-  const times = useMemo(
-    () =>
-      Array.from(
-        new Set([...(templates ?? []).map((t) => t.start_time.slice(0, 5)), ...extraTimes]),
-      ).sort(),
-    [templates, extraTimes],
-  );
+  const times = useMemo(() => {
+    const own = (templates ?? []).map((t) => t.start_time.slice(0, 5));
+    const inherited = own.length === 0 ? (prevTemplates ?? []).map((t) => t.start_time.slice(0, 5)) : [];
+    return Array.from(new Set([...own, ...inherited, ...extraTimes])).sort();
+  }, [templates, prevTemplates, extraTimes]);
 
   const cellFor = (weekday: number, time: string) =>
     (templates ?? []).find((t) => t.weekday === weekday && t.start_time.slice(0, 5) === time);
@@ -4767,10 +4765,10 @@ export function SchedulePlannerPanel() {
       </div>
 
       <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
-        Arma el patrón del mes: cada celda es un coach asignado a esa hora y día, y se repite en
-        todas las semanas del mes. Muévete entre meses con las flechas; cada mes empieza en blanco
-        y no afecta a los demás. Cuando termines, dale a "Actualizar clases" para aplicar los
-        cambios a las clases reales de ese mes.
+        Muévete semana por semana con las flechas, incluso al mes siguiente. Las horas se respetan
+        de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios
+        en blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar
+        los cambios a las clases reales de ese mes.
       </p>
 
       {monthIsEmpty && monthCursor >= new Date(now.getFullYear(), now.getMonth(), 1) ? (
