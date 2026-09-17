@@ -4713,7 +4713,28 @@ export function SchedulePlannerPanel() {
           <tbody>
             {times.map((time) => (
               <tr key={time} className="border-b border-border last:border-0">
-                <td className="h-14 px-3 font-mono text-xs">{time}</td>
+                <td className="h-14 px-3 font-mono text-xs">
+                  <div className="flex items-center justify-between gap-1">
+                    <span>{time}</span>
+                    <button
+                      type="button"
+                      title="Eliminar esta hora"
+                      aria-label={`Eliminar la hora ${time}`}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `¿Eliminar la hora ${time} de todos los días de este patrón?`,
+                          )
+                        ) {
+                          removeTimeRow.mutate(time);
+                        }
+                      }}
+                      className="px-1 text-sm leading-none text-muted-foreground hover:text-destructive"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
                   const isEditing = editingCell?.weekday === weekday && editingCell?.time === time;
