@@ -411,7 +411,15 @@ export function Schedule({
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
-        {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
+        {showTabs ? (
+          <RangeTabs
+            value={rango}
+            onChange={(r) => {
+              setRango(r);
+              setDia(null);
+            }}
+          />
+        ) : null}
         {showTabs && conFiltro ? <span className="hidden h-6 w-px bg-border sm:block" /> : null}
         {conFiltro ? (
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
@@ -495,7 +503,7 @@ export function Schedule({
                 </span>
               </header>
 
-              <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
+              <div className="max-h-[26rem] overflow-y-auto px-4 sm:max-h-[32rem] sm:px-5">
                 {g.total === 0 ? (
                   <p className="py-8 text-sm text-muted-foreground">
                     Sin sesiones en este rango. Cambia de semana o escríbenos por WhatsApp para
