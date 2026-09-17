@@ -110,6 +110,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
         .from("classes")
         .select("*")
         .in("module_key", modules)
+        .eq("active", true)
         .gte("starts_at", start.toISOString())
         .lt("starts_at", end.toISOString())
         .order("starts_at");
