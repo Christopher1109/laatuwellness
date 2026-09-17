@@ -362,7 +362,16 @@ export function Schedule({
     },
   });
 
-  const all = classes ?? [];
+  // Solo se muestran clases de programas habilitados (los ocultos desde
+  // administración desaparecen de la web y de la app).
+  const enabledKeys = useMemo(() => new Set((modules ?? []).map((m) => m.key)), [modules]);
+  const all = useMemo(
+    () =>
+      (classes ?? []).filter(
+        (c) => !c.module_key || enabledKeys.size === 0 || enabledKeys.has(c.module_key),
+      ),
+    [classes, enabledKeys],
+  );
 
   /**
    * Programas visibles. Se listan todos los programas reservables del

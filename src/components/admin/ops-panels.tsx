@@ -4420,6 +4420,7 @@ const SCHEDULE_MODULES = [
   { key: "reformer", label: "Reformer" },
   { key: "4mat", label: "4mat" },
   { key: "rehabilitacion", label: "Consultorio (DorisFisio)" },
+  { key: "contraste", label: "Contrast Therapy" },
 ] as const;
 
 const WEEKDAY_LABELS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -4548,6 +4549,83 @@ export function SchedulePlannerPanel() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Visibilidad del programa en la web/app (site_modules.enabled)
+  const { data: siteModule } = useQuery({
+    queryKey: ["schedule-site-module", moduleKey],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_modules")
+        .select("key, name, enabled")
+        .eq("key", moduleKey)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const toggleVisible = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from("site_modules")
+        .update({ enabled })
+        .eq("key", moduleKey);
+      if (error) throw error;
+    },
+    onSuccess: (_d, enabled) => {
+      toast.success(
+        enabled ? "Programa visible en la página y la app." : "Programa oculto: ya no se muestra ni se puede reservar.",
+      );
+      void qc.invalidateQueries({ queryKey: ["schedule-site-module", moduleKey] });
+      void qc.invalidateQueries({ queryKey: ["site-modules"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo cambiar la visibilidad."),
+  });
+
+  // Días cerrados (blackouts) del módulo
+  const { data: blackouts } = useQuery({
+    queryKey: ["schedule-blackouts", moduleKey],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("schedule_blackouts")
+        .select("id, day")
+        .eq("module_key", moduleKey);
+      if (error) throw error;
+      return data as { id: string; day: string }[];
+    },
+  });
+
+  const blackoutSet = useMemo(
+    () => new Set((blackouts ?? []).map((b) => b.day)),
+    [blackouts],
+  );
+
+  const toggleBlackout = useMutation({
+    mutationFn: async (day: string) => {
+      if (blackoutSet.has(day)) {
+        const { error } = await (supabase.from as any)("schedule_blackouts")
+          .delete()
+          .eq("module_key", moduleKey)
+          .eq("day", day);
+        if (error) throw error;
+        return false;
+      }
+      const { error } = await (supabase.from as any)("schedule_blackouts").insert({
+        module_key: moduleKey,
+        day,
+      });
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: (closed) => {
+      toast.success(
+        closed
+          ? "Día bloqueado. Dale a \"Actualizar clases\" para quitarlo de la página."
+          : "Día reabierto. Dale a \"Actualizar clases\" para publicarlo.",
+      );
+      void qc.invalidateQueries({ queryKey: ["schedule-blackouts", moduleKey] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo bloquear el día."),
   });
 
   const coachIds = useMemo(() => (coaches ?? []).map((c) => c.id), [coaches]);
@@ -4707,6 +4785,24 @@ export function SchedulePlannerPanel() {
             {m.label}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className={cn(
+              "text-[0.62rem] uppercase tracking-[0.12em]",
+              siteModule?.enabled === false ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {siteModule?.enabled === false ? "Oculto en la página" : "Visible en la página"}
+          </span>
+          <button
+            type="button"
+            disabled={!siteModule || toggleVisible.isPending}
+            onClick={() => toggleVisible.mutate(!(siteModule?.enabled ?? true))}
+            className="border border-input px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
+          >
+            {siteModule?.enabled === false ? "Mostrar" : "Ocultar"}
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3 border border-border p-3">
@@ -4746,7 +4842,9 @@ export function SchedulePlannerPanel() {
         Muévete semana por semana con las flechas, incluso al mes siguiente. Las horas se respetan
         de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios
         en blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar
-        los cambios a las clases reales de ese mes.
+        los cambios a las clases reales de ese mes. Toca el nombre de un día para bloquearlo
+        (cerrado: ese día no se publica nada), y usa "Ocultar" para quitar todo un programa de la
+        página y de la app.
       </p>
 
       <div className="overflow-x-auto border border-border">
@@ -4760,6 +4858,7 @@ export function SchedulePlannerPanel() {
                 const date = weekDates[i]!;
                 const isToday = ymd(date) === ymd(new Date());
                 const inMonth = date.getMonth() === monthCursor.getMonth();
+                const closed = blackoutSet.has(ymd(date));
                 return (
                   <th
                     key={d}
@@ -4767,12 +4866,25 @@ export function SchedulePlannerPanel() {
                       "px-2 py-2 text-left text-[0.65rem] uppercase text-muted-foreground",
                       isToday && "text-foreground",
                       !inMonth && "opacity-40",
+                      closed && "bg-destructive/10",
                     )}
                   >
-                    {d}{" "}
-                    <span className={cn("font-mono", isToday && "underline")}>
-                      {date.getDate()}
-                    </span>
+                    <button
+                      type="button"
+                      title={closed ? "Reabrir este día" : "Bloquear este día (cerrado)"}
+                      onClick={() => toggleBlackout.mutate(ymd(date))}
+                      className="text-left hover:text-foreground"
+                    >
+                      <span className={cn(closed && "line-through")}>
+                        {d}{" "}
+                        <span className={cn("font-mono", isToday && "underline")}>
+                          {date.getDate()}
+                        </span>
+                      </span>
+                      <span className="block text-[0.55rem] normal-case tracking-normal text-muted-foreground">
+                        {closed ? "Cerrado" : "Abierto"}
+                      </span>
+                    </button>
                   </th>
                 );
               })}
@@ -4800,6 +4912,7 @@ export function SchedulePlannerPanel() {
                 </td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
+                  const dayClosed = blackoutSet.has(ymd(weekDates[weekday]!));
                   const editing =
                     editingCell?.weekday === weekday && editingCell?.time === time;
                   return (
@@ -4845,15 +4958,18 @@ export function SchedulePlannerPanel() {
                               cell?.is_rotation ?? false,
                               coachIds,
                             ),
+                            dayClosed && "opacity-30 line-through",
                           )}
                         >
-                          {cell?.is_rotation
-                            ? "Rotación"
-                            : cell?.coach_id
-                              ? coachName(cell.coach_id)
-                              : cell
-                                ? "Pendiente"
-                                : ""}
+                          {dayClosed
+                            ? "Cerrado"
+                            : cell?.is_rotation
+                              ? "Rotación"
+                              : cell?.coach_id
+                                ? coachName(cell.coach_id)
+                                : cell
+                                  ? "Pendiente"
+                                  : ""}
                         </button>
                       )}
                     </td>

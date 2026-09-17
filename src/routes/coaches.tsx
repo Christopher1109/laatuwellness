@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { BirdBadge } from "@/components/brand";
@@ -91,6 +93,46 @@ type ClassRow = {
 };
 
 function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => void }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const book = useMutation({
+    mutationFn: async (classId: string) => {
+      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Clase reservada. Nos vemos en el estudio.");
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+      void qc.invalidateQueries({ queryKey: ["my-bookings"] });
+      void qc.invalidateQueries({ queryKey: ["balance"] });
+      void qc.invalidateQueries({ queryKey: ["coach-public-schedule"] });
+    },
+    onError: (error: Error) => {
+      const m = error.message;
+      if (m.includes("WAIVER_REQUIRED")) {
+        toast.error("Necesitas firmar el waiver antes de reservar.");
+        void navigate({ to: "/cuenta" });
+      } else if (m.includes("INSUFFICIENT_TOKENS")) {
+        toast.error("No tienes tokens suficientes. Compra un paquete para continuar.");
+        void navigate({ to: "/paquetes" });
+      } else if (m.includes("ALREADY_BOOKED")) toast.error("Ya tienes esta clase reservada.");
+      else if (m.includes("CLASS_FULL")) toast.error("Esta clase ya está llena.");
+      else if (m.includes("CLASS_PAST")) toast.error("Esta clase ya pasó.");
+      else toast.error("No pudimos completar la reserva.");
+    },
+  });
+
+  const reservar = (classId: string) => {
+    if (!user) {
+      toast.error("Inicia sesión para reservar.");
+      void navigate({ to: "/auth" });
+      return;
+    }
+    book.mutate(classId);
+  };
+
   // La tabla pública "coaches" (bios/fotos) no está ligada por id a
   // staff_profiles (la de horarios/nómina) — se busca por nombre.
   const { data: staffMatch } = useQuery({
@@ -198,20 +240,29 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
                 </p>
                 <ul className="mt-2 grid gap-2 sm:grid-cols-2">
                   {items.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center justify-between gap-3 border border-border px-4 py-3"
-                    >
-                      <span className="text-base tabular-nums">
-                        {new Intl.DateTimeFormat("es-MX", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        }).format(new Date(c.starts_at))}
-                      </span>
-                      <span className="truncate text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
-                        {c.room}
-                      </span>
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onClick={() => reservar(c.id)}
+                        disabled={book.isPending}
+                        className="group flex w-full items-center justify-between gap-3 border border-border px-4 py-3 text-left transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
+                      >
+                        <span>
+                          <span className="block text-base tabular-nums">
+                            {new Intl.DateTimeFormat("es-MX", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            }).format(new Date(c.starts_at))}
+                          </span>
+                          <span className="block truncate text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            {c.room}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground group-hover:text-foreground">
+                          {book.isPending ? "…" : "Reservar"}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
