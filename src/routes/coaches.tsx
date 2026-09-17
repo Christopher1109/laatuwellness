@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { BirdBadge } from "@/components/brand";
+import { SeatPickerModal } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/coaches")({
@@ -109,6 +110,8 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
     },
     onSuccess: () => {
       toast.success("Clase reservada. Nos vemos en el estudio.");
+      setConfirming(null);
+      setPickingSeat(null);
       void qc.invalidateQueries({ queryKey: ["classes"] });
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       void qc.invalidateQueries({ queryKey: ["balance"] });
