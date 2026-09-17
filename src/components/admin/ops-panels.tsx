@@ -4479,29 +4479,22 @@ export function SchedulePlannerPanel() {
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
-  const [monthCursor, setMonthCursor] = useState<Date>(() => {
-    const n = new Date();
-    return new Date(n.getFullYear(), n.getMonth(), 1);
-  });
-  // Semana visible dentro del mes (0 = la semana que contiene el día 1).
-  const [weekOffset, setWeekOffset] = useState(0);
+  // Navegación solo por semanas; al cruzar al mes siguiente el patrón
+  // cambia al de ese mes (las horas se heredan, los coaches no).
+  const [weekCursor, setWeekCursor] = useState<Date>(() => startOfIsoWeek(new Date()));
 
   const now = new Date();
-  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = startOfIsoWeek(weekCursor);
+  // La semana pertenece al mes de su lunes.
+  const monthCursor = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
   const monthKey = ymd(monthCursor);
   const prevMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
-  const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
-  const firstWeekStart = startOfIsoWeek(monthCursor);
-  // Cuántas semanas (lunes-domingo) tocan este mes.
-  let maxWeekOffset = 0;
-  while (addDays(firstWeekStart, (maxWeekOffset + 1) * 7) <= monthEnd) maxWeekOffset += 1;
-  const safeWeekOffset = Math.min(weekOffset, maxWeekOffset);
-  const weekStart = addDays(firstWeekStart, safeWeekOffset * 7);
+  const prevMonthKey = ymd(prevMonth);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
-  const isCurrentMonth = ymd(monthCursor) === ymd(thisMonth);
+  const isCurrentWeek = ymd(weekStart) === ymd(startOfIsoWeek(now));
   const monthLabel = new Intl.DateTimeFormat("es-MX", {
     month: "long",
     year: "numeric",
@@ -4510,9 +4503,8 @@ export function SchedulePlannerPanel() {
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
     return `${f.format(weekDates[0]!)} – ${f.format(weekDates[6]!)}`;
   })();
-  const goToMonth = (d: Date) => {
-    setMonthCursor(d);
-    setWeekOffset(0);
+  const goToWeek = (d: Date) => {
+    setWeekCursor(startOfIsoWeek(d));
     setEditingCell(null);
   };
 
@@ -4526,6 +4518,21 @@ export function SchedulePlannerPanel() {
         .order("start_time");
       if (error) throw error;
       return data as TemplateRow[];
+    },
+  });
+
+  // Si el mes todavía no se programa, solo heredamos las HORAS del mes
+  // anterior como punto de partida — los coaches quedan en blanco.
+  const { data: prevTemplates } = useQuery({
+    queryKey: ["schedule-templates", moduleKey, prevMonthKey],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("schedule_templates")
+        .select("start_time")
+        .eq("module_key", moduleKey)
+        .eq("month", prevMonthKey)
+        .order("start_time");
+      if (error) throw error;
+      return data as { start_time: string }[];
     },
   });
 
@@ -4547,13 +4554,11 @@ export function SchedulePlannerPanel() {
   const coachName = (id: string | null) =>
     (coaches ?? []).find((c) => c.id === id)?.full_name ?? "";
 
-  const times = useMemo(
-    () =>
-      Array.from(
-        new Set([...(templates ?? []).map((t) => t.start_time.slice(0, 5)), ...extraTimes]),
-      ).sort(),
-    [templates, extraTimes],
-  );
+  const times = useMemo(() => {
+    const own = (templates ?? []).map((t) => t.start_time.slice(0, 5));
+    const inherited = own.length === 0 ? (prevTemplates ?? []).map((t) => t.start_time.slice(0, 5)) : [];
+    return Array.from(new Set([...own, ...inherited, ...extraTimes])).sort();
+  }, [templates, prevTemplates, extraTimes]);
 
   const cellFor = (weekday: number, time: string) =>
     (templates ?? []).find((t) => t.weekday === weekday && t.start_time.slice(0, 5) === time);
@@ -4679,33 +4684,11 @@ export function SchedulePlannerPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo actualizar."),
   });
 
-  const copyPrev = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("copy_schedule_month", {
-        _module_key: moduleKey,
-        _from_month: ymd(prevMonth),
-        _to_month: monthKey,
-      });
-      if (error) throw error;
-      return data as number;
-    },
-    onSuccess: (n) => {
-      toast.success(
-        n > 0
-          ? `Se copiaron ${n} horarios del mes anterior. Ajústalos y dale a "Actualizar clases".`
-          : "El mes anterior no tiene horarios para copiar.",
-      );
-      invalidateTemplates();
-    },
-    onError: (e: Error) => toast.error(e.message || "No se pudo copiar."),
-  });
-
   const rangeLabel = () => {
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
     return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
 
-  const monthIsEmpty = (templates ?? []).length === 0;
 
   return (
     <div>
@@ -4729,88 +4712,42 @@ export function SchedulePlannerPanel() {
       <div className="mb-4 flex flex-wrap items-center gap-3 border border-border p-3">
         <button
           type="button"
-          onClick={() =>
-            goToMonth(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))
-          }
+          onClick={() => goToWeek(addDays(weekStart, -7))}
           className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
-          aria-label="Mes anterior"
-        >
-          ←
-        </button>
-        <div className="min-w-[13rem] text-center text-sm">
-          <span className="eyebrow block text-[0.6rem]">Mes</span>
-          <span className="capitalize">{monthLabel}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() =>
-            goToMonth(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))
-          }
-          className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
-          aria-label="Mes siguiente"
-        >
-          →
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const n = new Date();
-            goToMonth(new Date(n.getFullYear(), n.getMonth(), 1));
-          }}
-          disabled={isCurrentMonth}
-          className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
-        >
-          Mes actual
-        </button>
-
-        <div className="mx-2 hidden h-6 w-px bg-border sm:block" />
-
-        <button
-          type="button"
-          onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
-          disabled={safeWeekOffset === 0}
-          className="border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
           aria-label="Semana anterior"
         >
           ←
         </button>
-        <div className="min-w-[10rem] text-center text-sm">
-          <span className="eyebrow block text-[0.6rem]">Semana</span>
+        <div className="min-w-[12rem] text-center text-sm">
+          <span className="eyebrow block text-[0.6rem]">
+            Semana · <span className="capitalize">{monthLabel}</span>
+          </span>
           <span className="capitalize">{weekLabel}</span>
         </div>
         <button
           type="button"
-          onClick={() => setWeekOffset((w) => Math.min(maxWeekOffset, w + 1))}
-          disabled={safeWeekOffset >= maxWeekOffset}
-          className="border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+          onClick={() => goToWeek(addDays(weekStart, 7))}
+          className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
           aria-label="Semana siguiente"
         >
           →
         </button>
+        <button
+          type="button"
+          onClick={() => goToWeek(new Date())}
+          disabled={isCurrentWeek}
+          className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
+        >
+          Semana actual
+        </button>
       </div>
 
       <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
-        Arma el patrón del mes: cada celda es un coach asignado a esa hora y día, y se repite en
-        todas las semanas del mes. Muévete entre meses con las flechas; cada mes empieza en blanco
-        y no afecta a los demás. Cuando termines, dale a "Actualizar clases" para aplicar los
-        cambios a las clases reales de ese mes.
+        Muévete semana por semana con las flechas, incluso al mes siguiente. Las horas se respetan
+        de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios
+        en blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar
+        los cambios a las clases reales de ese mes.
       </p>
-
-      {monthIsEmpty && monthCursor >= thisMonth ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3 border border-dashed border-border p-3">
-          <p className="text-sm text-muted-foreground">
-            Este mes está en blanco. Puedes armarlo desde cero o partir del mes anterior.
-          </p>
-          <button
-            type="button"
-            onClick={() => copyPrev.mutate()}
-            disabled={copyPrev.isPending}
-            className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-50"
-          >
-            {copyPrev.isPending ? "Copiando…" : "Copiar patrón del mes anterior"}
-          </button>
-        </div>
-      ) : null}
 
       <div className="overflow-x-auto border border-border">
         <table className="w-full min-w-[900px] table-fixed text-sm">
