@@ -4483,13 +4483,20 @@ export function SchedulePlannerPanel() {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
+  // Semana visible dentro del mes (0 = la semana que contiene el día 1).
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const now = new Date();
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthKey = ymd(monthCursor);
   const prevMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
-  // La cuadrícula muestra la semana (lunes a domingo) que contiene el día 1 del mes.
-  const weekStart = startOfIsoWeek(monthCursor);
+  const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+  const firstWeekStart = startOfIsoWeek(monthCursor);
+  // Cuántas semanas (lunes-domingo) tocan este mes.
+  let maxWeekOffset = 0;
+  while (addDays(firstWeekStart, (maxWeekOffset + 1) * 7) <= monthEnd) maxWeekOffset += 1;
+  const safeWeekOffset = Math.min(weekOffset, maxWeekOffset);
+  const weekStart = addDays(firstWeekStart, safeWeekOffset * 7);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
@@ -4499,6 +4506,15 @@ export function SchedulePlannerPanel() {
     month: "long",
     year: "numeric",
   }).format(monthCursor);
+  const weekLabel = (() => {
+    const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
+    return `${f.format(weekDates[0]!)} – ${f.format(weekDates[6]!)}`;
+  })();
+  const goToMonth = (d: Date) => {
+    setMonthCursor(d);
+    setWeekOffset(0);
+    setEditingCell(null);
+  };
 
   const { data: templates } = useQuery({
     queryKey: ["schedule-templates", moduleKey, monthKey],
