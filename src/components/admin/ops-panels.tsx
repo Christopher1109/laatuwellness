@@ -4479,29 +4479,22 @@ export function SchedulePlannerPanel() {
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
-  const [monthCursor, setMonthCursor] = useState<Date>(() => {
-    const n = new Date();
-    return new Date(n.getFullYear(), n.getMonth(), 1);
-  });
-  // Semana visible dentro del mes (0 = la semana que contiene el día 1).
-  const [weekOffset, setWeekOffset] = useState(0);
+  // Navegación solo por semanas; al cruzar al mes siguiente el patrón
+  // cambia al de ese mes (las horas se heredan, los coaches no).
+  const [weekCursor, setWeekCursor] = useState<Date>(() => startOfIsoWeek(new Date()));
 
   const now = new Date();
-  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = startOfIsoWeek(weekCursor);
+  // La semana pertenece al mes de su lunes.
+  const monthCursor = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
   const monthKey = ymd(monthCursor);
   const prevMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
-  const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
-  const firstWeekStart = startOfIsoWeek(monthCursor);
-  // Cuántas semanas (lunes-domingo) tocan este mes.
-  let maxWeekOffset = 0;
-  while (addDays(firstWeekStart, (maxWeekOffset + 1) * 7) <= monthEnd) maxWeekOffset += 1;
-  const safeWeekOffset = Math.min(weekOffset, maxWeekOffset);
-  const weekStart = addDays(firstWeekStart, safeWeekOffset * 7);
+  const prevMonthKey = ymd(prevMonth);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
-  const isCurrentMonth = ymd(monthCursor) === ymd(thisMonth);
+  const isCurrentWeek = ymd(weekStart) === ymd(startOfIsoWeek(now));
   const monthLabel = new Intl.DateTimeFormat("es-MX", {
     month: "long",
     year: "numeric",
@@ -4510,9 +4503,8 @@ export function SchedulePlannerPanel() {
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
     return `${f.format(weekDates[0]!)} – ${f.format(weekDates[6]!)}`;
   })();
-  const goToMonth = (d: Date) => {
-    setMonthCursor(d);
-    setWeekOffset(0);
+  const goToWeek = (d: Date) => {
+    setWeekCursor(startOfIsoWeek(d));
     setEditingCell(null);
   };
 
