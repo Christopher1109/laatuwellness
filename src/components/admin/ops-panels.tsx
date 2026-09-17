@@ -4456,12 +4456,37 @@ type TemplateRow = {
   duration_min: number;
 };
 
+function startOfIsoWeek(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const iso = (x.getDay() + 6) % 7; // 0 = lunes
+  x.setDate(x.getDate() - iso);
+  return x;
+}
+
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function SchedulePlannerPanel() {
   const qc = useQueryClient();
   const [moduleKey, setModuleKey] = useState<string>("reformer");
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
-  const [weeksToPublish, setWeeksToPublish] = useState(4);
+  const [extraTimes, setExtraTimes] = useState<string[]>([]);
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfIsoWeek(new Date()));
+
+  const thisWeek = startOfIsoWeek(new Date());
+  const weekDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
+  const isCurrentWeek = ymd(weekStart) === ymd(thisWeek);
 
   const { data: templates } = useQuery({
     queryKey: ["schedule-templates", moduleKey],
@@ -4494,8 +4519,11 @@ export function SchedulePlannerPanel() {
     (coaches ?? []).find((c) => c.id === id)?.full_name ?? "";
 
   const times = useMemo(
-    () => Array.from(new Set((templates ?? []).map((t) => t.start_time.slice(0, 5)))).sort(),
-    [templates],
+    () =>
+      Array.from(
+        new Set([...(templates ?? []).map((t) => t.start_time.slice(0, 5)), ...extraTimes]),
+      ).sort(),
+    [templates, extraTimes],
   );
 
   const cellFor = (weekday: number, time: string) =>
@@ -4543,18 +4571,30 @@ export function SchedulePlannerPanel() {
 
   const publish = useMutation({
     mutationFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("publish_schedule_template", {
+      const from = weekStart < thisWeek ? weekStart : thisWeek;
+      const to = addDays(weekStart, 6);
+      const { data, error } = await (supabase.rpc as any)("publish_schedule_range", {
         _module_key: moduleKey,
-        _weeks: weeksToPublish,
+        _from: ymd(from),
+        _to: ymd(to),
       });
       if (error) throw error;
       return data as number;
     },
-    onSuccess: (created) => {
-      toast.success(`Listo: ${created} clases nuevas generadas.`);
+    onSuccess: (touched) => {
+      toast.success(`Listo: ${touched} clases actualizadas.`);
+      void qc.invalidateQueries({ queryKey: ["admin-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
     },
-    onError: (e: Error) => toast.error(e.message || "No se pudo publicar."),
+    onError: (e: Error) => toast.error(e.message || "No se pudo actualizar."),
   });
+
+  const rangeLabel = () => {
+    const from = weekStart < thisWeek ? weekStart : thisWeek;
+    const to = addDays(weekStart, 6);
+    const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
+    return `${f.format(from)} – ${f.format(to)}`;
+  };
 
   return (
     <div>
@@ -4563,7 +4603,11 @@ export function SchedulePlannerPanel() {
           <button
             key={m.key}
             type="button"
-            onClick={() => setModuleKey(m.key)}
+            onClick={() => {
+              setModuleKey(m.key);
+              setExtraTimes([]);
+              setEditingCell(null);
+            }}
             className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${moduleKey === m.key ? "border-foreground bg-foreground text-background" : "border-input"}`}
           >
             {m.label}
@@ -4571,83 +4615,123 @@ export function SchedulePlannerPanel() {
         ))}
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-3 border border-border p-3">
+        <button
+          type="button"
+          onClick={() => setWeekStart((w) => addDays(w, -7))}
+          className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
+          aria-label="Semana anterior"
+        >
+          ←
+        </button>
+        <div className="min-w-[13rem] text-center text-sm">
+          <span className="eyebrow block text-[0.6rem]">Semana</span>
+          {new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(weekStart)} —{" "}
+          {new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(
+            addDays(weekStart, 6),
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setWeekStart((w) => addDays(w, 7))}
+          className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
+          aria-label="Semana siguiente"
+        >
+          →
+        </button>
+        <button
+          type="button"
+          onClick={() => setWeekStart(startOfIsoWeek(new Date()))}
+          disabled={isCurrentWeek}
+          className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
+        >
+          Esta semana
+        </button>
+      </div>
+
       <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
-        Arma el patrón de la semana una vez: cada celda es un coach asignado a esa hora y día.
-        Cuando esté listo, dale a "Publicar" para generar las clases reales de las próximas
-        semanas — es seguro darle varias veces, no duplica lo que ya existe.
+        Arma el patrón de la semana: cada celda es un coach asignado a esa hora y día. Muévete entre
+        semanas con las flechas y, cuando termines, dale a "Actualizar clases" para aplicar los
+        cambios a las clases reales de ese periodo.
       </p>
 
       <div className="overflow-x-auto border border-border">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[900px] table-fixed text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
               <th className="w-20 px-3 py-2 text-left text-[0.65rem] uppercase text-muted-foreground">
                 Hora
               </th>
-              {WEEKDAY_LABELS.map((d) => (
-                <th
-                  key={d}
-                  className="px-2 py-2 text-left text-[0.65rem] uppercase text-muted-foreground"
-                >
-                  {d}
-                </th>
-              ))}
+              {WEEKDAY_LABELS.map((d, i) => {
+                const date = weekDates[i]!;
+                const isToday = ymd(date) === ymd(new Date());
+                return (
+                  <th
+                    key={d}
+                    className={cn(
+                      "px-2 py-2 text-left text-[0.65rem] uppercase text-muted-foreground",
+                      isToday && "text-foreground",
+                    )}
+                  >
+                    {d}{" "}
+                    <span className={cn("font-mono", isToday && "underline")}>
+                      {date.getDate()}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {times.map((time) => (
               <tr key={time} className="border-b border-border last:border-0">
-                <td className="px-3 py-2 font-mono text-xs">{time}</td>
+                <td className="h-14 px-3 font-mono text-xs">{time}</td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
-                  const isEditing =
-                    editingCell?.weekday === weekday && editingCell?.time === time;
+                  const isEditing = editingCell?.weekday === weekday && editingCell?.time === time;
                   return (
-                    <td key={weekday} className="p-1 align-top">
+                    <td key={weekday} className="h-14 p-1 align-middle">
                       {isEditing ? (
-                        <div className="flex flex-col gap-1 border border-foreground bg-background p-1.5">
-                          <select
-                            className="text-xs"
-                            defaultValue={cell?.is_rotation ? "rotation" : (cell?.coach_id ?? "")}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "clear") {
-                                if (cell) removeCell.mutate(cell.id);
-                                else setEditingCell(null);
-                                return;
-                              }
-                              upsert.mutate({
-                                weekday,
-                                time,
-                                coach_id: v === "rotation" ? null : v || null,
-                                is_rotation: v === "rotation",
-                              });
-                            }}
-                          >
-                            <option value="">— vacío —</option>
-                            <option value="rotation">Rotación (fin de semana)</option>
-                            {(coaches ?? []).map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.full_name}
-                              </option>
-                            ))}
-                            {cell ? <option value="clear">Quitar celda</option> : null}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => setEditingCell(null)}
-                            className="text-[0.6rem] uppercase text-muted-foreground"
-                          >
-                            Cerrar
-                          </button>
-                        </div>
+                        <select
+                          autoFocus
+                          className="h-12 w-full border border-foreground bg-background px-1 text-xs"
+                          defaultValue={cell?.is_rotation ? "rotation" : (cell?.coach_id ?? "")}
+                          onBlur={() => setEditingCell(null)}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "clear") {
+                              if (cell) removeCell.mutate(cell.id);
+                              else setEditingCell(null);
+                              return;
+                            }
+                            upsert.mutate({
+                              weekday,
+                              time,
+                              coach_id: v === "rotation" ? null : v || null,
+                              is_rotation: v === "rotation",
+                            });
+                          }}
+                        >
+                          <option value="">— vacío —</option>
+                          <option value="rotation">Rotación (fin de semana)</option>
+                          {(coaches ?? []).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.full_name}
+                            </option>
+                          ))}
+                          {cell ? <option value="clear">Quitar celda</option> : null}
+                        </select>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setEditingCell({ weekday, time })}
                           className={cn(
-                            "flex h-12 w-full items-center justify-center px-1 text-center text-[0.7rem] leading-tight transition-opacity hover:opacity-80",
-                            colorForCoach(cell?.coach_id ?? null, cell?.is_rotation ?? false, coachIds),
+                            "flex h-12 w-full items-center justify-center overflow-hidden px-1 text-center text-[0.7rem] leading-tight transition-opacity hover:opacity-80",
+                            colorForCoach(
+                              cell?.coach_id ?? null,
+                              cell?.is_rotation ?? false,
+                              coachIds,
+                            ),
                           )}
                         >
                           {cell?.is_rotation
@@ -4667,7 +4751,8 @@ export function SchedulePlannerPanel() {
             {times.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
-                  Sin horas configuradas todavía para {SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label}.
+                  Sin horas configuradas todavía para{" "}
+                  {SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label}.
                 </td>
               </tr>
             ) : null}
@@ -4689,38 +4774,31 @@ export function SchedulePlannerPanel() {
           type="button"
           disabled={!newTime}
           onClick={() => {
-            setEditingCell({ weekday: 0, time: newTime });
+            const t = newTime.slice(0, 5);
+            setExtraTimes((prev) => (prev.includes(t) ? prev : [...prev, t]));
             setNewTime("");
           }}
           className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
         >
           + Agregar renglón de hora
         </button>
+        <p className="text-xs text-muted-foreground">
+          El renglón aparece vacío: asigna un coach en algún día para que se guarde.
+        </p>
       </div>
 
-      <div className="mt-8 flex flex-wrap items-end gap-3 border-t border-border pt-6">
-        <label className="text-xs">
-          <span className="eyebrow">Publicar próximas</span>
-          <select
-            value={weeksToPublish}
-            onChange={(e) => setWeeksToPublish(Number(e.target.value))}
-            className={`${input} w-28`}
-          >
-            {[2, 4, 6, 8].map((n) => (
-              <option key={n} value={n}>
-                {n} semanas
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6">
         <button
           type="button"
           onClick={() => publish.mutate()}
           disabled={publish.isPending}
           className="bg-foreground px-5 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
-          {publish.isPending ? "Publicando…" : "Publicar horario"}
+          {publish.isPending ? "Actualizando…" : "Actualizar clases"}
         </button>
+        <p className="text-xs text-muted-foreground">
+          Se aplicará a las clases del {rangeLabel()}.
+        </p>
       </div>
     </div>
   );
