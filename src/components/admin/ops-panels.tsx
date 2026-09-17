@@ -4543,6 +4543,7 @@ export function SchedulePlannerPanel() {
           start_time: row.time,
           coach_id: row.coach_id,
           is_rotation: row.is_rotation,
+          active: row.coach_id !== null || row.is_rotation,
           room: SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label ?? "",
           capacity: moduleKey === "rehabilitacion" ? 1 : 10,
           duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
