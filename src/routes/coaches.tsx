@@ -201,11 +201,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
           </button>
         </div>
         <div className="max-h-[62vh] overflow-y-auto px-6 py-2 sm:px-8">
-          {!staffMatch ? (
-            <p className="py-8 text-sm text-muted-foreground">
-              Todavía no hay horario público para {coach.name}.
-            </p>
-          ) : isLoading ? (
+          {isLoading ? (
             <p className="py-8 text-sm text-muted-foreground">Cargando…</p>
           ) : grupos.length === 0 ? (
             <p className="py-8 text-sm text-muted-foreground">
