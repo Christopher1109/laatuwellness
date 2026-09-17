@@ -171,6 +171,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
   })();
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/70 p-4 py-10 backdrop-blur-sm"
       onClick={onClose}
