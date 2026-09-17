@@ -379,19 +379,30 @@ export function Schedule({
     return ordered;
   }, [all, modules, moduleKey, limit]);
 
+  /** Días con sesiones dentro del rango, para el selector de día. */
+  const dias = useMemo(() => {
+    const map = new Map<string, Date>();
+    for (const c of all) {
+      const d = startOfDay(new Date(c.starts_at));
+      map.set(d.toDateString(), d);
+    }
+    return [...map.values()].sort((a, b) => a.getTime() - b.getTime());
+  }, [all]);
+
   const grupos = useMemo(() => {
     const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
     return activos.map((key) => {
       let items = all.filter((c) => (c.module_key ?? "otros") === key);
+      if (dia) items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
       if (limit) items = items.slice(0, limit);
-      const dias = new Map<string, ClassRow[]>();
+      const porDia = new Map<string, ClassRow[]>();
       for (const c of items) {
         const d = dayLabel(c.starts_at);
-        dias.set(d, [...(dias.get(d) ?? []), c]);
+        porDia.set(d, [...(porDia.get(d) ?? []), c]);
       }
-      return { key, total: items.length, dias: [...dias.entries()] };
+      return { key, total: items.length, dias: [...porDia.entries()] };
     });
-  }, [all, presentes, filtro, limit]);
+  }, [all, presentes, filtro, limit, dia]);
 
   
 
