@@ -444,6 +444,36 @@ export function Schedule({
         ) : null}
       </div>
 
+      {!limit && dias.length > 1 ? (
+        <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
+          <button
+            onClick={() => setDia(null)}
+            className={cn(
+              "shrink-0 border px-4 py-2 text-[0.62rem] uppercase tracking-[0.16em] transition-colors",
+              dia === null
+                ? "border-foreground bg-foreground text-background"
+                : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+            )}
+          >
+            Todos los días
+          </button>
+          {dias.map((d) => (
+            <button
+              key={d.toDateString()}
+              onClick={() => setDia(d.toDateString())}
+              className={cn(
+                "shrink-0 whitespace-nowrap border px-4 py-2 text-[0.62rem] uppercase tracking-[0.16em] transition-colors",
+                dia === d.toDateString()
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+              )}
+            >
+              {new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric" }).format(d)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
       ) : grupos.length === 0 ? (
