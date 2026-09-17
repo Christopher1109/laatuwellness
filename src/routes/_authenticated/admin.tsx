@@ -38,7 +38,7 @@ import {
   DashboardPanel,
   StaffHomePanel,
   CouponsPanel,
-  CheckInPanel,
+
   MerchPanel,
   GoodesPanel,
   SchedulePlannerPanel,
