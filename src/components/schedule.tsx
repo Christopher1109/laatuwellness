@@ -123,14 +123,21 @@ type ClassRow = {
   waitlisted: number;
 };
 
+/** Lo mínimo que necesita el mapa de lugares para dibujarse. */
+export type SeatPickerClass = {
+  id: string;
+  starts_at: string;
+  capacity: number;
+};
+
 /** Ventanita para elegir lugar antes de confirmar la reserva. */
-function SeatPickerModal({
+export function SeatPickerModal({
   classItem,
   onClose,
   onConfirm,
   pending,
 }: {
-  classItem: ClassRow;
+  classItem: SeatPickerClass;
   onClose: () => void;
   onConfirm: (seat: number | null) => void;
   pending: boolean;

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { BirdBadge } from "@/components/brand";
+import { SeatPickerModal } from "@/components/schedule";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/coaches")({
@@ -96,14 +97,21 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  // La reserva va en dos pasos: primero una confirmación ("vas a reservar en
+  // esta clase") y después el mapa de lugares, para que nadie aparte por
+  // accidente con un solo toque.
+  const [confirming, setConfirming] = useState<ClassRow | null>(null);
+  const [pickingSeat, setPickingSeat] = useState<ClassRow | null>(null);
 
   const book = useMutation({
-    mutationFn: async (classId: string) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: null });
+    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
+      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Clase reservada. Nos vemos en el estudio.");
+      setConfirming(null);
+      setPickingSeat(null);
       void qc.invalidateQueries({ queryKey: ["classes"] });
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       void qc.invalidateQueries({ queryKey: ["balance"] });
@@ -124,13 +132,13 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
     },
   });
 
-  const reservar = (classId: string) => {
+  const reservar = (c: ClassRow) => {
     if (!user) {
       toast.error("Inicia sesión para reservar.");
       void navigate({ to: "/auth" });
       return;
     }
-    book.mutate(classId);
+    setConfirming(c);
   };
 
   // staff_profiles no es legible para visitantes, así que el horario público
@@ -163,6 +171,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
   })();
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/70 p-4 py-10 backdrop-blur-sm"
       onClick={onClose}
@@ -218,7 +227,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
                     <li key={c.id}>
                       <button
                         type="button"
-                        onClick={() => reservar(c.id)}
+                        onClick={() => reservar(c)}
                         disabled={book.isPending}
                         className="group flex w-full items-center justify-between gap-3 border border-border px-4 py-3 text-left transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
                       >
@@ -255,6 +264,63 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
         </div>
       </div>
     </div>
+
+    {confirming && !pickingSeat ? (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm"
+        onClick={() => setConfirming(null)}
+      >
+        <div
+          className="w-full max-w-sm border border-border bg-background p-6 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="eyebrow">Confirmar reserva</p>
+          <h3 className="mt-2 text-lg">Vas a reservar esta clase</h3>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {coach.name} ·{" "}
+            {new Intl.DateTimeFormat("es-MX", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            }).format(new Date(confirming.starts_at))}{" "}
+            ·{" "}
+            {new Intl.DateTimeFormat("es-MX", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            }).format(new Date(confirming.starts_at))}{" "}
+            · {confirming.room}
+          </p>
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={() => setConfirming(null)}
+              className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em]"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setPickingSeat(confirming)}
+              className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+            >
+              Sí, elegir lugar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {pickingSeat ? (
+      <SeatPickerModal
+        classItem={pickingSeat}
+        pending={book.isPending}
+        onClose={() => {
+          setPickingSeat(null);
+          setConfirming(null);
+        }}
+        onConfirm={(seat) => book.mutate({ classId: pickingSeat.id, seat })}
+      />
+    ) : null}
+    </>
   );
 }
 
