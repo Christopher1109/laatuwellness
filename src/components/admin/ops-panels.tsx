@@ -4840,13 +4840,15 @@ export function SchedulePlannerPanel() {
         <button
           type="button"
           onClick={() => publish.mutate()}
-          disabled={publish.isPending}
+          disabled={publish.isPending || !updateRange.valid}
           className="bg-foreground px-5 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
           {publish.isPending ? "Actualizando…" : "Actualizar clases"}
         </button>
-        <p className="text-xs text-muted-foreground">
-          Se aplicará a las clases del {rangeLabel()}.
+        <p className="max-w-md text-xs text-muted-foreground">
+          {updateRange.valid
+            ? `Se aplicará a las clases del ${rangeLabel()} y quedarán disponibles para reservar en la página y la app. Nunca pasa del último día del mes que estás viendo.`
+            : "Esta semana ya pasó: muévete a una semana actual o futura para actualizar."}
         </p>
       </div>
     </div>
