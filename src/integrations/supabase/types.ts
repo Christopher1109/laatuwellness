@@ -801,6 +801,56 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_templates: {
+        Row: {
+          active: boolean
+          capacity: number
+          coach_id: string | null
+          created_at: string
+          duration_min: number
+          id: string
+          is_rotation: boolean
+          module_key: string
+          room: string
+          start_time: string
+          weekday: number
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number
+          coach_id?: string | null
+          created_at?: string
+          duration_min?: number
+          id?: string
+          is_rotation?: boolean
+          module_key: string
+          room?: string
+          start_time: string
+          weekday: number
+        }
+        Update: {
+          active?: boolean
+          capacity?: number
+          coach_id?: string | null
+          created_at?: string
+          duration_min?: number
+          id?: string
+          is_rotation?: boolean
+          module_key?: string
+          room?: string
+          start_time?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_templates_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_claims: {
         Row: {
           created_at: string
@@ -1451,6 +1501,10 @@ export type Database = {
       pos_checkout: {
         Args: { _items: Json; _payment_method: string; _user_id: string }
         Returns: string
+      }
+      publish_schedule_template: {
+        Args: { _module_key: string; _weeks?: number }
+        Returns: number
       }
       purchase_plan: {
         Args: { _payment_method: string; _plan_id: string }
