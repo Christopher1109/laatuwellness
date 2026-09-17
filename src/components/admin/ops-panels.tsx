@@ -4684,33 +4684,11 @@ export function SchedulePlannerPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo actualizar."),
   });
 
-  const copyPrev = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("copy_schedule_month", {
-        _module_key: moduleKey,
-        _from_month: ymd(prevMonth),
-        _to_month: monthKey,
-      });
-      if (error) throw error;
-      return data as number;
-    },
-    onSuccess: (n) => {
-      toast.success(
-        n > 0
-          ? `Se copiaron ${n} horarios del mes anterior. Ajústalos y dale a "Actualizar clases".`
-          : "El mes anterior no tiene horarios para copiar.",
-      );
-      invalidateTemplates();
-    },
-    onError: (e: Error) => toast.error(e.message || "No se pudo copiar."),
-  });
-
   const rangeLabel = () => {
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
     return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
 
-  const monthIsEmpty = (templates ?? []).length === 0;
 
   return (
     <div>
