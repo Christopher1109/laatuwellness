@@ -233,6 +233,8 @@ export function Schedule({
 }) {
   const [rango, setRango] = useState<Rango>(defaultRange);
   const [filtro, setFiltro] = useState<string | null>(null);
+  // Día seleccionado dentro del rango (null = todos los días del rango).
+  const [dia, setDia] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -379,26 +381,45 @@ export function Schedule({
     return ordered;
   }, [all, modules, moduleKey, limit]);
 
+  /** Días con sesiones dentro del rango, para el selector de día. */
+  const dias = useMemo(() => {
+    const map = new Map<string, Date>();
+    for (const c of all) {
+      const d = startOfDay(new Date(c.starts_at));
+      map.set(d.toDateString(), d);
+    }
+    return [...map.values()].sort((a, b) => a.getTime() - b.getTime());
+  }, [all]);
+
   const grupos = useMemo(() => {
     const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
     return activos.map((key) => {
       let items = all.filter((c) => (c.module_key ?? "otros") === key);
+      if (dia) items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
       if (limit) items = items.slice(0, limit);
-      const dias = new Map<string, ClassRow[]>();
+      const porDia = new Map<string, ClassRow[]>();
       for (const c of items) {
         const d = dayLabel(c.starts_at);
-        dias.set(d, [...(dias.get(d) ?? []), c]);
+        porDia.set(d, [...(porDia.get(d) ?? []), c]);
       }
-      return { key, total: items.length, dias: [...dias.entries()] };
+      return { key, total: items.length, dias: [...porDia.entries()] };
     });
-  }, [all, presentes, filtro, limit]);
+  }, [all, presentes, filtro, limit, dia]);
 
   
 
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
-        {showTabs ? <RangeTabs value={rango} onChange={setRango} /> : null}
+        {showTabs ? (
+          <RangeTabs
+            value={rango}
+            onChange={(r) => {
+              setRango(r);
+              setDia(null);
+            }}
+          />
+        ) : null}
         {showTabs && conFiltro ? <span className="hidden h-6 w-px bg-border sm:block" /> : null}
         {conFiltro ? (
           <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
@@ -431,6 +452,36 @@ export function Schedule({
         ) : null}
       </div>
 
+      {!limit && dias.length > 1 ? (
+        <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
+          <button
+            onClick={() => setDia(null)}
+            className={cn(
+              "shrink-0 border px-4 py-2 text-[0.62rem] uppercase tracking-[0.16em] transition-colors",
+              dia === null
+                ? "border-foreground bg-foreground text-background"
+                : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+            )}
+          >
+            Todos los días
+          </button>
+          {dias.map((d) => (
+            <button
+              key={d.toDateString()}
+              onClick={() => setDia(d.toDateString())}
+              className={cn(
+                "shrink-0 whitespace-nowrap border px-4 py-2 text-[0.62rem] uppercase tracking-[0.16em] transition-colors",
+                dia === d.toDateString()
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+              )}
+            >
+              {new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric" }).format(d)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
       ) : grupos.length === 0 ? (
@@ -452,7 +503,7 @@ export function Schedule({
                 </span>
               </header>
 
-              <div className="max-h-[18rem] overflow-y-auto px-4 sm:max-h-[22rem] sm:px-5">
+              <div className="max-h-[26rem] overflow-y-auto px-4 sm:max-h-[32rem] sm:px-5">
                 {g.total === 0 ? (
                   <p className="py-8 text-sm text-muted-foreground">
                     Sin sesiones en este rango. Cambia de semana o escríbenos por WhatsApp para
