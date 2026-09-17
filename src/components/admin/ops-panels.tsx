@@ -4456,7 +4456,7 @@ type TemplateRow = {
   duration_min: number;
 };
 
-function startOfWeek(d: Date) {
+function startOfIsoWeek(d: Date) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const iso = (x.getDay() + 6) % 7; // 0 = lunes
   x.setDate(x.getDate() - iso);
@@ -4479,9 +4479,9 @@ export function SchedulePlannerPanel() {
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfIsoWeek(new Date()));
 
-  const thisWeek = startOfWeek(new Date());
+  const thisWeek = startOfIsoWeek(new Date());
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
@@ -4641,7 +4641,7 @@ export function SchedulePlannerPanel() {
         </button>
         <button
           type="button"
-          onClick={() => setWeekStart(startOfWeek(new Date()))}
+          onClick={() => setWeekStart(startOfIsoWeek(new Date()))}
           disabled={isCurrentWeek}
           className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
         >
