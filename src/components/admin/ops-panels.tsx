@@ -4569,20 +4569,50 @@ export function SchedulePlannerPanel() {
     },
   });
 
+  const removeTimeRow = useMutation({
+    mutationFn: async (time: string) => {
+      const { error } = await (supabase.from as any)("schedule_templates")
+        .delete()
+        .eq("module_key", moduleKey)
+        .eq("start_time", `${time}:00`);
+      if (error) throw error;
+    },
+    onSuccess: (_d, time) => {
+      setEditingCell(null);
+      setExtraTimes((prev) => prev.filter((t) => t !== time));
+      toast.success("Hora eliminada del patrón.");
+      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo eliminar la hora."),
+  });
+
+  // El alcance de la actualización nunca pasa del último día del mes que
+  // estás viendo: cada mes nuevo se programa desde cero.
+  const updateRange = useMemo(() => {
+    const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+    const monthEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0);
+    const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    let from = weekStart < thisWeek ? weekStart : thisWeek;
+    if (from < monthStart) from = monthStart;
+    if (from < today) from = today;
+    let to = addDays(weekStart, 6);
+    if (to > monthEnd) to = monthEnd;
+    return { from, to, valid: to >= from };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart]);
+
   const publish = useMutation({
     mutationFn: async () => {
-      const from = weekStart < thisWeek ? weekStart : thisWeek;
-      const to = addDays(weekStart, 6);
       const { data, error } = await (supabase.rpc as any)("publish_schedule_range", {
         _module_key: moduleKey,
-        _from: ymd(from),
-        _to: ymd(to),
+        _from: ymd(updateRange.from),
+        _to: ymd(updateRange.to),
       });
       if (error) throw error;
       return data as number;
     },
     onSuccess: (touched) => {
-      toast.success(`Listo: ${touched} clases actualizadas.`);
+      toast.success(`Listo: ${touched} clases actualizadas y visibles para reservar.`);
       void qc.invalidateQueries({ queryKey: ["admin-classes"] });
       void qc.invalidateQueries({ queryKey: ["classes"] });
     },
@@ -4590,10 +4620,8 @@ export function SchedulePlannerPanel() {
   });
 
   const rangeLabel = () => {
-    const from = weekStart < thisWeek ? weekStart : thisWeek;
-    const to = addDays(weekStart, 6);
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
-    return `${f.format(from)} – ${f.format(to)}`;
+    return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
 
   return (
@@ -4685,7 +4713,28 @@ export function SchedulePlannerPanel() {
           <tbody>
             {times.map((time) => (
               <tr key={time} className="border-b border-border last:border-0">
-                <td className="h-14 px-3 font-mono text-xs">{time}</td>
+                <td className="h-14 px-3 font-mono text-xs">
+                  <div className="flex items-center justify-between gap-1">
+                    <span>{time}</span>
+                    <button
+                      type="button"
+                      title="Eliminar esta hora"
+                      aria-label={`Eliminar la hora ${time}`}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `¿Eliminar la hora ${time} de todos los días de este patrón?`,
+                          )
+                        ) {
+                          removeTimeRow.mutate(time);
+                        }
+                      }}
+                      className="px-1 text-sm leading-none text-muted-foreground hover:text-destructive"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
                   const isEditing = editingCell?.weekday === weekday && editingCell?.time === time;
@@ -4791,13 +4840,15 @@ export function SchedulePlannerPanel() {
         <button
           type="button"
           onClick={() => publish.mutate()}
-          disabled={publish.isPending}
+          disabled={publish.isPending || !updateRange.valid}
           className="bg-foreground px-5 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
           {publish.isPending ? "Actualizando…" : "Actualizar clases"}
         </button>
-        <p className="text-xs text-muted-foreground">
-          Se aplicará a las clases del {rangeLabel()}.
+        <p className="max-w-md text-xs text-muted-foreground">
+          {updateRange.valid
+            ? `Se aplicará a las clases del ${rangeLabel()} y quedarán disponibles para reservar en la página y la app. Nunca pasa del último día del mes que estás viendo.`
+            : "Esta semana ya pasó: muévete a una semana actual o futura para actualizar."}
         </p>
       </div>
     </div>
