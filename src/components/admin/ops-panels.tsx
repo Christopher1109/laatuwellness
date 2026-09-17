@@ -4521,6 +4521,21 @@ export function SchedulePlannerPanel() {
     },
   });
 
+  // Si el mes todavía no se programa, solo heredamos las HORAS del mes
+  // anterior como punto de partida — los coaches quedan en blanco.
+  const { data: prevTemplates } = useQuery({
+    queryKey: ["schedule-templates", moduleKey, prevMonthKey],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("schedule_templates")
+        .select("start_time")
+        .eq("module_key", moduleKey)
+        .eq("month", prevMonthKey)
+        .order("start_time");
+      if (error) throw error;
+      return data as { start_time: string }[];
+    },
+  });
+
   const { data: coaches } = useQuery({
     queryKey: ["schedule-planner-coaches"],
     queryFn: async () => {
@@ -4758,7 +4773,7 @@ export function SchedulePlannerPanel() {
         cambios a las clases reales de ese mes.
       </p>
 
-      {monthIsEmpty && monthCursor >= thisMonth ? (
+      {monthIsEmpty && monthCursor >= new Date(now.getFullYear(), now.getMonth(), 1) ? (
         <div className="mb-4 flex flex-wrap items-center gap-3 border border-dashed border-border p-3">
           <p className="text-sm text-muted-foreground">
             Este mes está en blanco. Puedes armarlo desde cero o partir del mes anterior.
