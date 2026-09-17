@@ -811,6 +811,7 @@ export type Database = {
           id: string
           is_rotation: boolean
           module_key: string
+          month: string
           room: string
           start_time: string
           weekday: number
@@ -824,6 +825,7 @@ export type Database = {
           id?: string
           is_rotation?: boolean
           module_key: string
+          month?: string
           room?: string
           start_time: string
           weekday: number
@@ -837,6 +839,7 @@ export type Database = {
           id?: string
           is_rotation?: boolean
           module_key?: string
+          month?: string
           room?: string
           start_time?: string
           weekday?: number
@@ -1391,6 +1394,10 @@ export type Database = {
       client_place_order:
         | { Args: { _items: Json }; Returns: string }
         | { Args: { _items: Json; _note?: string }; Returns: string }
+      copy_schedule_month: {
+        Args: { _from_month: string; _module_key: string; _to_month: string }
+        Returns: number
+      }
       fulfill_merch_cart_order: {
         Args: { _external_ref: string; _items: Json; _user_id: string }
         Returns: string

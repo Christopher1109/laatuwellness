@@ -4479,21 +4479,34 @@ export function SchedulePlannerPanel() {
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfIsoWeek(new Date()));
+  const [monthCursor, setMonthCursor] = useState<Date>(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
 
-  const thisWeek = startOfIsoWeek(new Date());
+  const now = new Date();
+  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthKey = ymd(monthCursor);
+  const prevMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
+  // La cuadrícula muestra la semana (lunes a domingo) que contiene el día 1 del mes.
+  const weekStart = startOfIsoWeek(monthCursor);
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
-  const isCurrentWeek = ymd(weekStart) === ymd(thisWeek);
+  const isCurrentMonth = ymd(monthCursor) === ymd(thisMonth);
+  const monthLabel = new Intl.DateTimeFormat("es-MX", {
+    month: "long",
+    year: "numeric",
+  }).format(monthCursor);
 
   const { data: templates } = useQuery({
-    queryKey: ["schedule-templates", moduleKey],
+    queryKey: ["schedule-templates", moduleKey, monthKey],
     queryFn: async () => {
       const { data, error } = await (supabase.from as any)("schedule_templates")
         .select("*")
         .eq("module_key", moduleKey)
+        .eq("month", monthKey)
         .order("start_time");
       if (error) throw error;
       return data as TemplateRow[];
@@ -4529,6 +4542,9 @@ export function SchedulePlannerPanel() {
   const cellFor = (weekday: number, time: string) =>
     (templates ?? []).find((t) => t.weekday === weekday && t.start_time.slice(0, 5) === time);
 
+  const invalidateTemplates = () =>
+    void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey, monthKey] });
+
   const upsert = useMutation({
     mutationFn: async (row: {
       weekday: number;
@@ -4541,6 +4557,7 @@ export function SchedulePlannerPanel() {
           module_key: moduleKey,
           weekday: row.weekday,
           start_time: row.time,
+          month: monthKey,
           coach_id: row.coach_id,
           is_rotation: row.is_rotation,
           active: row.coach_id !== null || row.is_rotation,
@@ -4548,13 +4565,13 @@ export function SchedulePlannerPanel() {
           capacity: moduleKey === "rehabilitacion" ? 1 : 10,
           duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
         },
-        { onConflict: "module_key,weekday,start_time" },
+        { onConflict: "module_key,weekday,start_time,month" },
       );
       if (error) throw error;
     },
     onSuccess: () => {
       setEditingCell(null);
-      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+      invalidateTemplates();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -4566,7 +4583,7 @@ export function SchedulePlannerPanel() {
     },
     onSuccess: () => {
       setEditingCell(null);
-      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+      invalidateTemplates();
     },
   });
 
@@ -4576,6 +4593,7 @@ export function SchedulePlannerPanel() {
         module_key: moduleKey,
         weekday,
         start_time: `${time}:00`,
+        month: monthKey,
         coach_id: null,
         is_rotation: false,
         active: false,
@@ -4584,7 +4602,7 @@ export function SchedulePlannerPanel() {
         duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
       }));
       const { error } = await (supabase.from as any)("schedule_templates").upsert(rows, {
-        onConflict: "module_key,weekday,start_time",
+        onConflict: "module_key,weekday,start_time,month",
         ignoreDuplicates: true,
       });
       if (error) throw error;
@@ -4592,7 +4610,7 @@ export function SchedulePlannerPanel() {
     onSuccess: (_d, time) => {
       setExtraTimes((prev) => prev.filter((t) => t !== time));
       toast.success("Renglón de hora guardado.");
-      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+      invalidateTemplates();
     },
     onError: (e: Error) => toast.error(e.message || "No se pudo guardar la hora."),
   });
@@ -4602,6 +4620,7 @@ export function SchedulePlannerPanel() {
       const { error } = await (supabase.from as any)("schedule_templates")
         .delete()
         .eq("module_key", moduleKey)
+        .eq("month", monthKey)
         .eq("start_time", `${time}:00`);
       if (error) throw error;
     },
@@ -4609,25 +4628,22 @@ export function SchedulePlannerPanel() {
       setEditingCell(null);
       setExtraTimes((prev) => prev.filter((t) => t !== time));
       toast.success("Hora eliminada del patrón.");
-      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+      invalidateTemplates();
     },
     onError: (e: Error) => toast.error(e.message || "No se pudo eliminar la hora."),
   });
 
-  // El alcance de la actualización nunca pasa del último día del mes que
-  // estás viendo: cada mes nuevo se programa desde cero.
+  // La actualización cubre únicamente el mes que estás viendo (desde hoy si
+  // el mes ya empezó). Los demás meses no se tocan.
   const updateRange = useMemo(() => {
-    const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
-    const monthEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0);
-    const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-    let from = weekStart < thisWeek ? weekStart : thisWeek;
-    if (from < monthStart) from = monthStart;
+    const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let from = monthCursor;
     if (from < today) from = today;
-    let to = addDays(weekStart, 6);
-    if (to > monthEnd) to = monthEnd;
+    const to = monthEnd;
     return { from, to, valid: to >= from };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekStart]);
+  }, [monthCursor]);
 
   const publish = useMutation({
     mutationFn: async () => {
@@ -4647,10 +4663,33 @@ export function SchedulePlannerPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo actualizar."),
   });
 
+  const copyPrev = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("copy_schedule_month", {
+        _module_key: moduleKey,
+        _from_month: ymd(prevMonth),
+        _to_month: monthKey,
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (n) => {
+      toast.success(
+        n > 0
+          ? `Se copiaron ${n} horarios del mes anterior. Ajústalos y dale a "Actualizar clases".`
+          : "El mes anterior no tiene horarios para copiar.",
+      );
+      invalidateTemplates();
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo copiar."),
+  });
+
   const rangeLabel = () => {
     const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
     return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
+
+  const monthIsEmpty = (templates ?? []).length === 0;
 
   return (
     <div>
@@ -4674,42 +4713,63 @@ export function SchedulePlannerPanel() {
       <div className="mb-4 flex flex-wrap items-center gap-3 border border-border p-3">
         <button
           type="button"
-          onClick={() => setWeekStart((w) => addDays(w, -7))}
+          onClick={() =>
+            setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+          }
           className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
-          aria-label="Semana anterior"
+          aria-label="Mes anterior"
         >
           ←
         </button>
         <div className="min-w-[13rem] text-center text-sm">
-          <span className="eyebrow block text-[0.6rem]">Semana</span>
-          {new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(weekStart)} —{" "}
-          {new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(
-            addDays(weekStart, 6),
-          )}
+          <span className="eyebrow block text-[0.6rem]">Mes</span>
+          <span className="capitalize">{monthLabel}</span>
         </div>
         <button
           type="button"
-          onClick={() => setWeekStart((w) => addDays(w, 7))}
+          onClick={() =>
+            setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+          }
           className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
-          aria-label="Semana siguiente"
+          aria-label="Mes siguiente"
         >
           →
         </button>
         <button
           type="button"
-          onClick={() => setWeekStart(startOfIsoWeek(new Date()))}
-          disabled={isCurrentWeek}
+          onClick={() => {
+            const n = new Date();
+            setMonthCursor(new Date(n.getFullYear(), n.getMonth(), 1));
+          }}
+          disabled={isCurrentMonth}
           className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
         >
-          Esta semana
+          Mes actual
         </button>
       </div>
 
       <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
-        Arma el patrón de la semana: cada celda es un coach asignado a esa hora y día. Muévete entre
-        semanas con las flechas y, cuando termines, dale a "Actualizar clases" para aplicar los
-        cambios a las clases reales de ese periodo.
+        Arma el patrón del mes: cada celda es un coach asignado a esa hora y día, y se repite en
+        todas las semanas del mes. Muévete entre meses con las flechas; cada mes empieza en blanco
+        y no afecta a los demás. Cuando termines, dale a "Actualizar clases" para aplicar los
+        cambios a las clases reales de ese mes.
       </p>
+
+      {monthIsEmpty && monthCursor >= thisMonth ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3 border border-dashed border-border p-3">
+          <p className="text-sm text-muted-foreground">
+            Este mes está en blanco. Puedes armarlo desde cero o partir del mes anterior.
+          </p>
+          <button
+            type="button"
+            onClick={() => copyPrev.mutate()}
+            disabled={copyPrev.isPending}
+            className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-50"
+          >
+            {copyPrev.isPending ? "Copiando…" : "Copiar patrón del mes anterior"}
+          </button>
+        </div>
+      ) : null}
 
       <div className="overflow-x-auto border border-border">
         <table className="w-full min-w-[900px] table-fixed text-sm">
@@ -4741,19 +4801,14 @@ export function SchedulePlannerPanel() {
           <tbody>
             {times.map((time) => (
               <tr key={time} className="border-b border-border last:border-0">
-                <td className="h-14 px-3 font-mono text-xs">
-                  <div className="flex items-center justify-between gap-1">
+                <td className="px-3 py-1 font-mono text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
                     <span>{time}</span>
                     <button
                       type="button"
-                      title="Eliminar esta hora"
-                      aria-label={`Eliminar la hora ${time}`}
+                      title="Eliminar esta hora del patrón"
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            `¿Eliminar la hora ${time} de todos los días de este patrón?`,
-                          )
-                        ) {
+                        if (window.confirm(`¿Eliminar la hora ${time} de todos los días?`)) {
                           removeTimeRow.mutate(time);
                         }
                       }}
@@ -4765,18 +4820,18 @@ export function SchedulePlannerPanel() {
                 </td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
-                  const isEditing = editingCell?.weekday === weekday && editingCell?.time === time;
+                  const editing =
+                    editingCell?.weekday === weekday && editingCell?.time === time;
                   return (
-                    <td key={weekday} className="h-14 p-1 align-middle">
-                      {isEditing ? (
+                    <td key={weekday} className="border-l border-border p-0.5">
+                      {editing ? (
                         <select
                           autoFocus
-                          className="h-12 w-full border border-foreground bg-background px-1 text-xs"
-                          defaultValue={cell?.is_rotation ? "rotation" : (cell?.coach_id ?? "")}
-                          onBlur={() => setEditingCell(null)}
+                          className="h-12 w-full bg-background text-xs"
+                          value={cell?.is_rotation ? "__rot" : (cell?.coach_id ?? "")}
                           onChange={(e) => {
                             const v = e.target.value;
-                            if (v === "clear") {
+                            if (v === "__none") {
                               if (cell) removeCell.mutate(cell.id);
                               else setEditingCell(null);
                               return;
@@ -4784,19 +4839,20 @@ export function SchedulePlannerPanel() {
                             upsert.mutate({
                               weekday,
                               time,
-                              coach_id: v === "rotation" ? null : v || null,
-                              is_rotation: v === "rotation",
+                              coach_id: v === "__rot" ? null : v || null,
+                              is_rotation: v === "__rot",
                             });
                           }}
+                          onBlur={() => setEditingCell(null)}
                         >
-                          <option value="">— vacío —</option>
-                          <option value="rotation">Rotación (fin de semana)</option>
+                          <option value="">Pendiente</option>
+                          <option value="__rot">Rotación</option>
                           {(coaches ?? []).map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.full_name}
                             </option>
                           ))}
-                          {cell ? <option value="clear">Quitar celda</option> : null}
+                          <option value="__none">Quitar</option>
                         </select>
                       ) : (
                         <button
@@ -4829,7 +4885,7 @@ export function SchedulePlannerPanel() {
               <tr>
                 <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                   Sin horas configuradas todavía para{" "}
-                  {SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label}.
+                  {SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label} en este mes.
                 </td>
               </tr>
             ) : null}
@@ -4877,8 +4933,8 @@ export function SchedulePlannerPanel() {
         </button>
         <p className="max-w-md text-xs text-muted-foreground">
           {updateRange.valid
-            ? `Se aplicará a las clases del ${rangeLabel()} y quedarán disponibles para reservar en la página y la app. Nunca pasa del último día del mes que estás viendo.`
-            : "Esta semana ya pasó: muévete a una semana actual o futura para actualizar."}
+            ? `Se aplicará solo a las clases de ${monthLabel} (${rangeLabel()}) y quedarán disponibles para reservar en la página y la app. Ningún otro mes se modifica.`
+            : "Este mes ya pasó: muévete al mes actual o a uno futuro para actualizar."}
         </p>
       </div>
     </div>
