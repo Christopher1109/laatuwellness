@@ -129,13 +129,13 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
     },
   });
 
-  const reservar = (classId: string) => {
+  const reservar = (c: ClassRow) => {
     if (!user) {
       toast.error("Inicia sesión para reservar.");
       void navigate({ to: "/auth" });
       return;
     }
-    book.mutate(classId);
+    setConfirming(c);
   };
 
   // staff_profiles no es legible para visitantes, así que el horario público
