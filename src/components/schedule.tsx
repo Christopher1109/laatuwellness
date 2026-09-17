@@ -233,6 +233,8 @@ export function Schedule({
 }) {
   const [rango, setRango] = useState<Rango>(defaultRange);
   const [filtro, setFiltro] = useState<string | null>(null);
+  // Día seleccionado dentro del rango (null = todos los días del rango).
+  const [dia, setDia] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
