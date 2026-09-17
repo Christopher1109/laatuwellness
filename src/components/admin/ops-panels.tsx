@@ -4822,12 +4822,14 @@ export function SchedulePlannerPanel() {
               {WEEKDAY_LABELS.map((d, i) => {
                 const date = weekDates[i]!;
                 const isToday = ymd(date) === ymd(new Date());
+                const inMonth = date.getMonth() === monthCursor.getMonth();
                 return (
                   <th
                     key={d}
                     className={cn(
                       "px-2 py-2 text-left text-[0.65rem] uppercase text-muted-foreground",
                       isToday && "text-foreground",
+                      !inMonth && "opacity-40",
                     )}
                   >
                     {d}{" "}
