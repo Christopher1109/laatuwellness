@@ -4543,6 +4543,7 @@ export function SchedulePlannerPanel() {
           start_time: row.time,
           coach_id: row.coach_id,
           is_rotation: row.is_rotation,
+          active: row.coach_id !== null || row.is_rotation,
           room: SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label ?? "",
           capacity: moduleKey === "rehabilitacion" ? 1 : 10,
           duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
@@ -4567,6 +4568,33 @@ export function SchedulePlannerPanel() {
       setEditingCell(null);
       void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
     },
+  });
+
+  const addTimeRow = useMutation({
+    mutationFn: async (time: string) => {
+      const rows = Array.from({ length: 7 }, (_, weekday) => ({
+        module_key: moduleKey,
+        weekday,
+        start_time: `${time}:00`,
+        coach_id: null,
+        is_rotation: false,
+        active: false,
+        room: SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label ?? "",
+        capacity: moduleKey === "rehabilitacion" ? 1 : 10,
+        duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
+      }));
+      const { error } = await (supabase.from as any)("schedule_templates").upsert(rows, {
+        onConflict: "module_key,weekday,start_time",
+        ignoreDuplicates: true,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, time) => {
+      setExtraTimes((prev) => prev.filter((t) => t !== time));
+      toast.success("Renglón de hora guardado.");
+      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
+    },
+    onError: (e: Error) => toast.error(e.message || "No se pudo guardar la hora."),
   });
 
   const removeTimeRow = useMutation({
@@ -4821,18 +4849,20 @@ export function SchedulePlannerPanel() {
         </label>
         <button
           type="button"
-          disabled={!newTime}
+          disabled={!newTime || addTimeRow.isPending}
           onClick={() => {
             const t = newTime.slice(0, 5);
             setExtraTimes((prev) => (prev.includes(t) ? prev : [...prev, t]));
             setNewTime("");
+            addTimeRow.mutate(t);
           }}
           className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
         >
           + Agregar renglón de hora
         </button>
         <p className="text-xs text-muted-foreground">
-          El renglón aparece vacío: asigna un coach en algún día para que se guarde.
+          El renglón se guarda al instante y sigue ahí aunque salgas o refresques; asigna un coach
+          para que esa hora se publique como clase.
         </p>
       </div>
 
