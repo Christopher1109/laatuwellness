@@ -801,6 +801,33 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_blackouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          day: string
+          id: string
+          module_key: string
+          note: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          day: string
+          id?: string
+          module_key: string
+          note?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          day?: string
+          id?: string
+          module_key?: string
+          note?: string
+        }
+        Relationships: []
+      }
       schedule_templates: {
         Row: {
           active: boolean
