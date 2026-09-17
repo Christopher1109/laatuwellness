@@ -133,38 +133,17 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
     book.mutate(classId);
   };
 
-  // La tabla pública "coaches" (bios/fotos) no está ligada por id a
-  // staff_profiles (la de horarios/nómina) — se busca por nombre.
-  const { data: staffMatch } = useQuery({
-    queryKey: ["coach-staff-match", coach.name],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff_profiles")
-        .select("id")
-        .eq("role", "coach")
-        .ilike("full_name", coach.name)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
+  // staff_profiles no es legible para visitantes, así que el horario público
+  // del coach se resuelve por nombre en una función del backend.
   const { data: classes, isLoading } = useQuery({
-    queryKey: ["coach-public-schedule", staffMatch?.id],
-    enabled: Boolean(staffMatch?.id),
+    queryKey: ["coach-public-schedule", coach.name],
     queryFn: async () => {
-      const from = new Date();
-      const to = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
-      const { data, error } = await supabase
-        .from("classes")
-        .select("id, starts_at, room, module_key, capacity")
-        .eq("coach_id", staffMatch!.id)
-        .eq("active", true)
-        .gte("starts_at", from.toISOString())
-        .lt("starts_at", to.toISOString())
-        .order("starts_at");
+      const { data, error } = await supabase.rpc("coach_public_schedule", {
+        _coach_name: coach.name,
+        _days: 7,
+      });
       if (error) throw error;
-      return data as ClassRow[];
+      return (data ?? []) as ClassRow[];
     },
   });
 
@@ -222,11 +201,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
           </button>
         </div>
         <div className="max-h-[62vh] overflow-y-auto px-6 py-2 sm:px-8">
-          {!staffMatch ? (
-            <p className="py-8 text-sm text-muted-foreground">
-              Todavía no hay horario público para {coach.name}.
-            </p>
-          ) : isLoading ? (
+          {isLoading ? (
             <p className="py-8 text-sm text-muted-foreground">Cargando…</p>
           ) : grupos.length === 0 ? (
             <p className="py-8 text-sm text-muted-foreground">

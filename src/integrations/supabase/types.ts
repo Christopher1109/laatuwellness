@@ -1421,6 +1421,16 @@ export type Database = {
       client_place_order:
         | { Args: { _items: Json }; Returns: string }
         | { Args: { _items: Json; _note?: string }; Returns: string }
+      coach_public_schedule: {
+        Args: { _coach_name: string; _days?: number }
+        Returns: {
+          capacity: number
+          id: string
+          module_key: string
+          room: string
+          starts_at: string
+        }[]
+      }
       copy_schedule_month: {
         Args: { _from_month: string; _module_key: string; _to_month: string }
         Returns: number
