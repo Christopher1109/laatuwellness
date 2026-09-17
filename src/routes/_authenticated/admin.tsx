@@ -58,8 +58,39 @@ export const Route = createFileRoute("/_authenticated/admin")({
 // Horarios de clase (Reformer, Contrast Therapy...) viven separados de los
 // horarios de consultorio (fisioterapia, psicología, nutrición) para que no
 // se mezclen en la misma lista.
-const CLASS_MODULES = ["reformer", "4mat", "contraste"] as const;
 const CONSULTORIO_MODULES = ["nutricion", "psicologia", "rehabilitacion"] as const;
+
+// Bloques de entrada en "Horarios de clases": se elige un programa y solo se
+// muestran sus clases.
+const CLASS_MODULE_BLOCKS = [
+  { key: "reformer", label: "Reformer Studio", desc: "Clases de reformer" },
+  { key: "4mat", label: "Format", desc: "Clases de 4mat / Format" },
+  { key: "rehabilitacion", label: "Consultorio DorisFisio", desc: "Sesiones de fisioterapia" },
+  { key: "contraste", label: "Contrast Therapy", desc: "Sauna y frío" },
+] as const;
+
+function ClassModulePicker({ onPick }: { onPick: (key: string) => void }) {
+  return (
+    <div>
+      <h2 className="statement text-2xl">Horarios de clases</h2>
+      <p className="mt-2 text-sm text-muted-foreground">Elige un programa para ver su agenda.</p>
+      <div className="mt-6 grid gap-px bg-border sm:grid-cols-2">
+        {CLASS_MODULE_BLOCKS.map((b) => (
+          <button
+            key={b.key}
+            type="button"
+            onClick={() => onPick(b.key)}
+            className="bg-background p-8 text-left transition-colors hover:bg-muted"
+          >
+            <CalendarDays className="h-5 w-5 text-muted-foreground" />
+            <p className="mt-4 text-lg">{b.label}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{b.desc}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Admin() {
   const { isAdmin, isStaff, isCoach, loading, staffProfile } = useAuth();
@@ -75,7 +106,6 @@ function Admin() {
             { key: "programacion", label: "Programación de clases", icon: CalendarDays },
             { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
-            { key: "check-in", label: "Check-in", icon: ClipboardCheck },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
             { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
             { key: "inventario", label: "Inventario", icon: Package },
@@ -122,7 +152,6 @@ function Admin() {
                   label: "Horarios de consultorio",
                   icon: Stethoscope,
                 },
-                { key: "check-in", label: "Check-in", icon: ClipboardCheck },
                 { key: "pos", label: "Punto de venta", icon: ShoppingCart },
                 { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
                 { key: "inventario", label: "Inventario", icon: Package },
@@ -204,10 +233,33 @@ function Admin() {
 
       {activeKey === "programacion" ? <SchedulePlannerPanel /> : null}
       {activeKey === "horarios-clases" ? (
-        <AdminSchedulePanel
-          modules={focusModule ? [focusModule] : [...CLASS_MODULES]}
-          title="Horarios de clases"
-        />
+        (() => {
+          const current = focusModule ?? classModule;
+          if (!current) {
+            return (
+              <ClassModulePicker
+                onPick={(k) => setClassModule(k)}
+              />
+            );
+          }
+          const label =
+            CLASS_MODULE_BLOCKS.find((b) => b.key === current)?.label ?? "Horarios de clases";
+          return (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusModule(null);
+                  setClassModule(null);
+                }}
+                className="mb-4 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
+              >
+                ← Todos los programas
+              </button>
+              <AdminSchedulePanel modules={[current]} title={label} />
+            </div>
+          );
+        })()
       ) : null}
 
       {activeKey === "horarios-consultorio" ? (
