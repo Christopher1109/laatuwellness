@@ -4849,18 +4849,20 @@ export function SchedulePlannerPanel() {
         </label>
         <button
           type="button"
-          disabled={!newTime}
+          disabled={!newTime || addTimeRow.isPending}
           onClick={() => {
             const t = newTime.slice(0, 5);
             setExtraTimes((prev) => (prev.includes(t) ? prev : [...prev, t]));
             setNewTime("");
+            addTimeRow.mutate(t);
           }}
           className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
         >
           + Agregar renglón de hora
         </button>
         <p className="text-xs text-muted-foreground">
-          El renglón aparece vacío: asigna un coach en algún día para que se guarde.
+          El renglón se guarda al instante y sigue ahí aunque salgas o refresques; asigna un coach
+          para que esa hora se publique como clase.
         </p>
       </div>
 
