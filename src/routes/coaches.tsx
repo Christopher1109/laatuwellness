@@ -96,10 +96,15 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  // La reserva va en dos pasos: primero una confirmación ("vas a reservar en
+  // esta clase") y después el mapa de lugares, para que nadie aparte por
+  // accidente con un solo toque.
+  const [confirming, setConfirming] = useState<ClassRow | null>(null);
+  const [pickingSeat, setPickingSeat] = useState<ClassRow | null>(null);
 
   const book = useMutation({
-    mutationFn: async (classId: string) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: null });
+    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
+      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
       if (error) throw error;
     },
     onSuccess: () => {
