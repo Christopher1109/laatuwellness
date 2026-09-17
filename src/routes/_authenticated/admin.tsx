@@ -17,7 +17,7 @@ import {
   PackageOpen,
   ScrollText,
   Ticket,
-  ClipboardCheck,
+  
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -171,6 +171,7 @@ function Admin() {
   const firstKey = groups[0]?.items[0]?.key ?? "";
   const [active, setActive] = useState(firstKey);
   const [focusModule, setFocusModule] = useState<string | null>(null);
+  const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
     active === "panel-staff" || groups.flatMap((g) => g.items).some((i) => i.key === active)
@@ -266,7 +267,7 @@ function Admin() {
         <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
       ) : null}
       {activeKey === "pos" ? <POSPanel /> : null}
-      {activeKey === "check-in" ? <CheckInPanel /> : null}
+      
       {activeKey === "pedidos" ? <PendingOrdersPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}
