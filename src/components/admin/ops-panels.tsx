@@ -4730,7 +4730,7 @@ export function SchedulePlannerPanel() {
         <button
           type="button"
           onClick={() =>
-            setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+            goToMonth(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))
           }
           className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
           aria-label="Mes anterior"
@@ -4744,7 +4744,7 @@ export function SchedulePlannerPanel() {
         <button
           type="button"
           onClick={() =>
-            setMonthCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+            goToMonth(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))
           }
           className="border border-input px-3 py-1.5 text-xs hover:bg-muted"
           aria-label="Mes siguiente"
@@ -4755,12 +4755,37 @@ export function SchedulePlannerPanel() {
           type="button"
           onClick={() => {
             const n = new Date();
-            setMonthCursor(new Date(n.getFullYear(), n.getMonth(), 1));
+            goToMonth(new Date(n.getFullYear(), n.getMonth(), 1));
           }}
           disabled={isCurrentMonth}
           className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
         >
           Mes actual
+        </button>
+
+        <div className="mx-2 hidden h-6 w-px bg-border sm:block" />
+
+        <button
+          type="button"
+          onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
+          disabled={safeWeekOffset === 0}
+          className="border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+          aria-label="Semana anterior"
+        >
+          ←
+        </button>
+        <div className="min-w-[10rem] text-center text-sm">
+          <span className="eyebrow block text-[0.6rem]">Semana</span>
+          <span className="capitalize">{weekLabel}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setWeekOffset((w) => Math.min(maxWeekOffset, w + 1))}
+          disabled={safeWeekOffset >= maxWeekOffset}
+          className="border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+          aria-label="Semana siguiente"
+        >
+          →
         </button>
       </div>
 
