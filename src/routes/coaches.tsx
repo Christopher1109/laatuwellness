@@ -264,6 +264,63 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
         </div>
       </div>
     </div>
+
+    {confirming && !pickingSeat ? (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm"
+        onClick={() => setConfirming(null)}
+      >
+        <div
+          className="w-full max-w-sm border border-border bg-background p-6 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="eyebrow">Confirmar reserva</p>
+          <h3 className="mt-2 text-lg">Vas a reservar esta clase</h3>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {coach.name} ·{" "}
+            {new Intl.DateTimeFormat("es-MX", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            }).format(new Date(confirming.starts_at))}{" "}
+            ·{" "}
+            {new Intl.DateTimeFormat("es-MX", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            }).format(new Date(confirming.starts_at))}{" "}
+            · {confirming.room}
+          </p>
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={() => setConfirming(null)}
+              className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em]"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setPickingSeat(confirming)}
+              className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+            >
+              Sí, elegir lugar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {pickingSeat ? (
+      <SeatPickerModal
+        classItem={pickingSeat}
+        pending={book.isPending}
+        onClose={() => {
+          setPickingSeat(null);
+          setConfirming(null);
+        }}
+        onConfirm={(seat) => book.mutate({ classId: pickingSeat.id, seat })}
+      />
+    ) : null}
+    </>
   );
 }
 
