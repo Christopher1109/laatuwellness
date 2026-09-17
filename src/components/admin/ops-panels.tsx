@@ -4749,22 +4749,6 @@ export function SchedulePlannerPanel() {
         los cambios a las clases reales de ese mes.
       </p>
 
-      {monthIsEmpty && monthCursor >= new Date(now.getFullYear(), now.getMonth(), 1) ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3 border border-dashed border-border p-3">
-          <p className="text-sm text-muted-foreground">
-            Este mes está en blanco. Puedes armarlo desde cero o partir del mes anterior.
-          </p>
-          <button
-            type="button"
-            onClick={() => copyPrev.mutate()}
-            disabled={copyPrev.isPending}
-            className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-50"
-          >
-            {copyPrev.isPending ? "Copiando…" : "Copiar patrón del mes anterior"}
-          </button>
-        </div>
-      ) : null}
-
       <div className="overflow-x-auto border border-border">
         <table className="w-full min-w-[900px] table-fixed text-sm">
           <thead>
