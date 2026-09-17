@@ -223,7 +223,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
                     <li key={c.id}>
                       <button
                         type="button"
-                        onClick={() => reservar(c.id)}
+                        onClick={() => reservar(c)}
                         disabled={book.isPending}
                         className="group flex w-full items-center justify-between gap-3 border border-border px-4 py-3 text-left transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
                       >
