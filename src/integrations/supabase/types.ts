@@ -1502,6 +1502,10 @@ export type Database = {
         Args: { _items: Json; _payment_method: string; _user_id: string }
         Returns: string
       }
+      publish_schedule_range: {
+        Args: { _from: string; _module_key: string; _to: string }
+        Returns: number
+      }
       publish_schedule_template: {
         Args: { _module_key: string; _weeks?: number }
         Returns: number
