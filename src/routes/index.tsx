@@ -34,7 +34,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Estudio de Pilates Reformer, 4mat, Align y terapia de contraste. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
+          "Estudio de Pilates Reformer, 4mat y Align. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
