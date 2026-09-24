@@ -12,6 +12,8 @@ export const Route = createFileRoute("/nosotros")({
         content:
           "Salones de 10 personas, atención personalizada y una práctica pensada para la longevidad. Conoce la propuesta de Läätu.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { property: "og:title", content: "Nosotros — Läätu Wellness" },
       {
         property: "og:description",
