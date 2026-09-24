@@ -76,12 +76,25 @@ export const createPlanClipCheckout = createServerFn({ method: "POST" })
 
     const { data: plan, error: planError } = await supabase
       .from("token_plans")
-      .select("id, name, price_cents, currency, tokens, active")
+      .select("id, name, price_cents, currency, tokens, active, purchasable_once")
       .eq("id", data.planId)
       .single();
 
     if (planError || !plan) throw new Error("Paquete no encontrado");
     if (!plan.active) throw new Error("Paquete no disponible");
+
+    if (plan.purchasable_once) {
+      const { data: previousPurchase, error: purchaseError } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("plan_id", plan.id)
+        .eq("status", "completed")
+        .limit(1)
+        .maybeSingle();
+      if (purchaseError) throw new Error("No se pudo validar este paquete");
+      if (previousPurchase) throw new Error("Este paquete solo se puede comprar una vez por cuenta.");
+    }
 
     const email = await ensureProfileEmail(supabase, userId, claims?.email);
     const ref = externalRef();

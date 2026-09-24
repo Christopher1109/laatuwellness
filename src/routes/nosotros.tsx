@@ -25,15 +25,15 @@ export const Route = createFileRoute("/nosotros")({
 const VALORES = [
   {
     title: "El proceso, no la meta",
-    body: "Medimos tu avance por tu constancia, no por una foto. Aplaude tus tropiezos: también son recorrido.",
+    body: "Medimos tu avance por tu constancia, no por una foto.",
   },
   {
     title: "Longevidad",
-    body: "Entrenamos para los próximos treinta años: fuerza, movilidad, respiración y sistema nervioso.",
+    body: "Entrenamos hoy para vivir mejor por más tiempo.",
   },
   {
     title: "Honestidad",
-    body: "Sin promesas exageradas. Te decimos qué esperar, cuánto toma y qué depende de ti.",
+    body: "Resultados que se construyen con constancia.",
   },
 ];
 

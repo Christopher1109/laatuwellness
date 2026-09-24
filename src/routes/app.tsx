@@ -911,6 +911,20 @@ function CreditosTab() {
     },
   });
 
+  const { data: purchasedPlanIds } = useQuery({
+    queryKey: ["app-purchased-once-plans", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("plan_id")
+        .eq("user_id", user?.id ?? "")
+        .eq("status", "completed");
+      if (error) throw error;
+      return new Set((data ?? []).map((transaction) => transaction.plan_id).filter(Boolean));
+    },
+  });
+
   const grouped = useMemo(() => {
     const groups = new Map<string, NonNullable<typeof plans>>();
     for (const p of plans ?? []) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
@@ -1007,7 +1021,9 @@ function CreditosTab() {
             <div key={category}>
               <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
               <div className="mt-3 space-y-2">
-                {items.map((p) => (
+                {items.map((p) => {
+                  const alreadyPurchased = p.purchasable_once && purchasedPlanIds?.has(p.id);
+                  return (
                   <div key={p.id} className="border border-border p-4">
                     <p className="text-sm">{p.name}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1015,12 +1031,14 @@ function CreditosTab() {
                     </p>
                     <button
                       onClick={() => setBuying(p as unknown as CheckoutPlan)}
-                      className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em]"
+                      disabled={alreadyPurchased}
+                      className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
                     >
-                      Comprar
+                      {alreadyPurchased ? "Ya adquirido" : "Comprar"}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
