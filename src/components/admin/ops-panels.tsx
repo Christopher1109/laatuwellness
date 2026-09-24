@@ -5171,7 +5171,10 @@ function CoachEditPopout({ coach, onClose }: { coach: CoachEditable | null; onCl
           e.preventDefault();
           const f = new FormData(e.currentTarget);
           const full_name = String(f.get("full_name") || "").trim();
-          if (!full_name) return toast.error("El nombre es obligatorio.");
+          if (!full_name) {
+            toast.error("El nombre es obligatorio.");
+            return;
+          }
           save.mutate({
             full_name,
             email: String(f.get("email") || "").trim(),
