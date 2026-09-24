@@ -12,6 +12,8 @@ export const Route = createFileRoute("/nosotros")({
         content:
           "Salones de 10 personas, atención personalizada y una práctica pensada para la longevidad. Conoce la propuesta de Läätu.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { property: "og:title", content: "Nosotros — Läätu Wellness" },
       {
         property: "og:description",
@@ -25,15 +27,15 @@ export const Route = createFileRoute("/nosotros")({
 const VALORES = [
   {
     title: "El proceso, no la meta",
-    body: "Medimos tu avance por tu constancia, no por una foto. Aplaude tus tropiezos: también son recorrido.",
+    body: "Medimos tu avance por tu constancia, no por una foto.",
   },
   {
     title: "Longevidad",
-    body: "Entrenamos para los próximos treinta años: fuerza, movilidad, respiración y sistema nervioso.",
+    body: "Entrenamos hoy para vivir mejor por más tiempo.",
   },
   {
     title: "Honestidad",
-    body: "Sin promesas exageradas. Te decimos qué esperar, cuánto toma y qué depende de ti.",
+    body: "Resultados que se construyen con constancia.",
   },
 ];
 

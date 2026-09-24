@@ -194,7 +194,7 @@ export function SiteFooter() {
             <Wordmark tone="ivory" variant="stack" className="h-20" />
             <Coordinates className="mt-6" />
             <p className="mt-5 text-sm text-muted-foreground">
-              Wellness &amp; Fuel. Un espacio para respirar, moverte y agradecer el recorrido.
+              Un espacio para respirar, moverte y agradecer el recorrido.
             </p>
           </div>
 

@@ -84,6 +84,20 @@ function Paquetes() {
     },
   });
 
+  const { data: purchasedPlanIds } = useQuery({
+    queryKey: ["purchased-once-plans", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("plan_id")
+        .eq("user_id", user?.id ?? "")
+        .eq("status", "completed");
+      if (error) throw error;
+      return new Set((data ?? []).map((transaction) => transaction.plan_id).filter(Boolean));
+    },
+  });
+
   const grouped = useMemo(() => {
     const groups = new Map<string, NonNullable<typeof plans>>();
     for (const p of plans ?? []) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
@@ -133,6 +147,10 @@ function Paquetes() {
                   </div>
                   <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((p) => (
+                      (() => {
+                        const alreadyPurchased =
+                          p.purchasable_once && purchasedPlanIds?.has(p.id);
+                        return (
                       <article
                         key={p.id}
                         className="flex flex-col border border-border bg-background p-8 shadow-sm"
@@ -153,9 +171,14 @@ function Paquetes() {
 
                         <button
                           onClick={() => handleBuyClick(p)}
-                          className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
+                          disabled={alreadyPurchased}
+                          className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                         >
-                          {user ? "Comprar" : "Inicia sesión para comprar"}
+                          {alreadyPurchased
+                            ? "Ya adquirido"
+                            : user
+                              ? "Comprar"
+                              : "Inicia sesión para comprar"}
                         </button>
 
                         <div className="mt-6 flex-1 space-y-4 border-t border-border pt-5">
@@ -196,6 +219,8 @@ function Paquetes() {
                           ) : null}
                         </div>
                       </article>
+                        );
+                      })()
                     ))}
                   </div>
                 </div>

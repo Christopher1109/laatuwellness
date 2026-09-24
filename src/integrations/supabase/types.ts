@@ -1123,6 +1123,7 @@ export type Database = {
           is_staff_only: boolean
           name: string
           price_cents: number
+          purchasable_once: boolean
           recurring: boolean
           sort_order: number
           stripe_price_id: string
@@ -1143,6 +1144,7 @@ export type Database = {
           is_staff_only?: boolean
           name: string
           price_cents: number
+          purchasable_once?: boolean
           recurring?: boolean
           sort_order?: number
           stripe_price_id?: string
@@ -1163,6 +1165,7 @@ export type Database = {
           is_staff_only?: boolean
           name?: string
           price_cents?: number
+          purchasable_once?: boolean
           recurring?: boolean
           sort_order?: number
           stripe_price_id?: string
