@@ -5035,23 +5035,33 @@ export function CoachesPanel() {
   });
 
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<CoachEditable | "new" | null>(null);
 
   return (
     <div>
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setEditing("new")}
+          className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background"
+        >
+          + Nuevo coach
+        </button>
+      </div>
       {(coaches ?? []).length === 0 ? (
-        <p className="text-muted-foreground">
-          Sin coaches dados de alta todavía (asigna el rol "Coach" en Staff).
-        </p>
+        <p className="text-muted-foreground">Sin coaches dados de alta todavía.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(coaches ?? []).map((c) => (
-            <button
+            <div
               key={c.id}
-              type="button"
-              onClick={() => setOpenId(c.id)}
-              className="border border-border p-4 text-left hover:border-foreground/40"
+              className={`border border-border p-4 ${c.active ? "" : "opacity-50"}`}
             >
-              <div className="mb-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOpenId(c.id)}
+                className="mb-3 flex w-full items-center gap-2 text-left"
+              >
                 <Avatar className="h-9 w-9">
                   {c.photo_url ? <AvatarImage src={c.photo_url} alt="" /> : null}
                   <AvatarFallback className="text-xs">
@@ -5064,16 +5074,171 @@ export function CoachesPanel() {
                 </Avatar>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{c.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{money(c.hourly_rate_cents)}/h</p>
+                  <p className="text-xs text-muted-foreground">
+                    {money(c.hourly_rate_cents)}/h{c.active ? "" : " · inactivo"}
+                  </p>
                 </div>
-              </div>
-            </button>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(c)}
+                className="w-full border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-foreground hover:text-background"
+              >
+                Editar
+              </button>
+            </div>
           ))}
         </div>
       )}
 
       {openId ? <CoachDetailPopout coachId={openId} onClose={() => setOpenId(null)} /> : null}
+      {editing ? (
+        <CoachEditPopout
+          coach={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+type CoachEditable = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  photo_url: string | null;
+  hourly_rate_cents: number;
+  active: boolean;
+};
+
+function CoachEditPopout({ coach, onClose }: { coach: CoachEditable | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["admin-coaches-list"] });
+    void qc.invalidateQueries({ queryKey: ["coach-detail-profile"] });
+  };
+
+  const save = useMutation({
+    mutationFn: async (p: Omit<CoachEditable, "id">) => {
+      if (coach) {
+        const { error } = await supabase.from("staff_profiles").update(p).eq("id", coach.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("staff_profiles").insert({ ...p, role: "coach" });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(coach ? "Coach actualizado." : "Coach agregado.");
+      refresh();
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`No se pudo guardar: ${e.message}`),
+  });
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!coach) return "none";
+      const { error } = await supabase.from("staff_profiles").delete().eq("id", coach.id);
+      if (!error) return "deleted";
+      // Tiene historial (clases, nómina...): se desactiva en lugar de borrar.
+      const { error: e2 } = await supabase
+        .from("staff_profiles")
+        .update({ active: false })
+        .eq("id", coach.id);
+      if (e2) throw e2;
+      return "deactivated";
+    },
+    onSuccess: (r) => {
+      toast.success(
+        r === "deleted"
+          ? "Coach eliminado."
+          : "El coach tiene historial de clases; se desactivó y ya no aparecerá.",
+      );
+      refresh();
+      onClose();
+    },
+    onError: () => toast.error("No se pudo eliminar."),
+  });
+
+  return (
+    <Popout onClose={onClose}>
+      <h3 className="statement text-2xl">{coach ? "Editar coach" : "Nuevo coach"}</h3>
+      <form
+        className="mt-6 grid gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const full_name = String(f.get("full_name") || "").trim();
+          if (!full_name) {
+            toast.error("El nombre es obligatorio.");
+            return;
+          }
+          save.mutate({
+            full_name,
+            email: String(f.get("email") || "").trim(),
+            phone: String(f.get("phone") || "").trim() || null,
+            photo_url: String(f.get("photo_url") || "").trim() || null,
+            hourly_rate_cents: Math.round(Number(f.get("rate") || 0) * 100),
+            active: f.get("active") === "on",
+          });
+        }}
+      >
+        <label className="text-xs">
+          <span className="eyebrow">Nombre completo</span>
+          <input name="full_name" required defaultValue={coach?.full_name ?? ""} className={input} />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Correo</span>
+          <input name="email" type="email" defaultValue={coach?.email ?? ""} className={input} />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Teléfono</span>
+          <input name="phone" defaultValue={coach?.phone ?? ""} className={input} />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Foto (URL)</span>
+          <input name="photo_url" defaultValue={coach?.photo_url ?? ""} className={input} />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Tarifa por hora (MXN)</span>
+          <input
+            name="rate"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={coach ? coach.hourly_rate_cents / 100 : 0}
+            className={input}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input name="active" type="checkbox" defaultChecked={coach?.active ?? true} />
+          Activo
+        </label>
+        <div className="flex flex-wrap justify-between gap-2 pt-2">
+          {coach ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`¿Eliminar a ${coach.full_name}?`)) remove.mutate();
+              }}
+              className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-destructive"
+            >
+              Eliminar
+            </button>
+          ) : (
+            <span />
+          )}
+          <button
+            disabled={save.isPending}
+            className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+          >
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Popout>
   );
 }
 
