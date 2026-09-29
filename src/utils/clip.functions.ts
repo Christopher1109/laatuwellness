@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { describeError } from "@/lib/describe-error";
 import {
   createClipPaymentLink,
   getClipPaymentStatus,
@@ -83,18 +84,13 @@ export const createPlanClipCheckout = createServerFn({ method: "POST" })
     if (planError || !plan) throw new Error("Paquete no encontrado");
     if (!plan.active) throw new Error("Paquete no disponible");
 
-    if (plan.purchasable_once) {
-      const { data: previousPurchase, error: purchaseError } = await supabase
-        .from("transactions")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("plan_id", plan.id)
-        .eq("status", "completed")
-        .limit(1)
-        .maybeSingle();
-      if (purchaseError) throw new Error("No se pudo validar este paquete");
-      if (previousPurchase) throw new Error("Este paquete solo se puede comprar una vez por cuenta.");
-    }
+    // Reglas del paquete para esta cuenta (compra única, solo clientes nuevos).
+    const { data: blockReason, error: blockError } = await (supabase.rpc as any)(
+      "plan_purchase_block_reason",
+      { _user_id: userId, _plan_id: plan.id },
+    );
+    if (blockError) throw new Error(describeError(blockError, "No se pudo validar este paquete"));
+    if (blockReason) throw new Error(describeError(String(blockReason)));
 
     const email = await ensureProfileEmail(supabase, userId, claims?.email);
     const ref = externalRef();
@@ -158,8 +154,10 @@ export const createMerchClipCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: MerchCheckoutInput) => {
     if (!/^[a-f0-9-]{36}$/i.test(data.productId)) throw new Error("productId inválido");
-    if (!Number.isInteger(data.qty) || data.qty < 1 || data.qty > 50) throw new Error("Cantidad inválida");
-    if (!Number.isInteger(data.priceCents) || data.priceCents < 1) throw new Error("Precio inválido");
+    if (!Number.isInteger(data.qty) || data.qty < 1 || data.qty > 50)
+      throw new Error("Cantidad inválida");
+    if (!Number.isInteger(data.priceCents) || data.priceCents < 1)
+      throw new Error("Precio inválido");
     if (typeof data.origin !== "string" || !data.origin) throw new Error("origin requerido");
     return data;
   })
@@ -243,7 +241,8 @@ export const createMerchCartClipCheckout = createServerFn({ method: "POST" })
     }
     for (const it of data.items) {
       if (!/^[a-f0-9-]{36}$/i.test(it.productId)) throw new Error("productId inválido");
-      if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > 50) throw new Error("Cantidad inválida");
+      if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > 50)
+        throw new Error("Cantidad inválida");
       if (!Number.isInteger(it.priceCents) || it.priceCents < 1) throw new Error("Precio inválido");
     }
     if (typeof data.origin !== "string" || !data.origin) throw new Error("origin requerido");
@@ -335,44 +334,42 @@ export const getClipOrderStatus = createServerFn({ method: "POST" })
     if (!/^[a-f0-9-]{36}$/i.test(data.orderId)) throw new Error("orderId inválido");
     return data;
   })
-  .handler(
-    async ({ data, context }): Promise<{ status: string; fulfilled: boolean }> => {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: order, error } = await (supabaseAdmin.from as any)("clip_orders")
-        .select("*")
-        .eq("id", data.orderId)
-        .maybeSingle();
+  .handler(async ({ data, context }): Promise<{ status: string; fulfilled: boolean }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order, error } = await (supabaseAdmin.from as any)("clip_orders")
+      .select("*")
+      .eq("id", data.orderId)
+      .maybeSingle();
 
-      if (error || !order) throw new Error("Orden no encontrada");
-      if (order.user_id !== context.userId) throw new Error("No autorizado");
+    if (error || !order) throw new Error("Orden no encontrada");
+    if (order.user_id !== context.userId) throw new Error("No autorizado");
 
-      if (order.fulfilled) {
-        return { status: order.status, fulfilled: true };
-      }
+    if (order.fulfilled) {
+      return { status: order.status, fulfilled: true };
+    }
 
-      if (!order.payment_request_id) {
-        return { status: order.status, fulfilled: false };
-      }
+    if (!order.payment_request_id) {
+      return { status: order.status, fulfilled: false };
+    }
 
-      const status = await getClipPaymentStatus(order.payment_request_id);
-      const completed = isClipPaymentCompleted(status.status);
-      const now = new Date().toISOString();
+    const status = await getClipPaymentStatus(order.payment_request_id);
+    const completed = isClipPaymentCompleted(status.status);
+    const now = new Date().toISOString();
 
-      if (completed && !order.fulfilled) {
-        await fulfillClipOrder(supabaseAdmin, order);
-        await (supabaseAdmin.from as any)("clip_orders")
-          .update({ status: mapClipStatus(status.status), fulfilled: true, updated_at: now })
-          .eq("id", order.id);
-        return { status: mapClipStatus(status.status), fulfilled: true };
-      }
-
+    if (completed && !order.fulfilled) {
+      await fulfillClipOrder(supabaseAdmin, order);
       await (supabaseAdmin.from as any)("clip_orders")
-        .update({ status: mapClipStatus(status.status), updated_at: now })
+        .update({ status: mapClipStatus(status.status), fulfilled: true, updated_at: now })
         .eq("id", order.id);
+      return { status: mapClipStatus(status.status), fulfilled: true };
+    }
 
-      return { status: mapClipStatus(status.status), fulfilled: order.fulfilled };
-    },
-  );
+    await (supabaseAdmin.from as any)("clip_orders")
+      .update({ status: mapClipStatus(status.status), updated_at: now })
+      .eq("id", order.id);
+
+    return { status: mapClipStatus(status.status), fulfilled: order.fulfilled };
+  });
 
 function mapClipStatus(status: string): string {
   const s = String(status).toLowerCase();

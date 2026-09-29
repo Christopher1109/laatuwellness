@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { describeError } from "@/lib/describe-error";
 import {
   BRAND_LABEL,
   cancelPinpadPayment,
@@ -158,7 +159,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     if (data.plans.length > 0) {
       const { data: planRows, error: plansError } = await admin
         .from("token_plans")
-        .select("id, name, price_cents, active")
+        .select("id, name, price_cents, active, purchasable_once, new_clients_only")
         .in(
           "id",
           data.plans.map((pl) => pl.planId),
@@ -166,14 +167,35 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
       if (plansError) throw new Error("No se pudieron validar los paquetes");
       const planById = new Map<
         string,
-        { id: string; name: string; price_cents: number; active: boolean }
+        {
+          id: string;
+          name: string;
+          price_cents: number;
+          active: boolean;
+          purchasable_once?: boolean;
+          new_clients_only?: boolean;
+        }
       >((planRows ?? []).map((p: { id: string }) => [p.id, p]));
       plans = data.plans.map((pl) => {
         const p = planById.get(pl.planId);
         if (!p || !p.active) throw new Error("Hay un paquete que ya no está disponible.");
+        if ((p.purchasable_once || p.new_clients_only) && pl.qty > 1) {
+          throw new Error(`${p.name} solo se puede comprar una vez por cuenta.`);
+        }
         amountCents += p.price_cents * pl.qty;
         return { plan_id: p.id, name: p.name, qty: pl.qty, price_cents: p.price_cents };
       });
+
+      // Reglas por cliente (ej. Newcomer: una sola vez y solo clientes nuevos).
+      // Se revisan ANTES de cobrar para no cobrar algo que no se puede acreditar.
+      for (const pl of plans) {
+        const { data: reason, error: reasonError } = await admin.rpc("plan_purchase_block_reason", {
+          _user_id: data.clientId,
+          _plan_id: pl.plan_id,
+        });
+        if (reasonError) throw new Error(describeError(reasonError));
+        if (reason) throw new Error(`${pl.name}: ${describeError(String(reason))}`);
+      }
     }
     if (amountCents <= 0) throw new Error("El total debe ser mayor a cero.");
 

@@ -19,6 +19,8 @@ import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { usePlanLocks } from "@/hooks/use-plan-locks";
+import { CouponRedeemBox } from "@/components/coupon-redeem";
 import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
@@ -911,19 +913,7 @@ function CreditosTab() {
     },
   });
 
-  const { data: purchasedPlanIds } = useQuery({
-    queryKey: ["app-purchased-once-plans", user?.id],
-    enabled: Boolean(user),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("plan_id")
-        .eq("user_id", user?.id ?? "")
-        .eq("status", "completed");
-      if (error) throw error;
-      return new Set((data ?? []).map((transaction) => transaction.plan_id).filter(Boolean));
-    },
-  });
+  const planLock = usePlanLocks(user?.id);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, NonNullable<typeof plans>>();
@@ -1022,7 +1012,8 @@ function CreditosTab() {
               <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
               <div className="mt-3 space-y-2">
                 {items.map((p) => {
-                  const alreadyPurchased = p.purchasable_once && purchasedPlanIds?.has(p.id);
+                  const lockLabel = planLock(p as typeof p & { new_clients_only?: boolean });
+                  const alreadyPurchased = Boolean(lockLabel);
                   return (
                     <div key={p.id} className="border border-border p-4">
                       <p className="text-sm">{p.name}</p>
@@ -1034,7 +1025,7 @@ function CreditosTab() {
                         disabled={alreadyPurchased}
                         className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
                       >
-                        {alreadyPurchased ? "Ya adquirido" : "Comprar"}
+                        {alreadyPurchased ? lockLabel : "Comprar"}
                       </button>
                     </div>
                   );
@@ -1044,6 +1035,8 @@ function CreditosTab() {
           ))}
         </div>
       )}
+
+      <CouponRedeemBox className="mt-10" />
 
       <div className="mt-10">
         <p className="eyebrow">Compras recientes</p>

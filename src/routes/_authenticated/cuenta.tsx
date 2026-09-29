@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { usePlanLocks } from "@/hooks/use-plan-locks";
+import { CouponRedeemBox } from "@/components/coupon-redeem";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 export const Route = createFileRoute("/_authenticated/cuenta")({
@@ -47,6 +49,7 @@ function Cuenta() {
   const qc = useQueryClient();
   const [signature, setSignature] = useState<string | null>(null);
   const [buying, setBuying] = useState<CheckoutPlan | null>(null);
+  const planLock = usePlanLocks(user?.id);
 
   const profile = useQuery({
     queryKey: ["profile", user?.id],
@@ -285,13 +288,15 @@ function Cuenta() {
                 </p>
                 <button
                   onClick={() => setBuying(p as unknown as CheckoutPlan)}
+                  disabled={Boolean(planLock(p as typeof p & { new_clients_only?: boolean }))}
                   className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:opacity-40"
                 >
-                  Comprar
+                  {planLock(p as typeof p & { new_clients_only?: boolean }) ?? "Comprar"}
                 </button>
               </article>
             ))}
           </div>
+          <CouponRedeemBox className="mt-8 max-w-md" />
           <p className="mt-5 text-xs text-muted-foreground">
             Pagos con tarjeta procesados de forma segura por Stripe. Tus créditos se acreditan
             automáticamente al confirmarse el cobro.
