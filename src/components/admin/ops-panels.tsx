@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
+import { describeError } from "@/lib/describe-error";
 import {
   cancelTerminalPayment,
   checkTerminalPayment,
@@ -350,6 +351,8 @@ type PosPlan = {
   tokens: number;
   price_cents: number;
   category: string | null;
+  purchasable_once?: boolean;
+  new_clients_only?: boolean;
 };
 type BrandGroup = {
   brand: PosBrandKey;
@@ -380,7 +383,9 @@ export function POSPanel() {
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.from as any)("token_plans")
-        .select("id, name, subtitle, tokens, price_cents, category")
+        .select(
+          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only",
+        )
         .eq("active", true)
         .order("sort_order")
         .order("price_cents");
@@ -438,6 +443,41 @@ export function POSPanel() {
   const planQty = Object.values(planCart).reduce((a, b) => a + b, 0);
   const itemCount = productQty + planQty;
   const needsClient = planQty > 0;
+
+  // Paquetes con reglas (Newcomer = una sola compra y solo clientes nuevos):
+  // al elegir al cliente se revisa si todavía puede comprarlos.
+  const restrictedPlanIds = useMemo(
+    () =>
+      Object.entries(planCart)
+        .filter(([id, qty]) => {
+          const p = plans?.find((x) => x.id === id);
+          return qty > 0 && p && (p.purchasable_once || p.new_clients_only);
+        })
+        .map(([id]) => id)
+        .sort(),
+    [planCart, plans],
+  );
+  const { data: planBlocks } = useQuery({
+    queryKey: ["pos-plan-blocks", matchedClient?.id, restrictedPlanIds.join(",")],
+    enabled: Boolean(matchedClient) && restrictedPlanIds.length > 0,
+    queryFn: async () => {
+      const result: Record<string, string> = {};
+      for (const planId of restrictedPlanIds) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+        const { data, error } = await (supabase.rpc as any)("plan_purchase_block_reason", {
+          _user_id: matchedClient!.id,
+          _plan_id: planId,
+        });
+        if (error) throw error;
+        if (data) result[planId] = describeError(String(data));
+      }
+      return result;
+    },
+  });
+  const planBlockMessages = Object.entries(planBlocks ?? {}).map(([id, msg]) => {
+    const name = plans?.find((x) => x.id === id)?.name ?? "Paquete";
+    return `${name}: ${msg}`;
+  });
 
   // Cada marca cobra en su propia terminal Clip. Los paquetes siempre son de
   // Läätu. Si el carrito mezcla marcas, se cobra en dos pasos.
@@ -605,11 +645,12 @@ export function POSPanel() {
   const checkout = useMutation({
     mutationFn: async () => {
       if (brandGroups.length === 0) throw new Error("Agrega al menos un producto o paquete.");
+      if (planBlockMessages.length > 0) throw new Error(planBlockMessages[0]);
       if (needsClient && !matchedClient) {
         throw new Error("Para vender paquetes o clases, elige al cliente.");
       }
 
-      if (usesTerminal) {
+      if (usesTerminal && total > 0) {
         setCompletedBrands([]);
         setTerminalQueue(brandGroups);
         await sendToTerminal(brandGroups[0]!);
@@ -655,7 +696,7 @@ export function POSPanel() {
       );
       resetSale();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo cobrar."),
+    onError: (e) => toast.error(describeError(e, "No se pudo cobrar.")),
   });
 
   const qtyButtons = (qty: number, onMinus: () => void, onPlus: () => void) => (
@@ -705,7 +746,15 @@ export function POSPanel() {
                     {qtyButtons(
                       qty,
                       () => setPlanCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) })),
-                      () => setPlanCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 })),
+                      () =>
+                        setPlanCart((c) => {
+                          const current = c[p.id] ?? 0;
+                          if ((p.purchasable_once || p.new_clients_only) && current >= 1) {
+                            toast.message(`${p.name} solo se puede comprar una vez por cuenta.`);
+                            return c;
+                          }
+                          return { ...c, [p.id]: current + 1 };
+                        }),
                     )}
                   </div>
                 );
@@ -872,7 +921,21 @@ export function POSPanel() {
         ) : null}
 
         <p className="text-2xl">{money(total)}</p>
-        {itemCount > 0 && !isMixedBrand && usesTerminal ? (
+        {planBlockMessages.length > 0 ? (
+          <div className="space-y-1 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {planBlockMessages.map((m) => (
+              <p key={m}>{m}</p>
+            ))}
+          </div>
+        ) : null}
+        {total === 0 && planQty > 0 ? (
+          <p className="border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Convenio sin cobro en Läätu: se le acredita la clase al cliente y la plataforma (Wellhub
+            / TotalPass) le paga al estudio por fuera. Recuerda validar su check-in en la app de la
+            plataforma.
+          </p>
+        ) : null}
+        {itemCount > 0 && !isMixedBrand && usesTerminal && total > 0 ? (
           <p
             className={`border px-3 py-2 text-xs uppercase tracking-[0.08em] ${
               cartBrand === "goodes"
@@ -902,12 +965,17 @@ export function POSPanel() {
             checkout.isPending ||
             itemCount === 0 ||
             (needsClient && !matchedClient) ||
+            planBlockMessages.length > 0 ||
             !!activePayment
           }
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
-          {usesTerminal ? "Cobrar en terminal" : "Cobrar en efectivo"}
+          {total === 0 && planQty > 0
+            ? "Registrar convenio (sin cobro)"
+            : usesTerminal
+              ? "Cobrar en terminal"
+              : "Cobrar en efectivo"}
         </button>
         {itemCount > 0 ? (
           <button
@@ -3487,6 +3555,8 @@ type CouponRow = {
   kind: string;
   reward_tokens: number;
   max_uses: number | null;
+  max_uses_per_user?: number | null;
+  new_clients_only?: boolean;
   times_used: number;
   active: boolean;
 };
@@ -3514,7 +3584,7 @@ function CouponRedemptionsRow({ couponId }: { couponId: string }) {
 
   return (
     <tr className="border-b border-border bg-muted/30 last:border-0">
-      <td colSpan={6} className="px-4 py-4">
+      <td colSpan={8} className="px-4 py-4">
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Cargando…</p>
         ) : (data ?? []).length === 0 ? (
@@ -3685,6 +3755,8 @@ export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
         code: row.code?.trim().toUpperCase(),
         reward_tokens: row.reward_tokens,
         max_uses: row.max_uses,
+        max_uses_per_user: row.max_uses_per_user,
+        new_clients_only: row.new_clients_only ?? false,
         active: row.active,
       };
       if (row.id) {
@@ -3706,16 +3778,18 @@ export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
       setCreating(false);
       void qc.invalidateQueries({ queryKey: ["admin-coupons"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(describeError(e, "No se pudo guardar el cupón.")),
   });
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="eyebrow">Cupón de referido</p>
+        <p className="eyebrow">Cupones</p>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Código general reutilizable: cualquier clienta que lo use recibe 1 clase gratis. Edita el
-          código y el límite de usos aquí — no necesitas pedirme que cambie código.
+          La clienta escribe el código en su cuenta o en la app ("¿Tienes un cupón?") y recibe las
+          clases al instante. Para cada cupón decides cuántas veces se puede usar en total, cuántas
+          veces puede usarlo una misma persona (1 = una sola vez) y si es solo para clientes nuevos
+          (que nunca han comprado un paquete). Deja un campo vacío para "sin límite".
         </p>
       </div>
 
@@ -3739,7 +3813,9 @@ export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
             <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-3">Código</th>
               <th className="px-4 py-3">Recompensa</th>
-              <th className="px-4 py-3">Límite de usos</th>
+              <th className="px-4 py-3">Límite total</th>
+              <th className="px-4 py-3">Por persona</th>
+              <th className="px-4 py-3">Solo nuevos</th>
               <th className="px-4 py-3">Usados</th>
               <th className="px-4 py-3">Activo</th>
               <th className="px-4 py-3"></th>
@@ -3760,6 +3836,12 @@ export function CouponsPanel({ readOnly = false }: { readOnly?: boolean }) {
                     <td className="px-4 py-3 font-mono">{c.code}</td>
                     <td className="px-4 py-3">{c.reward_tokens} clase(s)</td>
                     <td className="px-4 py-3">{c.max_uses ?? "Ilimitado"}</td>
+                    <td className="px-4 py-3">
+                      {c.max_uses_per_user === undefined
+                        ? "1"
+                        : (c.max_uses_per_user ?? "Ilimitado")}
+                    </td>
+                    <td className="px-4 py-3">{c.new_clients_only ? "Sí" : "No"}</td>
                     <td className="px-4 py-3">{c.times_used}</td>
                     <td className="px-4 py-3">{c.active ? "Sí" : "No"}</td>
                     <td className="px-4 py-3 text-right">
@@ -3814,6 +3896,10 @@ function CouponEditRow({
   const [code, setCode] = useState(coupon?.code ?? "");
   const [rewardTokens, setRewardTokens] = useState(coupon?.reward_tokens ?? 1);
   const [maxUses, setMaxUses] = useState<string>(coupon?.max_uses?.toString() ?? "");
+  const [perUser, setPerUser] = useState<string>(
+    coupon ? (coupon.max_uses_per_user === null ? "" : String(coupon.max_uses_per_user ?? 1)) : "1",
+  );
+  const [newOnly, setNewOnly] = useState(coupon?.new_clients_only ?? false);
   const [active, setActive] = useState(coupon?.active ?? true);
 
   return (
@@ -3845,6 +3931,19 @@ function CouponEditRow({
           className={input}
         />
       </td>
+      <td className="px-4 py-3">
+        <input
+          type="number"
+          min={1}
+          placeholder="Ilimitado"
+          value={perUser}
+          onChange={(e) => setPerUser(e.target.value)}
+          className={input}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <input type="checkbox" checked={newOnly} onChange={(e) => setNewOnly(e.target.checked)} />
+      </td>
       <td className="px-4 py-3 text-muted-foreground">{coupon?.times_used ?? 0}</td>
       <td className="px-4 py-3">
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
@@ -3865,6 +3964,8 @@ function CouponEditRow({
                 code,
                 reward_tokens: rewardTokens,
                 max_uses: maxUses.trim() === "" ? null : Number(maxUses),
+                max_uses_per_user: perUser.trim() === "" ? null : Number(perUser),
+                new_clients_only: newOnly,
                 active,
               })
             }
@@ -5313,6 +5414,54 @@ export function SchedulePlannerPanel() {
 
   const blackoutSet = useMemo(() => new Set((blackouts ?? []).map((b) => b.day)), [blackouts]);
 
+  // Bloques bloqueados solo en una semana (día + hora puntual), sin tocar el
+  // patrón del mes. La siguiente semana ese horario sigue normal.
+  const weekFrom = ymd(weekDates[0]!);
+  const weekTo = ymd(weekDates[6]!);
+  const { data: slotBlocks } = useQuery({
+    queryKey: ["schedule-slot-blocks", moduleKey, weekFrom],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.from as any)("schedule_slot_blocks")
+        .select("day, start_time")
+        .eq("module_key", moduleKey)
+        .gte("day", weekFrom)
+        .lte("day", weekTo);
+      if (error) throw error;
+      return data as { day: string; start_time: string }[];
+    },
+  });
+  const slotBlockSet = useMemo(
+    () => new Set((slotBlocks ?? []).map((b) => `${b.day}|${b.start_time.slice(0, 5)}`)),
+    [slotBlocks],
+  );
+
+  const setSlotBlock = useMutation({
+    mutationFn: async (v: { day: string; time: string; blocked: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("set_schedule_slot_block", {
+        _module_key: moduleKey,
+        _day: v.day,
+        _start_time: v.time,
+        _blocked: v.blocked,
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (cancelled, v) => {
+      setEditingCell(null);
+      toast.success(
+        v.blocked
+          ? `Bloque bloqueado solo ese día.${cancelled > 0 ? ` Se cancelaron ${cancelled} reserva(s) y se regresaron sus créditos.` : ""}`
+          : "Bloque reabierto para ese día.",
+      );
+      void qc.invalidateQueries({ queryKey: ["schedule-slot-blocks", moduleKey] });
+      void qc.invalidateQueries({ queryKey: ["admin-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo bloquear el bloque.")),
+  });
+
   const toggleBlackout = useMutation({
     mutationFn: async (day: string) => {
       if (blackoutSet.has(day)) {
@@ -5557,7 +5706,8 @@ export function SchedulePlannerPanel() {
         blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar los
         cambios a las clases reales de ese mes. Toca el nombre de un día para bloquearlo (cerrado:
         ese día no se publica nada), y usa "Ocultar" para quitar todo un programa de la página y de
-        la app.
+        la app. Para quitar una sola clase de una sola semana, toca el bloque y elige "Bloquear solo
+        el…": las demás semanas siguen igual.
       </p>
 
       <div className="overflow-x-auto border border-border">
@@ -5625,7 +5775,14 @@ export function SchedulePlannerPanel() {
                 </td>
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
-                  const dayClosed = blackoutSet.has(ymd(weekDates[weekday]!));
+                  const dayKey = ymd(weekDates[weekday]!);
+                  const dayClosed = blackoutSet.has(dayKey);
+                  const slotBlocked = slotBlockSet.has(`${dayKey}|${time}`);
+                  const dayLabel = new Intl.DateTimeFormat("es-MX", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  }).format(weekDates[weekday]!);
                   const editing = editingCell?.weekday === weekday && editingCell?.time === time;
                   return (
                     <td key={weekday} className="border-l border-border p-0.5">
@@ -5636,7 +5793,30 @@ export function SchedulePlannerPanel() {
                           value={cell?.is_rotation ? "__rot" : (cell?.coach_id ?? "")}
                           onChange={(e) => {
                             const v = e.target.value;
+                            if (v === "__block" || v === "__unblock") {
+                              const blocked = v === "__block";
+                              if (
+                                blocked &&
+                                !window.confirm(
+                                  `¿Bloquear solo la clase del ${dayLabel} a las ${time}? Las demás semanas no cambian. Si alguien ya reservó, se cancela su reserva y se le regresa su crédito.`,
+                                )
+                              ) {
+                                setEditingCell(null);
+                                return;
+                              }
+                              setSlotBlock.mutate({ day: dayKey, time, blocked });
+                              return;
+                            }
                             if (v === "__none") {
+                              if (
+                                cell &&
+                                !window.confirm(
+                                  `¿Quitar la clase de las ${time} de TODOS los ${WEEKDAY_LABELS[weekday]} del mes? Si solo quieres quitar la de esta semana, usa "Bloquear solo el ${dayLabel}".`,
+                                )
+                              ) {
+                                setEditingCell(null);
+                                return;
+                              }
                               if (cell) removeCell.mutate(cell.id);
                               else setEditingCell(null);
                               return;
@@ -5657,7 +5837,14 @@ export function SchedulePlannerPanel() {
                               {c.full_name}
                             </option>
                           ))}
-                          <option value="__none">Quitar</option>
+                          {cell && !dayClosed ? (
+                            slotBlocked ? (
+                              <option value="__unblock">Desbloquear el {dayLabel}</option>
+                            ) : (
+                              <option value="__block">Bloquear solo el {dayLabel}</option>
+                            )
+                          ) : null}
+                          <option value="__none">Quitar de todo el mes</option>
                         </select>
                       ) : (
                         <button
@@ -5670,18 +5857,25 @@ export function SchedulePlannerPanel() {
                               cell?.is_rotation ?? false,
                               coachIds,
                             ),
-                            dayClosed && "opacity-30 line-through",
+                            (dayClosed || slotBlocked) && "opacity-30 line-through",
                           )}
+                          title={
+                            slotBlocked
+                              ? `Bloqueado solo el ${dayLabel}. Tócalo para desbloquear.`
+                              : undefined
+                          }
                         >
                           {dayClosed
                             ? "Cerrado"
-                            : cell?.is_rotation
-                              ? "Rotación"
-                              : cell?.coach_id
-                                ? coachName(cell.coach_id)
-                                : cell
-                                  ? "Pendiente"
-                                  : ""}
+                            : slotBlocked
+                              ? "Bloqueado"
+                              : cell?.is_rotation
+                                ? "Rotación"
+                                : cell?.coach_id
+                                  ? coachName(cell.coach_id)
+                                  : cell
+                                    ? "Pendiente"
+                                    : ""}
                         </button>
                       )}
                     </td>

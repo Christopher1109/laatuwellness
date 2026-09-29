@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal } from "@/components/payments/plan-checkout-modal";
+import { usePlanLocks } from "@/hooks/use-plan-locks";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
@@ -84,19 +85,7 @@ function Paquetes() {
     },
   });
 
-  const { data: purchasedPlanIds } = useQuery({
-    queryKey: ["purchased-once-plans", user?.id],
-    enabled: Boolean(user),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("plan_id")
-        .eq("user_id", user?.id ?? "")
-        .eq("status", "completed");
-      if (error) throw error;
-      return new Set((data ?? []).map((transaction) => transaction.plan_id).filter(Boolean));
-    },
-  });
+  const planLock = usePlanLocks(user?.id);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, NonNullable<typeof plans>>();
@@ -148,8 +137,10 @@ function Paquetes() {
                   <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((p) => (
                       (() => {
-                        const alreadyPurchased =
-                          p.purchasable_once && purchasedPlanIds?.has(p.id);
+                        const lockLabel = planLock(
+                          p as typeof p & { new_clients_only?: boolean },
+                        );
+                        const alreadyPurchased = Boolean(lockLabel);
                         return (
                       <article
                         key={p.id}
@@ -175,7 +166,7 @@ function Paquetes() {
                           className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                         >
                           {alreadyPurchased
-                            ? "Ya adquirido"
+                            ? lockLabel
                             : user
                               ? "Comprar"
                               : "Inicia sesión para comprar"}
