@@ -19,6 +19,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
+import {
+  cancelTerminalPayment,
+  checkTerminalPayment,
+  startTerminalPayment,
+  type TerminalPaymentState,
+} from "@/utils/pos-terminal.functions";
 
 export const input =
   "w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground";
@@ -143,9 +149,7 @@ export function PendingOrdersPanel() {
   const qc = useQueryClient();
   const { staffProfile } = useAuth();
   const [filter, setFilter] = useState<"activos" | "todos">("activos");
-  const [signingOrder, setSigningOrder] = useState<{ id: string; clientName: string } | null>(
-    null,
-  );
+  const [signingOrder, setSigningOrder] = useState<{ id: string; clientName: string } | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
 
   const { data: orders } = useQuery({
@@ -198,7 +202,10 @@ export function PendingOrdersPanel() {
         staff_id: staffProfile?.id ?? null,
       });
       if (waiverError) throw waiverError;
-      const { error } = await supabase.from("pos_sales").update({ status: "entregado" }).eq("id", id);
+      const { error } = await supabase
+        .from("pos_sales")
+        .update({ status: "entregado" })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -301,10 +308,7 @@ export function PendingOrdersPanel() {
             setSignature(null);
           }}
         >
-          <div
-            className="w-full max-w-md bg-background p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-md bg-background p-6" onClick={(e) => e.stopPropagation()}>
             <p className="eyebrow">Entrega de Merch</p>
             <h3 className="mt-2 text-lg">{signingOrder.clientName}</h3>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -398,32 +402,174 @@ export function POSPanel() {
 
   const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
-  // Cada marca cobra en una terminal física distinta de Clip -- si el
-  // carrito mezcla Läätu y Goodes, no se puede cobrar en un solo pago.
-  const cartBrands = useMemo(() => {
-    if (!products) return [] as string[];
-    const brands = new Set<string>();
+  // Cada marca cobra en una terminal física distinta de Clip. Si el carrito
+  // mezcla Läätu y Goodes, se divide en dos cobros (primero Läätu, luego
+  // Goodes), cada uno en su terminal y registrado como su propia venta.
+  const brandGroups = useMemo(() => {
+    if (!products)
+      return [] as {
+        brand: "laatu" | "goodes";
+        items: { id: string; qty: number }[];
+        total: number;
+      }[];
+    const groups = new Map<"laatu" | "goodes", { id: string; qty: number }[]>();
     for (const [id, qty] of Object.entries(cart)) {
       if (qty <= 0) continue;
       const p = products.find((p) => p.id === id) as unknown as { brand?: string } | undefined;
-      brands.add(p?.brand ?? "laatu");
+      const brand = p?.brand === "goodes" ? "goodes" : "laatu";
+      groups.set(brand, [...(groups.get(brand) ?? []), { id, qty }]);
     }
-    return Array.from(brands);
+    return (["laatu", "goodes"] as const)
+      .filter((b) => groups.has(b))
+      .map((brand) => {
+        const items = groups.get(brand) ?? [];
+        const groupTotal = items.reduce(
+          (s, it) => s + (products.find((p) => p.id === it.id)?.price_cents ?? 0) * it.qty,
+          0,
+        );
+        return { brand, items, total: groupTotal };
+      });
   }, [cart, products]);
-  const isMixedBrand = cartBrands.length > 1;
-  const cartBrand = cartBrands[0] ?? "laatu";
+  const isMixedBrand = brandGroups.length > 1;
+  const cartBrand = brandGroups[0]?.brand ?? "laatu";
+  const usesTerminal = payment === "terminal";
+
+  const resetSale = () => {
+    setCart({});
+    setClientEmail("");
+    setMatchedClient(null);
+    void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    void qc.invalidateQueries({ queryKey: ["admin-products"] });
+  };
+
+  // Cobro en terminal: cola de marcas pendientes + el cobro activo.
+  const [terminalQueue, setTerminalQueue] = useState<typeof brandGroups>([]);
+  const [activePayment, setActivePayment] = useState<TerminalPaymentState | null>(null);
+  const [terminalMessage, setTerminalMessage] = useState<string | null>(null);
+  const [completedBrands, setCompletedBrands] = useState<string[]>([]);
+
+  const sendToTerminal = async (group: (typeof brandGroups)[number]) => {
+    if (!matchedClient) return;
+    setTerminalMessage(null);
+    setActivePayment({
+      id: "",
+      brand: group.brand,
+      status: "creating",
+      saleId: null,
+      error: null,
+      cardLast4: null,
+    });
+    try {
+      const state = await startTerminalPayment({
+        data: {
+          brand: group.brand,
+          clientId: matchedClient.id,
+          items: group.items.map((it) => ({ productId: it.id, qty: it.qty })),
+          origin: window.location.origin,
+        },
+      });
+      setActivePayment(state);
+    } catch (e) {
+      setActivePayment({
+        id: "",
+        brand: group.brand,
+        status: "failed",
+        saleId: null,
+        error: e instanceof Error ? e.message : "No se pudo enviar el cobro a la terminal.",
+        cardLast4: null,
+      });
+    }
+  };
+
+  // Mientras la terminal cobra, se consulta el estado (además del webhook).
+  useEffect(() => {
+    if (!activePayment?.id || activePayment.status !== "pending") return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const next = await checkTerminalPayment({ data: { paymentId: activePayment.id } });
+        if (!stop && next.status !== activePayment.status) setActivePayment(next);
+      } catch {
+        // error de red puntual: se reintenta en el siguiente ciclo
+      }
+    };
+    const timer = window.setInterval(() => void tick(), 2500);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [activePayment?.id, activePayment?.status]);
+
+  // Cuando un cobro se aprueba: pasa a la siguiente marca o termina la venta.
+  useEffect(() => {
+    if (activePayment?.status !== "completed") return;
+    const brand = activePayment.brand;
+    setCompletedBrands((c) => (c.includes(brand) ? c : [...c, brand]));
+    const rest = terminalQueue.filter((g) => g.brand !== brand);
+    setTerminalQueue(rest);
+    const timer = window.setTimeout(() => {
+      if (rest[0]) {
+        void sendToTerminal(rest[0]);
+      } else {
+        toast.success("Pago aprobado. Venta registrada.");
+        setActivePayment(null);
+        setCompletedBrands([]);
+        resetSale();
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo reacciona al cambio de estado del cobro
+  }, [activePayment?.id, activePayment?.status]);
+
+  const cancelActive = async () => {
+    if (!activePayment?.id) {
+      setActivePayment(null);
+      return;
+    }
+    try {
+      const res = await cancelTerminalPayment({ data: { paymentId: activePayment.id } });
+      if (res.message) setTerminalMessage(res.message);
+      setActivePayment(res);
+    } catch (e) {
+      setTerminalMessage(e instanceof Error ? e.message : "No se pudo cancelar.");
+    }
+  };
+
+  const closeTerminalDialog = () => {
+    const partial = completedBrands.length > 0;
+    setActivePayment(null);
+    setTerminalQueue([]);
+    setTerminalMessage(null);
+    if (partial) {
+      // Ya se cobró una marca: se quita del carrito para no cobrarla dos veces.
+      setCart((c) => {
+        const next = { ...c };
+        for (const g of brandGroups) {
+          if (completedBrands.includes(g.brand)) for (const it of g.items) delete next[it.id];
+        }
+        return next;
+      });
+      toast.message("Se registró solo la parte ya pagada. El resto sigue en el carrito.");
+      void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    }
+    setCompletedBrands([]);
+  };
 
   const checkout = useMutation({
     mutationFn: async () => {
       if (!matchedClient) throw new Error("Busca al cliente por correo antes de cobrar.");
-      if (isMixedBrand) {
-        throw new Error(
-          "El carrito mezcla productos de Läätu y Goodes — cóbralos por separado, cada uno en su terminal.",
-        );
+      if (brandGroups.length === 0) throw new Error("Agrega al menos un producto");
+
+      if (usesTerminal) {
+        setCompletedBrands([]);
+        setTerminalQueue(brandGroups);
+        await sendToTerminal(brandGroups[0]!);
+        return "terminal" as const;
       }
-      const items = Object.entries(cart)
-        .filter(([, qty]) => qty > 0)
-        .map(([id, qty]) => {
+
+      // Efectivo / transferencia / tarjeta registrada a mano: una venta por marca.
+      for (const group of brandGroups) {
+        const items = group.items.map(({ id, qty }) => {
           const p = products?.find((p) => p.id === id);
           return {
             product_id: id,
@@ -432,22 +578,20 @@ export function POSPanel() {
             unit_price_cents: p?.price_cents ?? 0,
           };
         });
-      if (items.length === 0) throw new Error("Agrega al menos un producto");
-      const { error } = await (supabase.rpc as any)("pos_checkout", {
-        _user_id: matchedClient.id,
-        _payment_method: payment,
-        _items: items,
-        _brand: cartBrand,
-      });
-      if (error) throw error;
+        const { error } = await (supabase.rpc as any)("pos_checkout", {
+          _user_id: matchedClient.id,
+          _payment_method: payment === "tarjeta_manual" ? "tarjeta" : payment,
+          _items: items,
+          _brand: group.brand,
+        });
+        if (error) throw error;
+      }
+      return "direct" as const;
     },
-    onSuccess: () => {
+    onSuccess: (mode) => {
+      if (mode === "terminal") return;
       toast.success("Venta registrada.");
-      setCart({});
-      setClientEmail("");
-      setMatchedClient(null);
-      void qc.invalidateQueries({ queryKey: ["pos-products"] });
-      void qc.invalidateQueries({ queryKey: ["admin-products"] });
+      resetSale();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo cobrar."),
   });
@@ -575,9 +719,10 @@ export function POSPanel() {
         <label className="block text-xs">
           <span className="eyebrow">Método de pago</span>
           <select value={payment} onChange={(e) => setPayment(e.target.value)} className={input}>
+            <option value="terminal">Tarjeta — cobrar en terminal Clip</option>
             <option value="efectivo">Efectivo</option>
-            <option value="tarjeta">Tarjeta</option>
             <option value="transferencia">Transferencia</option>
+            <option value="tarjeta_manual">Tarjeta — ya cobrada (registrar a mano)</option>
           </select>
         </label>
         <p className="text-2xl">{money(total)}</p>
@@ -589,22 +734,248 @@ export function POSPanel() {
                 : "border-border bg-muted text-muted-foreground"
             }`}
           >
-            Cobra en la terminal: {cartBrand === "goodes" ? "Goodes" : "Läätu"}
+            {usesTerminal ? "Se enviará a la terminal: " : "Venta de: "}
+            {cartBrand === "goodes" ? "Goodes" : "Läätu"}
           </p>
         ) : null}
         {isMixedBrand ? (
-          <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Este carrito mezcla Läätu y Goodes — cóbralos por separado, cada uno en su terminal.
+          <div className="space-y-1 border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
+            <p className="uppercase tracking-[0.08em]">Carrito mixto · se cobra en 2 pasos</p>
+            {brandGroups.map((g, i) => (
+              <p key={g.brand} className="flex justify-between">
+                <span>
+                  {i + 1}. {g.brand === "goodes" ? "Goodes" : "Läätu"}
+                  {usesTerminal ? " (su terminal)" : ""}
+                </span>
+                <span>{money(g.total)}</span>
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {payment === "tarjeta_manual" ? (
+          <p className="text-[0.7rem] text-muted-foreground">
+            Úsalo solo si la terminal no se conectó y cobraste directo en ella. La venta se registra
+            sin confirmación de Clip.
           </p>
         ) : null}
         <button
-          disabled={checkout.isPending || itemCount === 0 || !matchedClient || isMixedBrand}
+          disabled={checkout.isPending || itemCount === 0 || !matchedClient || !!activePayment}
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
-          Cobrar
+          {usesTerminal ? "Cobrar en terminal" : "Cobrar"}
         </button>
       </div>
+
+      {activePayment ? (
+        <TerminalPaymentDialog
+          payment={activePayment}
+          amountCents={brandGroups.find((g) => g.brand === activePayment.brand)?.total ?? 0}
+          step={isMixedBrand ? completedBrands.length + 1 : null}
+          totalSteps={brandGroups.length}
+          message={terminalMessage}
+          onCancel={() => void cancelActive()}
+          onRetry={() => {
+            const group = brandGroups.find((g) => g.brand === activePayment.brand);
+            if (group) void sendToTerminal(group);
+          }}
+          onClose={closeTerminalDialog}
+        />
+      ) : null}
+
+      <div className="lg:col-span-2">
+        <TerminalsConfig />
+      </div>
+    </div>
+  );
+}
+
+function TerminalPaymentDialog({
+  payment,
+  amountCents,
+  step,
+  totalSteps,
+  message,
+  onCancel,
+  onRetry,
+  onClose,
+}: {
+  payment: TerminalPaymentState;
+  amountCents: number;
+  step: number | null;
+  totalSteps: number;
+  message: string | null;
+  onCancel: () => void;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const label = payment.brand === "goodes" ? "Goodes" : "Läätu";
+  const waiting = payment.status === "creating" || payment.status === "pending";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm space-y-4 border border-border bg-background p-6 text-center shadow-xl">
+        <p className="eyebrow">
+          Terminal {label}
+          {step ? ` · paso ${Math.min(step, totalSteps)} de ${totalSteps}` : ""}
+        </p>
+        <p className="text-3xl">{money(amountCents)}</p>
+
+        {payment.status === "creating" ? (
+          <p className="text-sm text-muted-foreground">Enviando el cobro a la terminal…</p>
+        ) : null}
+        {payment.status === "pending" ? (
+          <div className="space-y-2">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+            <p className="text-sm">
+              Pide al cliente que pague en la terminal de <strong>{label}</strong>.
+            </p>
+            <p className="text-xs text-muted-foreground">Esta pantalla se actualiza sola.</p>
+          </div>
+        ) : null}
+        {payment.status === "completed" ? (
+          <p className="text-sm text-emerald-700">
+            ✓ Pago aprobado{payment.cardLast4 ? ` · tarjeta ••${payment.cardLast4}` : ""}
+          </p>
+        ) : null}
+        {payment.status === "failed" ? (
+          <p className="text-sm text-destructive">{payment.error ?? "El pago no se completó."}</p>
+        ) : null}
+        {payment.status === "canceled" ? (
+          <p className="text-sm text-muted-foreground">
+            Cobro cancelado. No se registró ninguna venta.
+          </p>
+        ) : null}
+        {message ? <p className="text-xs text-amber-800">{message}</p> : null}
+
+        <div className="flex gap-2">
+          {waiting ? (
+            <button
+              onClick={onCancel}
+              disabled={!payment.id}
+              className="flex-1 border border-input px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em] disabled:opacity-50"
+            >
+              Cancelar cobro
+            </button>
+          ) : null}
+          {payment.status === "failed" || payment.status === "canceled" ? (
+            <>
+              <button
+                onClick={onRetry}
+                className="flex-1 bg-foreground px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em] text-background"
+              >
+                Reintentar
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 border border-input px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em]"
+              >
+                Cerrar
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TerminalsConfig() {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const { data: terminals } = useQuery({
+    queryKey: ["pos-terminals"],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("pos_terminals")
+        .select("brand, label, serial_number, active")
+        .order("brand", { ascending: false });
+      if (error) throw error;
+      return data as {
+        brand: string;
+        label: string;
+        serial_number: string | null;
+        active: boolean;
+      }[];
+    },
+  });
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const save = useMutation({
+    mutationFn: async (t: { brand: string; serial_number: string; active: boolean }) => {
+      const { error } = await (supabase.from as any)("pos_terminals")
+        .update({
+          serial_number: t.serial_number.trim() || null,
+          active: t.active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("brand", t.brand);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Terminal actualizada.");
+      void qc.invalidateQueries({ queryKey: ["pos-terminals"] });
+    },
+    onError: () =>
+      toast.error("No se pudo guardar. Solo un administrador puede editar las terminales."),
+  });
+
+  return (
+    <div className="mt-2 border border-border">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-xs uppercase tracking-[0.12em]"
+      >
+        Terminales Clip
+        <span className="text-muted-foreground">{open ? "−" : "+"}</span>
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-border p-4">
+          {(terminals ?? []).map((t) => {
+            const value = drafts[t.brand] ?? t.serial_number ?? "";
+            return (
+              <div key={t.brand} className="grid items-end gap-2 sm:grid-cols-[1fr_2fr_auto_auto]">
+                <p className="text-sm">{t.label}</p>
+                <label className="block text-xs">
+                  <span className="eyebrow">Número de serie</span>
+                  <input
+                    value={value}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [t.brand]: e.target.value }))}
+                    className={input}
+                    placeholder="Ej. AA61B532642902272"
+                  />
+                </label>
+                <label className="flex items-center gap-2 pb-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={t.active}
+                    onChange={(e) =>
+                      save.mutate({
+                        brand: t.brand,
+                        serial_number: value,
+                        active: e.target.checked,
+                      })
+                    }
+                  />
+                  Activa
+                </label>
+                <button
+                  onClick={() =>
+                    save.mutate({ brand: t.brand, serial_number: value, active: t.active })
+                  }
+                  disabled={save.isPending}
+                  className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.14em]"
+                >
+                  Guardar
+                </button>
+              </div>
+            );
+          })}
+          <p className="text-[0.7rem] text-muted-foreground">
+            Cada terminal está ligada a la cuenta Clip de su marca. El número de serie aparece en el
+            panel de Clip, en Lectores.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1244,11 +1615,7 @@ const STAFF_HOME_DESCRIPTIONS: Record<string, string> = {
   "check-in": "Marca la llegada de quien ya tiene su lugar reservado.",
 };
 
-export function StaffHomePanel({
-  onGoTo,
-}: {
-  onGoTo: (key: string, moduleKey?: string) => void;
-}) {
+export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string, moduleKey?: string) => void }) {
   return (
     <div className="mx-auto grid max-w-5xl gap-6 py-6 sm:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
@@ -1280,12 +1647,7 @@ const DASHBOARD_MODULES = [
   { key: "rehabilitacion", label: "DorisFisio" },
 ] as const;
 
-export function DashboardPanel({
-  onGoTo,
-}: {
-  onGoTo: (key: string, moduleKey?: string) => void;
-}) {
-
+export function DashboardPanel({ onGoTo }: { onGoTo: (key: string, moduleKey?: string) => void }) {
   const todayBounds = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -1632,7 +1994,6 @@ export function ClientsPanel() {
   }
 
   return (
-
     <div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="border border-border p-4">
@@ -1889,7 +2250,6 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   return (
     <div>
       <div>
-
         <button
           onClick={onClose}
           className="mb-6 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
@@ -2198,10 +2558,7 @@ export function GoodesPanel() {
       };
       if (row.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- brand/description no están en los tipos generados
-        const { error } = await (supabase.from("products").update as any)(payload).eq(
-          "id",
-          row.id,
-        );
+        const { error } = await (supabase.from("products").update as any)(payload).eq("id", row.id);
         if (error) throw error;
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- brand/description no están en los tipos generados
@@ -2237,8 +2594,8 @@ export function GoodesPanel() {
       <div>
         <p className="eyebrow">Goodes</p>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Productos de la marca Goodes — solo se venden en el mostrador, en la terminal de Clip
-          de Goodes. Nunca aparecen en la página web ni en la app.
+          Productos de la marca Goodes — solo se venden en el mostrador, en la terminal de Clip de
+          Goodes. Nunca aparecen en la página web ni en la app.
         </p>
       </div>
 
@@ -2368,10 +2725,7 @@ export function MerchPanel() {
       };
       if (row.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "description" no está en los tipos generados todavía
-        const { error } = await (supabase.from("products").update as any)(payload).eq(
-          "id",
-          row.id,
-        );
+        const { error } = await (supabase.from("products").update as any)(payload).eq("id", row.id);
         if (error) throw error;
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "description" no está en los tipos generados todavía
@@ -2404,7 +2758,6 @@ export function MerchPanel() {
   });
 
   return (
-
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Merch</p>
@@ -2485,9 +2838,7 @@ export function MerchPanel() {
                 setCreating(false);
                 setEditingId(null);
               }}
-              onSave={(row) =>
-                save.mutate(editingId ? { ...row, id: editingId } : row)
-              }
+              onSave={(row) => save.mutate(editingId ? { ...row, id: editingId } : row)}
               {...(editingId
                 ? {
                     onDelete: () => {
@@ -2502,7 +2853,6 @@ export function MerchPanel() {
     </div>
   );
 }
-
 
 function MerchEditCard({
   product,
@@ -2522,7 +2872,6 @@ function MerchEditCard({
     image_url: string | null;
   }) => void;
 }) {
-
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [uploading, setUploading] = useState(false);
 
@@ -2657,7 +3006,6 @@ function MerchEditCard({
     </form>
   );
 }
-
 
 export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
@@ -2795,15 +3143,17 @@ function CouponRedemptionsRow({ couponId }: { couponId: string }) {
                 created_at: string;
                 profile?: { full_name: string; email: string };
               }) => (
-              <li key={r.id} className="flex items-center justify-between gap-4">
-                <span>{r.profile?.full_name || r.profile?.email || "Cliente"}</span>
-                <span className="text-muted-foreground">
-                  {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
-                    new Date(r.created_at),
-                  )}
-                </span>
-              </li>
-            ))}
+                <li key={r.id} className="flex items-center justify-between gap-4">
+                  <span>{r.profile?.full_name || r.profile?.email || "Cliente"}</span>
+                  <span className="text-muted-foreground">
+                    {new Intl.DateTimeFormat("es-MX", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(r.created_at))}
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </td>
@@ -2867,7 +3217,9 @@ export function MembershipRequestsPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo completar."),
   });
 
-  const visible = (data ?? []).filter((r) => (filter === "pendiente" ? r.status === "pendiente" : true));
+  const visible = (data ?? []).filter((r) =>
+    filter === "pendiente" ? r.status === "pendiente" : true,
+  );
 
   return (
     <div>
@@ -2895,9 +3247,7 @@ export function MembershipRequestsPanel() {
             <p className="text-sm font-medium">{r.profile?.full_name || r.profile?.email}</p>
             <p className="text-xs text-muted-foreground">{r.profile?.email}</p>
             <p className="mt-2 text-sm">{r.plan?.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {money(r.plan?.price_cents ?? 0)} / mes
-            </p>
+            <p className="text-xs text-muted-foreground">{money(r.plan?.price_cents ?? 0)} / mes</p>
             <p className="mt-2 text-[0.65rem] text-muted-foreground">
               Solicitada:{" "}
               {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
@@ -3442,10 +3792,7 @@ export function PayrollPanel() {
       const hasTiers = coachIdsWithTiers.has(s.id);
       if (hasTiers) {
         const classesForCoach = (coachClasses ?? []).filter((c) => c.coach_id === s.id);
-        const base = classesForCoach.reduce(
-          (sum, c) => sum + tierRateFor(s.id, c.attendance),
-          0,
-        );
+        const base = classesForCoach.reduce((sum, c) => sum + tierRateFor(s.id, c.attendance), 0);
         return {
           staff: s,
           hours: classesForCoach.length,
@@ -4558,7 +4905,9 @@ export function SchedulePlannerPanel() {
     },
     onSuccess: (_d, enabled) => {
       toast.success(
-        enabled ? "Programa visible en la página y la app." : "Programa oculto: ya no se muestra ni se puede reservar.",
+        enabled
+          ? "Programa visible en la página y la app."
+          : "Programa oculto: ya no se muestra ni se puede reservar.",
       );
       void qc.invalidateQueries({ queryKey: ["schedule-site-module", moduleKey] });
       void qc.invalidateQueries({ queryKey: ["site-modules"] });
@@ -4578,10 +4927,7 @@ export function SchedulePlannerPanel() {
     },
   });
 
-  const blackoutSet = useMemo(
-    () => new Set((blackouts ?? []).map((b) => b.day)),
-    [blackouts],
-  );
+  const blackoutSet = useMemo(() => new Set((blackouts ?? []).map((b) => b.day)), [blackouts]);
 
   const toggleBlackout = useMutation({
     mutationFn: async (day: string) => {
@@ -4603,8 +4949,8 @@ export function SchedulePlannerPanel() {
     onSuccess: (closed) => {
       toast.success(
         closed
-          ? "Día bloqueado. Dale a \"Actualizar clases\" para quitarlo de la página."
-          : "Día reabierto. Dale a \"Actualizar clases\" para publicarlo.",
+          ? 'Día bloqueado. Dale a "Actualizar clases" para quitarlo de la página.'
+          : 'Día reabierto. Dale a "Actualizar clases" para publicarlo.',
       );
       void qc.invalidateQueries({ queryKey: ["schedule-blackouts", moduleKey] });
     },
@@ -4617,7 +4963,8 @@ export function SchedulePlannerPanel() {
 
   const times = useMemo(() => {
     const own = (templates ?? []).map((t) => t.start_time.slice(0, 5));
-    const inherited = own.length === 0 ? (prevTemplates ?? []).map((t) => t.start_time.slice(0, 5)) : [];
+    const inherited =
+      own.length === 0 ? (prevTemplates ?? []).map((t) => t.start_time.slice(0, 5)) : [];
     return Array.from(new Set([...own, ...inherited, ...extraTimes])).sort();
   }, [templates, prevTemplates, extraTimes]);
 
@@ -4750,7 +5097,6 @@ export function SchedulePlannerPanel() {
     return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
 
-
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -4823,11 +5169,11 @@ export function SchedulePlannerPanel() {
 
       <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
         Muévete semana por semana con las flechas, incluso al mes siguiente. Las horas se respetan
-        de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios
-        en blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar
-        los cambios a las clases reales de ese mes. Toca el nombre de un día para bloquearlo
-        (cerrado: ese día no se publica nada), y usa "Ocultar" para quitar todo un programa de la
-        página y de la app.
+        de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios en
+        blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar los
+        cambios a las clases reales de ese mes. Toca el nombre de un día para bloquearlo (cerrado:
+        ese día no se publica nada), y usa "Ocultar" para quitar todo un programa de la página y de
+        la app.
       </p>
 
       <div className="overflow-x-auto border border-border">
@@ -4896,8 +5242,7 @@ export function SchedulePlannerPanel() {
                 {WEEKDAY_LABELS.map((_, weekday) => {
                   const cell = cellFor(weekday, time);
                   const dayClosed = blackoutSet.has(ymd(weekDates[weekday]!));
-                  const editing =
-                    editingCell?.weekday === weekday && editingCell?.time === time;
+                  const editing = editingCell?.weekday === weekday && editingCell?.time === time;
                   return (
                     <td key={weekday} className="border-l border-border p-0.5">
                       {editing ? (
@@ -5053,10 +5398,7 @@ export function CoachesPanel() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(coaches ?? []).map((c) => (
-            <div
-              key={c.id}
-              className={`border border-border p-4 ${c.active ? "" : "opacity-50"}`}
-            >
+            <div key={c.id} className={`border border-border p-4 ${c.active ? "" : "opacity-50"}`}>
               <button
                 type="button"
                 onClick={() => setOpenId(c.id)}
@@ -5187,7 +5529,12 @@ function CoachEditPopout({ coach, onClose }: { coach: CoachEditable | null; onCl
       >
         <label className="text-xs">
           <span className="eyebrow">Nombre completo</span>
-          <input name="full_name" required defaultValue={coach?.full_name ?? ""} className={input} />
+          <input
+            name="full_name"
+            required
+            defaultValue={coach?.full_name ?? ""}
+            className={input}
+          />
         </label>
         <label className="text-xs">
           <span className="eyebrow">Correo</span>
@@ -5464,15 +5811,17 @@ function CoachRateTiersEditor({ coachId }: { coachId: string }) {
     <div>
       <p className="eyebrow">Pago por ocupación del salón</p>
       <p className="mt-2 text-xs text-muted-foreground">
-        Precio fijo por clase según cuántas personas asistieron. Se aplica el rango más alto que
-        no se pase de la asistencia real. Si no configuras nada aquí, este coach sigue cobrando
-        por hora como de costumbre.
+        Precio fijo por clase según cuántas personas asistieron. Se aplica el rango más alto que no
+        se pase de la asistencia real. Si no configuras nada aquí, este coach sigue cobrando por
+        hora como de costumbre.
       </p>
 
       <ul className="mt-4 divide-y divide-border border-y border-border text-sm">
         {(tiers ?? []).map((t) => (
           <li key={t.id} className="flex items-center justify-between gap-4 py-2.5">
-            <span>Desde {t.min_attendance} {t.min_attendance === 1 ? "persona" : "personas"}</span>
+            <span>
+              Desde {t.min_attendance} {t.min_attendance === 1 ? "persona" : "personas"}
+            </span>
             <span className="flex items-center gap-3">
               <span className="font-mono">{money(t.rate_cents)} / clase</span>
               <button
@@ -5670,15 +6019,19 @@ export function FinancePanel() {
   }, [rangeToStr]);
 
   const { data } = useQuery({
-    queryKey: ["finance-month", monthStart.toISOString(), rangeEnd.toISOString(), weeks[0]?.start.toISOString()],
+    queryKey: [
+      "finance-month",
+      monthStart.toISOString(),
+      rangeEnd.toISOString(),
+      weeks[0]?.start.toISOString(),
+    ],
     queryFn: async () => {
       const fromIso = monthStart.toISOString();
       const toIso = rangeEnd.toISOString();
       const trendFromIso = weeks[0]!.start.toISOString();
       // El fetch tiene que cubrir lo que sea más amplio: las 8 semanas del
       // trend, o el rango de fechas que eligió el usuario.
-      const fetchFromIso =
-        new Date(fromIso) < new Date(trendFromIso) ? fromIso : trendFromIso;
+      const fetchFromIso = new Date(fromIso) < new Date(trendFromIso) ? fromIso : trendFromIso;
 
       const { data: transactions } = await supabase
         .from("transactions")
@@ -5936,8 +6289,8 @@ export function FinancePanel() {
       </div>
       <p className="text-sm text-muted-foreground">
         Del {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(monthStart)} al{" "}
-        {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(rangeEnd)}. El gráfico
-        de tendencia semanal siempre muestra las últimas 8 semanas, sin importar este filtro.
+        {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(rangeEnd)}. El gráfico de
+        tendencia semanal siempre muestra las últimas 8 semanas, sin importar este filtro.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-3">
