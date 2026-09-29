@@ -136,7 +136,7 @@ const UNITS = ["pieza", "caja", "kg", "g", "l", "ml", "dosis"];
 // PUNTO DE VENTA (POS)
 // ============================================================================
 // ============================================================================
-// PEDIDOS PENDIENTES (Fuel / tienda) — pedidos que los clientes
+// PEDIDOS PENDIENTES (tienda) — pedidos que los clientes
 // hacen desde la app y el staff va avanzando hasta entregarlos.
 // ============================================================================
 const ORDER_STATUS_FLOW: Record<string, { next: string | null; label: string }> = {
@@ -342,6 +342,22 @@ export function PendingOrdersPanel() {
   );
 }
 
+type PosBrandKey = "laatu" | "goodes";
+type PosPlan = {
+  id: string;
+  name: string;
+  subtitle: string | null;
+  tokens: number;
+  price_cents: number;
+  category: string | null;
+};
+type BrandGroup = {
+  brand: PosBrandKey;
+  items: { id: string; qty: number }[];
+  plans: { id: string; qty: number }[];
+  total: number;
+};
+
 export function POSPanel() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -358,8 +374,23 @@ export function POSPanel() {
     },
   });
 
+  // Los mismos paquetes que están publicados en la página web.
+  const { data: plans } = useQuery({
+    queryKey: ["pos-plans"],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.from as any)("token_plans")
+        .select("id, name, subtitle, tokens, price_cents, category")
+        .eq("active", true)
+        .order("sort_order")
+        .order("price_cents");
+      if (error) throw error;
+      return (data ?? []) as PosPlan[];
+    },
+  });
+
+  const q = search.trim().toLowerCase();
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     if (!q) return products ?? [];
     return (products ?? []).filter(
       (p) =>
@@ -367,9 +398,19 @@ export function POSPanel() {
         (p.sku ?? "").toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q),
     );
-  }, [products, search]);
+  }, [products, q]);
+  const filteredPlans = useMemo(() => {
+    if (!q) return plans ?? [];
+    return (plans ?? []).filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.subtitle ?? "").toLowerCase().includes(q) ||
+        (p.category ?? "").toLowerCase().includes(q),
+    );
+  }, [plans, q]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [planCart, setPlanCart] = useState<Record<string, number>>({});
   const [clientEmail, setClientEmail] = useState("");
   const [matchedClient, setMatchedClient] = useState<{
     id: string;
@@ -377,7 +418,8 @@ export function POSPanel() {
     email: string;
   } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [payment, setPayment] = useState("efectivo");
+  // Solo dos formas de pago: tarjeta en terminal Clip o efectivo.
+  const [payment, setPayment] = useState<"terminal" | "efectivo">("terminal");
 
   const { data: suggestions } = useQuery({
     queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
@@ -392,50 +434,47 @@ export function POSPanel() {
     },
   });
 
-  const total = useMemo(() => {
-    if (!products) return 0;
-    return Object.entries(cart).reduce((sum, [id, qty]) => {
-      const p = products.find((p) => p.id === id);
-      return sum + (p ? p.price_cents * qty : 0);
-    }, 0);
-  }, [cart, products]);
+  const productQty = Object.values(cart).reduce((a, b) => a + b, 0);
+  const planQty = Object.values(planCart).reduce((a, b) => a + b, 0);
+  const itemCount = productQty + planQty;
+  const needsClient = planQty > 0;
 
-  const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
-
-  // Cada marca cobra en una terminal física distinta de Clip. Si el carrito
-  // mezcla Läätu y Goodes, se divide en dos cobros (primero Läätu, luego
-  // Goodes), cada uno en su terminal y registrado como su propia venta.
-  const brandGroups = useMemo(() => {
-    if (!products)
-      return [] as {
-        brand: "laatu" | "goodes";
-        items: { id: string; qty: number }[];
-        total: number;
-      }[];
-    const groups = new Map<"laatu" | "goodes", { id: string; qty: number }[]>();
+  // Cada marca cobra en su propia terminal Clip. Los paquetes siempre son de
+  // Läätu. Si el carrito mezcla marcas, se cobra en dos pasos.
+  const brandGroups = useMemo<BrandGroup[]>(() => {
+    const groups = new Map<PosBrandKey, BrandGroup>();
+    const group = (brand: PosBrandKey) => {
+      const g = groups.get(brand) ?? { brand, items: [], plans: [], total: 0 };
+      groups.set(brand, g);
+      return g;
+    };
     for (const [id, qty] of Object.entries(cart)) {
       if (qty <= 0) continue;
-      const p = products.find((p) => p.id === id) as unknown as { brand?: string } | undefined;
-      const brand = p?.brand === "goodes" ? "goodes" : "laatu";
-      groups.set(brand, [...(groups.get(brand) ?? []), { id, qty }]);
+      const p = products?.find((p) => p.id === id) as
+        (Tables<"products"> & { brand?: string }) | undefined;
+      if (!p) continue;
+      const g = group(p.brand === "goodes" ? "goodes" : "laatu");
+      g.items.push({ id, qty });
+      g.total += p.price_cents * qty;
     }
-    return (["laatu", "goodes"] as const)
-      .filter((b) => groups.has(b))
-      .map((brand) => {
-        const items = groups.get(brand) ?? [];
-        const groupTotal = items.reduce(
-          (s, it) => s + (products.find((p) => p.id === it.id)?.price_cents ?? 0) * it.qty,
-          0,
-        );
-        return { brand, items, total: groupTotal };
-      });
-  }, [cart, products]);
+    for (const [id, qty] of Object.entries(planCart)) {
+      if (qty <= 0) continue;
+      const p = plans?.find((p) => p.id === id);
+      if (!p) continue;
+      const g = group("laatu");
+      g.plans.push({ id, qty });
+      g.total += p.price_cents * qty;
+    }
+    return (["laatu", "goodes"] as const).filter((b) => groups.has(b)).map((b) => groups.get(b)!);
+  }, [cart, planCart, products, plans]);
+  const total = brandGroups.reduce((s, g) => s + g.total, 0);
   const isMixedBrand = brandGroups.length > 1;
   const cartBrand = brandGroups[0]?.brand ?? "laatu";
   const usesTerminal = payment === "terminal";
 
   const resetSale = () => {
     setCart({});
+    setPlanCart({});
     setClientEmail("");
     setMatchedClient(null);
     void qc.invalidateQueries({ queryKey: ["pos-products"] });
@@ -443,13 +482,12 @@ export function POSPanel() {
   };
 
   // Cobro en terminal: cola de marcas pendientes + el cobro activo.
-  const [terminalQueue, setTerminalQueue] = useState<typeof brandGroups>([]);
+  const [terminalQueue, setTerminalQueue] = useState<BrandGroup[]>([]);
   const [activePayment, setActivePayment] = useState<TerminalPaymentState | null>(null);
   const [terminalMessage, setTerminalMessage] = useState<string | null>(null);
   const [completedBrands, setCompletedBrands] = useState<string[]>([]);
 
-  const sendToTerminal = async (group: (typeof brandGroups)[number]) => {
-    if (!matchedClient) return;
+  const sendToTerminal = async (group: BrandGroup) => {
     setTerminalMessage(null);
     setActivePayment({
       id: "",
@@ -463,8 +501,9 @@ export function POSPanel() {
       const state = await startTerminalPayment({
         data: {
           brand: group.brand,
-          clientId: matchedClient.id,
+          clientId: matchedClient?.id ?? null,
           items: group.items.map((it) => ({ productId: it.id, qty: it.qty })),
+          plans: group.plans.map((pl) => ({ planId: pl.id, qty: pl.qty })),
           origin: window.location.origin,
         },
       });
@@ -511,7 +550,11 @@ export function POSPanel() {
       if (rest[0]) {
         void sendToTerminal(rest[0]);
       } else {
-        toast.success("Pago aprobado. Venta registrada.");
+        toast.success(
+          planQty > 0
+            ? "Pago aprobado. Venta registrada y clases acreditadas al cliente."
+            : "Pago aprobado. Venta registrada.",
+        );
         setActivePayment(null);
         setCompletedBrands([]);
         resetSale();
@@ -542,11 +585,15 @@ export function POSPanel() {
     setTerminalMessage(null);
     if (partial) {
       // Ya se cobró una marca: se quita del carrito para no cobrarla dos veces.
+      const paid = brandGroups.filter((g) => completedBrands.includes(g.brand));
       setCart((c) => {
         const next = { ...c };
-        for (const g of brandGroups) {
-          if (completedBrands.includes(g.brand)) for (const it of g.items) delete next[it.id];
-        }
+        for (const g of paid) for (const it of g.items) delete next[it.id];
+        return next;
+      });
+      setPlanCart((c) => {
+        const next = { ...c };
+        for (const g of paid) for (const pl of g.plans) delete next[pl.id];
         return next;
       });
       toast.message("Se registró solo la parte ya pagada. El resto sigue en el carrito.");
@@ -557,8 +604,10 @@ export function POSPanel() {
 
   const checkout = useMutation({
     mutationFn: async () => {
-      if (!matchedClient) throw new Error("Busca al cliente por correo antes de cobrar.");
-      if (brandGroups.length === 0) throw new Error("Agrega al menos un producto");
+      if (brandGroups.length === 0) throw new Error("Agrega al menos un producto o paquete.");
+      if (needsClient && !matchedClient) {
+        throw new Error("Para vender paquetes o clases, elige al cliente.");
+      }
 
       if (usesTerminal) {
         setCompletedBrands([]);
@@ -567,34 +616,59 @@ export function POSPanel() {
         return "terminal" as const;
       }
 
-      // Efectivo / transferencia / tarjeta registrada a mano: una venta por marca.
+      // Efectivo: una venta por marca + paquetes acreditados al cliente.
       for (const group of brandGroups) {
-        const items = group.items.map(({ id, qty }) => {
-          const p = products?.find((p) => p.id === id);
-          return {
-            product_id: id,
-            description: p?.name ?? "",
-            qty,
-            unit_price_cents: p?.price_cents ?? 0,
-          };
-        });
-        const { error } = await (supabase.rpc as any)("pos_checkout", {
-          _user_id: matchedClient.id,
-          _payment_method: payment === "tarjeta_manual" ? "tarjeta" : payment,
-          _items: items,
-          _brand: group.brand,
-        });
-        if (error) throw error;
+        if (group.items.length > 0) {
+          const items = group.items.map(({ id, qty }) => {
+            const p = products?.find((p) => p.id === id);
+            return {
+              product_id: id,
+              description: p?.name ?? "",
+              qty,
+              unit_price_cents: p?.price_cents ?? 0,
+            };
+          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
+          const { error } = await (supabase.rpc as any)("pos_checkout", {
+            _user_id: matchedClient?.id ?? null,
+            _payment_method: "efectivo",
+            _items: items,
+            _brand: group.brand,
+          });
+          if (error) throw error;
+        }
+        if (group.plans.length > 0 && matchedClient) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
+          const { error } = await (supabase.rpc as any)("pos_sell_plans_cash", {
+            _user_id: matchedClient.id,
+            _plans: group.plans.map((pl) => ({ plan_id: pl.id, qty: pl.qty })),
+          });
+          if (error) throw error;
+        }
       }
       return "direct" as const;
     },
     onSuccess: (mode) => {
       if (mode === "terminal") return;
-      toast.success("Venta registrada.");
+      toast.success(
+        planQty > 0 ? "Venta registrada y clases acreditadas al cliente." : "Venta registrada.",
+      );
       resetSale();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "No se pudo cobrar."),
   });
+
+  const qtyButtons = (qty: number, onMinus: () => void, onPlus: () => void) => (
+    <div className="flex shrink-0 items-center gap-2">
+      <button className="border border-input px-2.5 py-1" onClick={onMinus}>
+        −
+      </button>
+      <span className="w-6 text-center">{qty}</span>
+      <button className="border border-input px-2.5 py-1" onClick={onPlus}>
+        +
+      </button>
+    </div>
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -604,11 +678,43 @@ export function POSPanel() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, SKU o categoría…"
+            placeholder="Buscar paquete, producto o SKU…"
             className={`${input} pl-9`}
             autoFocus
           />
         </div>
+
+        {filteredPlans.length > 0 ? (
+          <div className="mb-6">
+            <p className="mb-2 eyebrow">Paquetes y clases</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {filteredPlans.map((p) => {
+                const qty = planCart[p.id] ?? 0;
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-center justify-between gap-3 border p-4 transition-colors ${qty > 0 ? "border-foreground" : "border-border"}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {money(p.price_cents)} · {p.tokens} clase{p.tokens === 1 ? "" : "s"}
+                        {p.subtitle ? ` · ${p.subtitle}` : ""}
+                      </p>
+                    </div>
+                    {qtyButtons(
+                      qty,
+                      () => setPlanCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) })),
+                      () => setPlanCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 })),
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <p className="mb-2 eyebrow">Productos</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((p) => {
             const qty = cart[p.id] ?? 0;
@@ -631,28 +737,16 @@ export function POSPanel() {
                     {money(p.price_cents)} · stock {p.stock} {p.unit}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    className="border border-input px-2.5 py-1"
-                    onClick={() =>
-                      setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) }))
-                    }
-                  >
-                    −
-                  </button>
-                  <span className="w-6 text-center">{qty}</span>
-                  <button
-                    className="border border-input px-2.5 py-1"
-                    onClick={() => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 }))}
-                  >
-                    +
-                  </button>
-                </div>
+                {qtyButtons(
+                  qty,
+                  () => setCart((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] ?? 0) - 1) })),
+                  () => setCart((c) => ({ ...c, [p.id]: (c[p.id] ?? 0) + 1 })),
+                )}
               </div>
             );
           })}
           {filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin resultados.</p>
+            <p className="text-sm text-muted-foreground">Sin productos con ese nombre.</p>
           ) : null}
         </div>
       </div>
@@ -662,7 +756,9 @@ export function POSPanel() {
           Cobro {itemCount > 0 ? `· ${itemCount} artículo${itemCount === 1 ? "" : "s"}` : ""}
         </p>
         <label className="relative block text-xs">
-          <span className="eyebrow">Correo o nombre del cliente (obligatorio)</span>
+          <span className="eyebrow">
+            Cliente {needsClient ? "(obligatorio para paquetes)" : "(opcional)"}
+          </span>
           <input
             value={
               matchedClient ? `${matchedClient.full_name || matchedClient.email}` : clientEmail
@@ -673,10 +769,9 @@ export function POSPanel() {
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
-            className={input}
-            placeholder="cliente@correo.com"
+            className={`${input} ${needsClient && !matchedClient ? "border-destructive" : ""}`}
+            placeholder="Correo o nombre del cliente"
             autoComplete="off"
-            required
           />
           {matchedClient ? (
             <button
@@ -713,20 +808,71 @@ export function POSPanel() {
           {matchedClient ? (
             <span className="mt-1 block text-[0.7rem] text-emerald-600">
               ✓ {matchedClient.email}
+              {needsClient ? " · las clases se le acreditan al pagar" : ""}
+            </span>
+          ) : needsClient ? (
+            <span className="mt-1 block text-[0.7rem] text-destructive">
+              Elige al cliente para acreditarle las clases.
             </span>
           ) : null}
         </label>
-        <label className="block text-xs">
+
+        <div className="text-xs">
           <span className="eyebrow">Método de pago</span>
-          <select value={payment} onChange={(e) => setPayment(e.target.value)} className={input}>
-            <option value="terminal">Tarjeta — cobrar en terminal Clip</option>
-            <option value="efectivo">Efectivo</option>
-            <option value="transferencia">Transferencia</option>
-            <option value="tarjeta_manual">Tarjeta — ya cobrada (registrar a mano)</option>
-          </select>
-        </label>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            {(
+              [
+                ["terminal", "Tarjeta (terminal Clip)"],
+                ["efectivo", "Efectivo"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPayment(value)}
+                className={`border px-3 py-2 text-[0.7rem] uppercase tracking-[0.1em] ${
+                  payment === value
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-input"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {itemCount > 0 ? (
+          <ul className="space-y-1 border-t border-border pt-3 text-xs">
+            {brandGroups.flatMap((g) => [
+              ...g.plans.map((pl) => {
+                const p = plans?.find((x) => x.id === pl.id);
+                return (
+                  <li key={`plan-${pl.id}`} className="flex justify-between gap-2">
+                    <span>
+                      {pl.qty} × {p?.name}
+                    </span>
+                    <span>{money((p?.price_cents ?? 0) * pl.qty)}</span>
+                  </li>
+                );
+              }),
+              ...g.items.map((it) => {
+                const p = products?.find((x) => x.id === it.id);
+                return (
+                  <li key={`prod-${it.id}`} className="flex justify-between gap-2">
+                    <span>
+                      {it.qty} × {p?.name}
+                    </span>
+                    <span>{money((p?.price_cents ?? 0) * it.qty)}</span>
+                  </li>
+                );
+              }),
+            ])}
+          </ul>
+        ) : null}
+
         <p className="text-2xl">{money(total)}</p>
-        {itemCount > 0 && !isMixedBrand ? (
+        {itemCount > 0 && !isMixedBrand && usesTerminal ? (
           <p
             className={`border px-3 py-2 text-xs uppercase tracking-[0.08em] ${
               cartBrand === "goodes"
@@ -734,8 +880,7 @@ export function POSPanel() {
                 : "border-border bg-muted text-muted-foreground"
             }`}
           >
-            {usesTerminal ? "Se enviará a la terminal: " : "Venta de: "}
-            {cartBrand === "goodes" ? "Goodes" : "Läätu"}
+            Se enviará a la terminal: {cartBrand === "goodes" ? "Goodes" : "Läätu"}
           </p>
         ) : null}
         {isMixedBrand ? (
@@ -752,19 +897,27 @@ export function POSPanel() {
             ))}
           </div>
         ) : null}
-        {payment === "tarjeta_manual" ? (
-          <p className="text-[0.7rem] text-muted-foreground">
-            Úsalo solo si la terminal no se conectó y cobraste directo en ella. La venta se registra
-            sin confirmación de Clip.
-          </p>
-        ) : null}
         <button
-          disabled={checkout.isPending || itemCount === 0 || !matchedClient || !!activePayment}
+          disabled={
+            checkout.isPending ||
+            itemCount === 0 ||
+            (needsClient && !matchedClient) ||
+            !!activePayment
+          }
           onClick={() => checkout.mutate()}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
-          {usesTerminal ? "Cobrar en terminal" : "Cobrar"}
+          {usesTerminal ? "Cobrar en terminal" : "Cobrar en efectivo"}
         </button>
+        {itemCount > 0 ? (
+          <button
+            type="button"
+            onClick={resetSale}
+            className="w-full text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+          >
+            Vaciar carrito
+          </button>
+        ) : null}
       </div>
 
       {activePayment ? (
@@ -886,6 +1039,7 @@ function TerminalsConfig() {
     queryKey: ["pos-terminals"],
     enabled: open,
     queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.from as any)("pos_terminals")
         .select("brand, label, serial_number, active")
         .order("brand", { ascending: false });
@@ -902,6 +1056,7 @@ function TerminalsConfig() {
 
   const save = useMutation({
     mutationFn: async (t: { brand: string; serial_number: string; active: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { error } = await (supabase.from as any)("pos_terminals")
         .update({
           serial_number: t.serial_number.trim() || null,
@@ -1025,7 +1180,39 @@ export function InventoryPanel() {
       const { error } = await supabase.from("products").update(patch).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin-products"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin-products"] });
+      void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    },
+  });
+
+  // Si el producto ya tiene ventas o movimientos de inventario, la base de
+  // datos no deja borrarlo (para no perder el historial). En ese caso se
+  // quita del punto de venta en lugar de borrarse.
+  const remove = useMutation({
+    mutationFn: async (p: Tables<"products">) => {
+      const { error } = await supabase.from("products").delete().eq("id", p.id);
+      if (!error) return "deleted" as const;
+      if (error.code === "23503") {
+        const { error: e2 } = await supabase
+          .from("products")
+          .update({ active: false })
+          .eq("id", p.id);
+        if (e2) throw e2;
+        return "hidden" as const;
+      }
+      throw error;
+    },
+    onSuccess: (result) => {
+      toast.success(
+        result === "deleted"
+          ? "Producto eliminado."
+          : "Este producto ya tiene ventas registradas, así que se quitó del punto de venta en lugar de borrarse.",
+      );
+      void qc.invalidateQueries({ queryKey: ["admin-products"] });
+      void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    },
+    onError: () => toast.error("No se pudo eliminar. Solo un administrador puede hacerlo."),
   });
 
   const categories = Array.from(new Set((data ?? []).map((p) => p.category))).sort();
@@ -1062,7 +1249,7 @@ export function InventoryPanel() {
       </div>
 
       <details className="mb-6 border border-border p-6">
-        <summary className="cursor-pointer eyebrow">Agregar producto</summary>
+        <summary className="cursor-pointer eyebrow">Agregar producto al punto de venta</summary>
         <form
           className="mt-4 grid gap-4 sm:grid-cols-3 lg:grid-cols-6"
           onSubmit={(e) => {
@@ -1070,7 +1257,8 @@ export function InventoryPanel() {
             const f = new FormData(e.currentTarget);
             create.mutate({
               name: String(f.get("name") || ""),
-              category: String(f.get("category") || "merch"),
+              ...({ brand: String(f.get("brand") || "laatu") } as object),
+              category: String(f.get("category") || "consumible"),
               price_cents: Math.round(Number(f.get("price") || 0) * 100),
               cost_cents: Math.round(Number(f.get("cost") || 0) * 100),
               stock: Number(f.get("stock") || 0),
@@ -1087,8 +1275,20 @@ export function InventoryPanel() {
             <input name="name" required className={input} />
           </label>
           <label className="text-xs">
+            <span className="eyebrow">Marca / terminal</span>
+            <select name="brand" defaultValue="laatu" className={input}>
+              <option value="laatu">Läätu</option>
+              <option value="goodes">Goodes</option>
+            </select>
+          </label>
+          <label className="text-xs">
             <span className="eyebrow">Categoría</span>
-            <input name="category" defaultValue="merch" className={input} list="inv-categories" />
+            <input
+              name="category"
+              defaultValue="consumible"
+              className={input}
+              list="inv-categories"
+            />
             <datalist id="inv-categories">
               {categories.map((c) => (
                 <option key={c} value={c} />
@@ -1162,82 +1362,39 @@ export function InventoryPanel() {
       </div>
 
       <div className="overflow-x-auto border border-border">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
               <th className="px-4 py-3">Producto</th>
-              <th className="px-4 py-3">Categoría</th>
+              <th className="px-4 py-3">Marca</th>
               <th className="px-4 py-3">Precio / costo</th>
               <th className="px-4 py-3">Margen</th>
               <th className="px-4 py-3">Stock</th>
-              <th className="px-4 py-3">Caducidad</th>
+              <th className="px-4 py-3">En POS</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {filtered.map((p) => {
-              const low = p.stock <= p.low_stock_threshold;
-              const expiring = p.expires_at ? new Date(p.expires_at) <= soon : false;
-              return (
-                <tr key={p.id}>
-                  <td className="px-4 py-3">
-                    <p>{p.name}</p>
-                    {p.unit_size ? (
-                      <p className="text-xs text-muted-foreground">{p.unit_size}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.category}</td>
-                  <td className="px-4 py-3">
-                    {money(p.price_cents)}
-                    <span className="text-muted-foreground"> / {money(p.cost_cents)}</span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {p.price_cents > 0
-                      ? `${Math.round(((p.price_cents - p.cost_cents) / p.price_cents) * 100)}%`
-                      : "—"}
-                  </td>
-                  <td className={`px-4 py-3 ${low ? "text-destructive" : ""}`}>
-                    {p.stock} {p.unit}
-                    {low ? " · bajo" : ""}
-                  </td>
-                  <td
-                    className={`px-4 py-3 ${expiring ? "text-destructive" : "text-muted-foreground"}`}
-                  >
-                    {p.expires_at
-                      ? new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
-                          new Date(p.expires_at),
-                        )
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        className="border border-input px-2.5 py-1"
-                        onClick={() =>
-                          adjust.mutate({ id: p.id, delta: -1, reason: "Salida manual" })
-                        }
-                      >
-                        −
-                      </button>
-                      <button
-                        className="border border-input px-2.5 py-1"
-                        onClick={() =>
-                          adjust.mutate({ id: p.id, delta: 1, reason: "Entrada manual" })
-                        }
-                      >
-                        +
-                      </button>
-                      <button
-                        className="border border-input px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.12em]"
-                        onClick={() => update.mutate({ id: p.id, patch: { active: !p.active } })}
-                      >
-                        {p.active ? "Ocultar" : "Publicar"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {filtered.map((p) => (
+              <InventoryRow
+                key={p.id}
+                product={p}
+                soon={soon}
+                onAdjust={(delta) =>
+                  adjust.mutate({
+                    id: p.id,
+                    delta,
+                    reason: delta > 0 ? "Entrada manual" : "Salida manual",
+                  })
+                }
+                onSave={(patch) =>
+                  update.mutateAsync({ id: p.id, patch }).then(() => {
+                    toast.success("Producto actualizado.");
+                  })
+                }
+                onDelete={() => remove.mutate(p)}
+              />
+            ))}
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
@@ -1248,7 +1405,234 @@ export function InventoryPanel() {
           </tbody>
         </table>
       </div>
+      <p className="mt-3 text-[0.7rem] text-muted-foreground">
+        "En POS: Sí" significa que el producto aparece en el punto de venta para cobrarse. Los
+        productos de merch activos también se muestran en la tienda de la app; los consumibles
+        (bebidas, smoothies, café, barras) solo se venden en el punto de venta.
+      </p>
     </div>
+  );
+}
+
+type ProductRow = Tables<"products"> & { brand?: string };
+
+function InventoryRow({
+  product: p,
+  soon,
+  onAdjust,
+  onSave,
+  onDelete,
+}: {
+  product: ProductRow;
+  soon: Date;
+  onAdjust: (delta: number) => void;
+  onSave: (patch: TablesUpdate<"products">) => Promise<void>;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    name: p.name,
+    brand: p.brand ?? "laatu",
+    category: p.category,
+    price: (p.price_cents / 100).toString(),
+    cost: (p.cost_cents / 100).toString(),
+    threshold: String(p.low_stock_threshold),
+  });
+  const low = p.stock <= p.low_stock_threshold;
+  const expiring = p.expires_at ? new Date(p.expires_at) <= soon : false;
+  const brand = p.brand ?? "laatu";
+
+  if (editing) {
+    const price = Number(draft.price);
+    const cost = Number(draft.cost);
+    const valid =
+      draft.name.trim() &&
+      Number.isFinite(price) &&
+      price >= 0 &&
+      Number.isFinite(cost) &&
+      cost >= 0;
+    return (
+      <tr className="bg-muted/40">
+        <td className="px-4 py-3" colSpan={7}>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <label className="text-xs sm:col-span-2">
+              <span className="eyebrow">Nombre</span>
+              <input
+                value={draft.name}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                className={input}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Marca / terminal</span>
+              <select
+                value={draft.brand}
+                onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))}
+                className={input}
+              >
+                <option value="laatu">Läätu</option>
+                <option value="goodes">Goodes</option>
+              </select>
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Categoría</span>
+              <input
+                value={draft.category}
+                onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
+                className={input}
+                list="inv-categories"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Precio de venta (MXN)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draft.price}
+                onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+                className={input}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Costo (MXN)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draft.cost}
+                onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
+                className={input}
+              />
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Alerta stock bajo</span>
+              <input
+                type="number"
+                min={0}
+                value={draft.threshold}
+                onChange={(e) => setDraft((d) => ({ ...d, threshold: e.target.value }))}
+                className={input}
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              onClick={() => setEditing(false)}
+              className="border border-input px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em]"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={!valid || saving}
+              onClick={() => {
+                setSaving(true);
+                onSave({
+                  name: draft.name.trim(),
+                  category: draft.category.trim() || p.category,
+                  price_cents: Math.round(price * 100),
+                  cost_cents: Math.round(cost * 100),
+                  low_stock_threshold: Math.max(0, Math.round(Number(draft.threshold) || 0)),
+                  ...({ brand: draft.brand } as object),
+                })
+                  .then(() => setEditing(false))
+                  .catch((e: unknown) =>
+                    toast.error(e instanceof Error ? e.message : "No se pudo guardar."),
+                  )
+                  .finally(() => setSaving(false));
+              }}
+              className="bg-foreground px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-50"
+            >
+              Guardar
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className={p.active ? "" : "text-muted-foreground"}>
+      <td className="px-4 py-3">
+        <p>{p.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {p.category}
+          {p.unit_size ? ` · ${p.unit_size}` : ""}
+          {p.expires_at ? (
+            <span className={expiring ? " text-destructive" : ""}>
+              {" · caduca "}
+              {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                new Date(p.expires_at),
+              )}
+            </span>
+          ) : null}
+        </p>
+      </td>
+      <td className="px-4 py-3">
+        {brand === "goodes" ? (
+          <span className="bg-amber-500/15 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] text-amber-800">
+            Goodes
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Läätu</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {money(p.price_cents)}
+        <span className="text-muted-foreground"> / {money(p.cost_cents)}</span>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">
+        {p.price_cents > 0
+          ? `${Math.round(((p.price_cents - p.cost_cents) / p.price_cents) * 100)}%`
+          : "—"}
+      </td>
+      <td className={`px-4 py-3 ${low ? "text-destructive" : ""}`}>
+        <div className="flex items-center gap-2">
+          <button className="border border-input px-2 py-0.5" onClick={() => onAdjust(-1)}>
+            −
+          </button>
+          <span className="whitespace-nowrap">
+            {p.stock} {p.unit}
+            {low ? " · bajo" : ""}
+          </span>
+          <button className="border border-input px-2 py-0.5" onClick={() => onAdjust(1)}>
+            +
+          </button>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <button
+          onClick={() => void onSave({ active: !p.active })}
+          className={`px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] ${
+            p.active ? "bg-emerald-600/15 text-emerald-800" : "border border-input"
+          }`}
+          title={p.active ? "Quitar del punto de venta" : "Agregar al punto de venta"}
+        >
+          {p.active ? "Sí" : "No"}
+        </button>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            className="border border-input px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.12em]"
+            onClick={() => setEditing(true)}
+          >
+            Editar
+          </button>
+          <button
+            className="border border-destructive/40 px-2.5 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-destructive"
+            onClick={() => {
+              if (window.confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) {
+                onDelete();
+              }
+            }}
+          >
+            Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -1610,7 +1994,7 @@ const STAFF_HOME_BUTTONS = [
 ] as const;
 
 const STAFF_HOME_DESCRIPTIONS: Record<string, string> = {
-  pos: "Cobra clases sueltas, Merch y Fuel en el mostrador.",
+  pos: "Cobra paquetes, clases y productos en el mostrador.",
   "horarios-clases": "Reserva o mete a alguien a una clase, revisa cupo.",
   "check-in": "Marca la llegada de quien ya tiene su lugar reservado.",
 };
@@ -6401,7 +6785,7 @@ export function FinancePanel() {
           onClick={() => setOpenCard("consumibles")}
           className="border border-border p-5 text-left hover:border-foreground/40"
         >
-          <p className="eyebrow">Consumibles (Fuel)</p>
+          <p className="eyebrow">Consumibles</p>
           <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
         </button>
       </div>
@@ -6516,7 +6900,7 @@ export function FinancePanel() {
 
       {openCard === "consumibles" ? (
         <Popout onClose={() => setOpenCard(null)} wide>
-          <p className="mb-4 eyebrow">Consumibles (Fuel) — análisis</p>
+          <p className="mb-4 eyebrow">Consumibles — análisis</p>
           <p className="mb-2 text-xs text-muted-foreground">
             Productos — clic en la columna para ordenar
           </p>

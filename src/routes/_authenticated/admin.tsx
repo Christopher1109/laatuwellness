@@ -108,7 +108,7 @@ function Admin() {
             { key: "horarios-consultorio", label: "Horarios de consultorio", icon: Stethoscope },
             { key: "pos", label: "Punto de venta", icon: ShoppingCart },
             { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
-            { key: "inventario", label: "Inventario", icon: Package },
+            { key: "inventario", label: "Productos e inventario", icon: Package },
           ],
         },
         {
@@ -154,7 +154,7 @@ function Admin() {
                 },
                 { key: "pos", label: "Punto de venta", icon: ShoppingCart },
                 { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
-                { key: "inventario", label: "Inventario", icon: Package },
+                { key: "inventario", label: "Productos e inventario", icon: Package },
               ],
             },
             {

@@ -15,7 +15,6 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactoRouteImport } from './routes/contacto'
-import { Route as FuelRouteImport } from './routes/fuel'
 import { Route as HorariosRouteImport } from './routes/horarios'
 import { Route as MerchRouteImport } from './routes/merch'
 import { Route as NosotrosRouteImport } from './routes/nosotros'
@@ -58,11 +57,6 @@ const CoachesRoute = CoachesRouteImport.update({
 const ContactoRoute = ContactoRouteImport.update({
   id: '/contacto',
   path: '/contacto',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FuelRoute = FuelRouteImport.update({
-  id: '/fuel',
-  path: '/fuel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HorariosRoute = HorariosRouteImport.update({
@@ -144,7 +138,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/coaches': typeof CoachesRoute
   '/contacto': typeof ContactoRoute
-  '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
   '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
@@ -166,7 +159,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/coaches': typeof CoachesRoute
   '/contacto': typeof ContactoRoute
-  '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
   '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
@@ -190,7 +182,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/coaches': typeof CoachesRoute
   '/contacto': typeof ContactoRoute
-  '/fuel': typeof FuelRoute
   '/horarios': typeof HorariosRoute
   '/merch': typeof MerchRoute
   '/nosotros': typeof NosotrosRoute
@@ -214,7 +205,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coaches'
     | '/contacto'
-    | '/fuel'
     | '/horarios'
     | '/merch'
     | '/nosotros'
@@ -236,7 +226,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coaches'
     | '/contacto'
-    | '/fuel'
     | '/horarios'
     | '/merch'
     | '/nosotros'
@@ -259,7 +248,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coaches'
     | '/contacto'
-    | '/fuel'
     | '/horarios'
     | '/merch'
     | '/nosotros'
@@ -283,7 +271,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CoachesRoute: typeof CoachesRoute
   ContactoRoute: typeof ContactoRoute
-  FuelRoute: typeof FuelRoute
   HorariosRoute: typeof HorariosRoute
   MerchRoute: typeof MerchRoute
   NosotrosRoute: typeof NosotrosRoute
@@ -339,13 +326,6 @@ declare module '@tanstack/react-router' {
       path: '/contacto'
       fullPath: '/contacto'
       preLoaderRoute: typeof ContactoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fuel': {
-      id: '/fuel'
-      path: '/fuel'
-      fullPath: '/fuel'
-      preLoaderRoute: typeof FuelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/horarios': {
@@ -471,7 +451,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CoachesRoute: CoachesRoute,
   ContactoRoute: ContactoRoute,
-  FuelRoute: FuelRoute,
   HorariosRoute: HorariosRoute,
   MerchRoute: MerchRoute,
   NosotrosRoute: NosotrosRoute,
