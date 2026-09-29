@@ -13,7 +13,7 @@ import foto3 from "@/assets/laatu-foto-3.jpg.asset.json";
 import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
 // Set editorial nuevo (matte black & white) — reemplaza foto1 (persona
-// estirando) en el hero y complementa Fuel / Conócenos.
+// estirando) en el hero y complementa Conócenos.
 const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
 const editorial2 = "/foto-editorial/laatu-editorial-2.jpg";
 const editorial3 = "/foto-editorial/laatu-editorial-3.jpg";
@@ -41,8 +41,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Läätu Wellness — Ábrete a la posibilidad del camino" },
       {
         property: "og:description",
-        content:
-          "Pilates Reformer, 4mat, Align y Contrast en un solo lugar. Reserva tu clase.",
+        content: "Pilates Reformer, 4mat, Align y Contrast en un solo lugar. Reserva tu clase.",
       },
     ],
   }),
@@ -211,53 +210,6 @@ function Home() {
               );
             })}
           </div>
-        </div>
-      </section>
-
-      {/* ---------- Fuel ---------- */}
-      <section className="surface-dark grain relative overflow-hidden border-b border-border">
-        <PatternField
-          tone="ivory"
-          opacity={0.12}
-          className="-right-40 -top-32 h-[32rem] w-[32rem]"
-        />
-        <div className="relative z-[2] mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div>
-              <p className="eyebrow opacity-70">Fuel</p>
-              <h2 className="statement mt-4 max-w-lg text-[clamp(1.8rem,4vw,2.8rem)]">
-                Lo que tu cuerpo pide después.
-              </h2>
-            </div>
-            <Link
-              to="/fuel"
-              className="text-[0.7rem] uppercase tracking-[0.18em] opacity-70 transition-opacity hover:opacity-100"
-            >
-              Ver la carta completa →
-            </Link>
-          </div>
-
-          <div className="mt-12 grid gap-px bg-current/15 sm:mt-16 md:grid-cols-3">
-            {[
-              ["01", "Smoothies", "Blush, Indigo, Lift y Verde. Preparados al momento."],
-              [
-                "02",
-                "Coffee & Matcha",
-                "Latte, capu, flat, brew y matcha. Leches vegetales disponibles.",
-              ],
-              ["03", "Add-ons", "Proteína, colágeno y jarabes de temporada."],
-            ].map(([num, titulo, desc]) => (
-              <div key={num} className="surface-dark p-6 sm:p-8">
-                <p className="font-mono text-[0.65rem] tracking-[0.24em] opacity-60">{num}</p>
-                <h3 className="mt-6 text-xl">{titulo}</h3>
-                <p className="mt-3 text-sm opacity-70">{desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-10 max-w-xl font-mono text-[0.65rem] uppercase leading-relaxed tracking-[0.2em] opacity-60">
-            Fuel vive dentro del estudio
-          </p>
         </div>
       </section>
 

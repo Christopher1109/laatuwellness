@@ -15,7 +15,6 @@ const NAV = [
   { to: "/coaches", label: "Coaches" },
   { to: "/horarios", label: "Horarios" },
   { to: "/paquetes", label: "Paquetes" },
-  { to: "/fuel", label: "Fuel" },
   { to: "/merch", label: "Merch" },
 ] as const;
 
@@ -49,7 +48,6 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-
 
         <div className="hidden shrink-0 items-center gap-5 md:flex">
           {" "}
@@ -238,11 +236,6 @@ export function SiteFooter() {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/fuel" className="hover:text-foreground">
-                    Fuel
-                  </Link>
-                </li>
-                <li>
                   <Link to="/app" className="hover:text-foreground">
                     Reservar y comprar (app)
                   </Link>
@@ -274,7 +267,6 @@ export function SiteFooter() {
                 </li>
               </ul>
             </div>
-
           </div>
         </div>
 

@@ -38,7 +38,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_HINTS: Record<string, string> = {
   clases_pilates: "Compras créditos sueltos, sin compromiso mensual. Válidos por un tiempo limitado.",
-  membresia: "Cargo mensual recurrente con Align, Contrast y Fuel incluidos según el plan.",
+  membresia: "Cargo mensual recurrente con Align y Contrast incluidos según el plan.",
   consulta: "Sesión individual de recuperación con Doris, se paga por sesión.",
   recuperacion: "Sesión de sauna infrarrojo y cold plunge, se paga por sesión.",
 };

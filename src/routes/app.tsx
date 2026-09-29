@@ -1024,19 +1024,19 @@ function CreditosTab() {
                 {items.map((p) => {
                   const alreadyPurchased = p.purchasable_once && purchasedPlanIds?.has(p.id);
                   return (
-                  <div key={p.id} className="border border-border p-4">
-                    <p className="text-sm">{p.name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {money(p.price_cents, p.currency)} · {p.tokens} créditos
-                    </p>
-                    <button
-                      onClick={() => setBuying(p as unknown as CheckoutPlan)}
-                      disabled={alreadyPurchased}
-                      className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
-                    >
-                      {alreadyPurchased ? "Ya adquirido" : "Comprar"}
-                    </button>
-                  </div>
+                    <div key={p.id} className="border border-border p-4">
+                      <p className="text-sm">{p.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {money(p.price_cents, p.currency)} · {p.tokens} créditos
+                      </p>
+                      <button
+                        onClick={() => setBuying(p as unknown as CheckoutPlan)}
+                        disabled={alreadyPurchased}
+                        className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
+                      >
+                        {alreadyPurchased ? "Ya adquirido" : "Comprar"}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1072,7 +1072,6 @@ function CreditosTab() {
 
 const STORE_CATEGORY_LABELS: Record<string, string> = {
   merch: "Merch",
-  consumible: "Fuel",
 };
 
 function TiendaTab() {
@@ -1094,7 +1093,12 @@ function TiendaTab() {
       if (error) throw error;
       // brand no está en los tipos generados todavía; se filtra aquí en vez
       // de en la consulta SQL para no perder el tipado del resto.
-      return (data ?? []).filter((p) => (p as unknown as { brand?: string }).brand !== "goodes");
+      // Los consumibles (bebidas, smoothies, café, barras) solo se venden en
+      // el punto de venta del estudio, no en la app.
+      return (data ?? []).filter(
+        (p) =>
+          (p as unknown as { brand?: string }).brand !== "goodes" && p.category !== "consumible",
+      );
     },
   });
 
@@ -1265,8 +1269,8 @@ function TiendaTab() {
                   <span>{money(total)}</span>
                 </div>
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Se paga en línea ahora. Recoges tu pedido en el estudio — te avisamos cuando
-                  esté listo.
+                  Se paga en línea ahora. Recoges tu pedido en el estudio — te avisamos cuando esté
+                  listo.
                 </p>
                 <div className="mt-6 flex gap-2">
                   <button
@@ -1324,4 +1328,3 @@ function TiendaTab() {
     </div>
   );
 }
-

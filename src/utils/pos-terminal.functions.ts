@@ -60,8 +60,10 @@ function pinpadWebhookUrl(rawOrigin: string): string {
 
 type StartInput = {
   brand: PosBrand;
-  clientId: string;
+  // Obligatorio solo si se venden paquetes (a quién se le acreditan las clases).
+  clientId: string | null;
   items: { productId: string; qty: number }[];
+  plans?: { planId: string; qty: number }[];
   origin: string;
 };
 
@@ -69,17 +71,30 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: StartInput) => {
     if (data.brand !== "laatu" && data.brand !== "goodes") throw new Error("Marca inválida");
-    if (!UUID.test(data.clientId)) throw new Error("Cliente inválido");
-    if (!Array.isArray(data.items) || data.items.length === 0 || data.items.length > 50) {
+    const plans = Array.isArray(data.plans) ? data.plans : [];
+    if (data.clientId !== null && !UUID.test(data.clientId)) throw new Error("Cliente inválido");
+    if (!Array.isArray(data.items) || data.items.length > 50 || plans.length > 20) {
       throw new Error("Carrito inválido");
     }
+    if (data.items.length === 0 && plans.length === 0) throw new Error("Carrito vacío");
     for (const it of data.items) {
       if (!UUID.test(it.productId)) throw new Error("Producto inválido");
       if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > 100)
         throw new Error("Cantidad inválida");
     }
+    for (const pl of plans) {
+      if (!UUID.test(pl.planId)) throw new Error("Paquete inválido");
+      if (!Number.isInteger(pl.qty) || pl.qty < 1 || pl.qty > 10)
+        throw new Error("Cantidad inválida");
+    }
+    if (plans.length > 0 && !data.clientId) {
+      throw new Error("Para vender paquetes o clases hay que elegir al cliente.");
+    }
+    if (plans.length > 0 && data.brand !== "laatu") {
+      throw new Error("Los paquetes de clases se cobran en la terminal de Läätu.");
+    }
     if (typeof data.origin !== "string" || !data.origin) throw new Error("origin requerido");
-    return data;
+    return { ...data, plans };
   })
   .handler(async ({ data, context }): Promise<TerminalPaymentState> => {
     const { supabase, userId } = context;
@@ -102,32 +117,64 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     }
 
     // Precios y marca se toman de la base de datos, nunca del navegador.
-    const ids = data.items.map((it) => it.productId);
-    const { data: products, error: productsError } = await admin
-      .from("products")
-      .select("id, name, price_cents, brand, active")
-      .in("id", ids);
-    if (productsError) throw new Error("No se pudieron validar los productos");
-    const byId = new Map<
-      string,
-      { id: string; name: string; price_cents: number; brand: string | null; active: boolean }
-    >((products ?? []).map((p: { id: string }) => [p.id, p]));
-
     let amountCents = 0;
-    const items = data.items.map((it) => {
-      const p = byId.get(it.productId);
-      if (!p || !p.active) throw new Error("Hay un producto que ya no está disponible.");
-      if ((p.brand ?? "laatu") !== data.brand) {
-        throw new Error(`"${p.name}" no es de ${BRAND_LABEL[data.brand]}; va en la otra terminal.`);
-      }
-      amountCents += p.price_cents * it.qty;
-      return {
-        product_id: p.id,
-        description: p.name,
-        qty: it.qty,
-        unit_price_cents: p.price_cents,
-      };
-    });
+    let items: {
+      product_id: string;
+      description: string;
+      qty: number;
+      unit_price_cents: number;
+    }[] = [];
+    if (data.items.length > 0) {
+      const ids = data.items.map((it) => it.productId);
+      const { data: products, error: productsError } = await admin
+        .from("products")
+        .select("id, name, price_cents, brand, active")
+        .in("id", ids);
+      if (productsError) throw new Error("No se pudieron validar los productos");
+      const byId = new Map<
+        string,
+        { id: string; name: string; price_cents: number; brand: string | null; active: boolean }
+      >((products ?? []).map((p: { id: string }) => [p.id, p]));
+
+      items = data.items.map((it) => {
+        const p = byId.get(it.productId);
+        if (!p || !p.active) throw new Error("Hay un producto que ya no está disponible.");
+        if ((p.brand ?? "laatu") !== data.brand) {
+          throw new Error(
+            `"${p.name}" no es de ${BRAND_LABEL[data.brand]}; va en la otra terminal.`,
+          );
+        }
+        amountCents += p.price_cents * it.qty;
+        return {
+          product_id: p.id,
+          description: p.name,
+          qty: it.qty,
+          unit_price_cents: p.price_cents,
+        };
+      });
+    }
+
+    let plans: { plan_id: string; name: string; qty: number; price_cents: number }[] = [];
+    if (data.plans.length > 0) {
+      const { data: planRows, error: plansError } = await admin
+        .from("token_plans")
+        .select("id, name, price_cents, active")
+        .in(
+          "id",
+          data.plans.map((pl) => pl.planId),
+        );
+      if (plansError) throw new Error("No se pudieron validar los paquetes");
+      const planById = new Map<
+        string,
+        { id: string; name: string; price_cents: number; active: boolean }
+      >((planRows ?? []).map((p: { id: string }) => [p.id, p]));
+      plans = data.plans.map((pl) => {
+        const p = planById.get(pl.planId);
+        if (!p || !p.active) throw new Error("Hay un paquete que ya no está disponible.");
+        amountCents += p.price_cents * pl.qty;
+        return { plan_id: p.id, name: p.name, qty: pl.qty, price_cents: p.price_cents };
+      });
+    }
     if (amountCents <= 0) throw new Error("El total debe ser mayor a cero.");
 
     const { data: row, error: insertError } = await admin
@@ -138,6 +185,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
         sold_by: userId,
         user_id: data.clientId,
         items,
+        plans,
         amount_cents: amountCents,
         status: "creating",
       })
