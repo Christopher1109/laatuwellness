@@ -72,13 +72,16 @@ export async function createPinpadPayment(
       serial_number_pos: input.serialNumber,
       webhook_url: input.webhookUrl,
       preferences: {
-        is_auto_return_enabled: true,
+        // false: la terminal se queda en la pantalla del pago aprobado, donde
+        // Clip muestra las opciones de imprimir / enviar el ticket.
+        is_auto_return_enabled: false,
         is_tip_enabled: false,
         is_msi_enabled: false,
         is_mci_enabled: false,
         is_dcc_enabled: false,
         is_retry_enabled: true,
-        is_share_enabled: false,
+        // Botones para imprimir otra copia o mandar el ticket por SMS / correo.
+        is_share_enabled: true,
         is_auto_print_receipt_enabled: true,
         is_split_payment_enabled: false,
       },
