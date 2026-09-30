@@ -100,6 +100,9 @@ export interface PinpadPaymentDetail {
   amountPaidCents?: number | undefined;
   cardLast4?: string | undefined;
   cardBrand?: string | undefined;
+  // Identificadores del pago aprobado en Clip (para pedir reembolsos).
+  clipPaymentIds: string[];
+  receiptNo?: string | undefined;
 }
 
 function toCents(value: unknown): number | undefined {
@@ -122,7 +125,7 @@ export async function getPinpadPayment(
   });
 
   const json = await readJson(response);
-  if (response.status === 404) return { found: false, status: "NOT_FOUND" };
+  if (response.status === 404) return { found: false, status: "NOT_FOUND", clipPaymentIds: [] };
   if (!response.ok) throw new Error(friendlyError(response.status, json));
 
   const detail = json["detail"] as { results?: Record<string, unknown>[] } | undefined;
@@ -139,6 +142,10 @@ export async function getPinpadPayment(
     amountPaidCents: toCents(json["amount_paid"]),
     cardLast4: pm?.card?.last_digits,
     cardBrand: pm?.id,
+    clipPaymentIds: approved
+      ? [approved["id"], approved["transaction_id"]].filter(Boolean).map(String)
+      : [],
+    receiptNo: approved?.["receipt_no"] ? String(approved["receipt_no"]) : undefined,
   };
 }
 
@@ -158,4 +165,72 @@ export async function cancelPinpadPayment(
   if (response.ok) return { canceled: true };
   const json = await readJson(response);
   return { canceled: false, message: friendlyError(response.status, json) };
+}
+
+// ---------------------------------------------------------------------------
+// Reembolsos (API de Reembolsos de Clip).
+// Docs: https://developer.clip.mx/reference/post_refunds
+// Si la credencial de PinPad no tiene permiso de reembolsos, se puede crear
+// otra de tipo "Generación de reembolsos" y guardarla como
+// CLIP_<MARCA>_REFUND_API_KEY / CLIP_<MARCA>_REFUND_SECRET.
+// ---------------------------------------------------------------------------
+const REFUNDS_API = "https://api.payclip.com/refunds";
+
+function refundAuth(brand: PosBrand): string {
+  const prefix = brand === "goodes" ? "CLIP_GOODES" : "CLIP_LAATU";
+  const apiKey = process.env[`${prefix}_REFUND_API_KEY`];
+  const secret = process.env[`${prefix}_REFUND_SECRET`];
+  if (apiKey && secret) return `Basic ${Buffer.from(`${apiKey}:${secret}`).toString("base64")}`;
+  return pinpadAuth(brand);
+}
+
+export async function refundClipPayment(input: {
+  brand: PosBrand;
+  amountCents: number;
+  reason: string;
+  references: { type: "transaction" | "receipt"; id: string }[];
+  idempotencyKey: string;
+}): Promise<{ refundId: string }> {
+  let lastError = "Clip no encontró el pago para reembolsarlo.";
+  for (const reference of input.references) {
+    const response = await fetch(REFUNDS_API, {
+      method: "POST",
+      headers: {
+        Authorization: refundAuth(input.brand),
+        "Content-Type": "application/json",
+        "idempotency-key": `${input.idempotencyKey}-${reference.id}`,
+      },
+      body: JSON.stringify({
+        amount: Number((input.amountCents / 100).toFixed(2)),
+        reason: input.reason.slice(0, 120) || "Reembolso",
+        reference,
+      }),
+    });
+    const json = await readJson(response);
+    if (response.ok) {
+      const status = String(json["status"] ?? "approved").toLowerCase();
+      if (status === "declined" || status === "rejected") {
+        throw new Error("Clip rechazó el reembolso. Revisa el saldo del día en tu cuenta Clip.");
+      }
+      return { refundId: String(json["id"] ?? json["refund_id"] ?? "") };
+    }
+    const code = String(json["code"] ?? json["error_code"] ?? "");
+    if (response.status === 404) {
+      lastError = "Clip no encontró el pago para reembolsarlo.";
+      continue; // se intenta con el siguiente identificador
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        `La credencial de Clip de ${BRAND_LABEL[input.brand]} no tiene permiso para reembolsos. Crea en Clip una credencial de "Generación de reembolsos".`,
+      );
+    }
+    if (code === "AI1400")
+      throw new Error("No hay saldo suficiente del día en Clip para reembolsar.");
+    if (code === "AI1803")
+      throw new Error("Ya pasaron más de 180 días; Clip no permite reembolsarlo.");
+    if (code === "AI1801")
+      throw new Error("El monto excede lo cobrado o ya fue reembolsado en Clip.");
+    throw new Error(friendlyError(response.status, json));
+  }
+  throw new Error(lastError);
 }
