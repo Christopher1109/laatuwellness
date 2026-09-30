@@ -260,8 +260,39 @@ export const checkTerminalPayment = createServerFn({ method: "POST" })
       .eq("id", data.paymentId)
       .maybeSingle();
     if (!row) throw new Error("Cobro no encontrado");
-    if (isFinalStatus(row.status)) return toState(row);
+    if (row.status === "completed") return toState(row);
     return toState(await syncTerminalPayment(admin, row));
+  });
+
+// Revisa con Clip los cobros recientes que no quedaron registrados (rechazo
+// seguido de reintento en la terminal, webhook perdido, pantalla cerrada a
+// medio cobro...). Si Clip dice que se aprobaron, registra la venta.
+export const reconcileTerminalPayments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ recovered: number }> => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla nueva
+    const admin = supabaseAdmin as any;
+    const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: rows } = await admin
+      .from("pos_terminal_payments")
+      .select(ROW_COLUMNS)
+      .neq("status", "completed")
+      .not("pinpad_request_id", "is", null)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    let recovered = 0;
+    for (const row of (rows ?? []) as TerminalPaymentRow[]) {
+      try {
+        const synced = await syncTerminalPayment(admin, row);
+        if (synced.status === "completed") recovered += 1;
+      } catch (error) {
+        console.error("[POS] no se pudo revisar el cobro", row.id, error);
+      }
+    }
+    return { recovered };
   });
 
 export const cancelTerminalPayment = createServerFn({ method: "POST" })
