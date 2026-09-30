@@ -15,6 +15,11 @@ const KNOWN: Record<string, string> = {
   COUPON_EXHAUSTED: "Ese cupón ya alcanzó su límite de usos.",
   COUPON_ALREADY_USED: "Ya usaste este cupón el máximo de veces permitido.",
   COUPON_NEW_CLIENTS_ONLY: "Este cupón es solo para clientes nuevos.",
+  ALREADY_REFUNDED: "Esta venta ya fue reembolsada.",
+  NOTHING_TO_REFUND: "El cliente ya usó todos los créditos; no hay monto por reembolsar.",
+  USE_TERMINAL_REFUND: "Esta venta se cobró con terminal; reembólsala desde su cobro con tarjeta.",
+  ONLY_CASH_SALES: "Solo se pueden reembolsar aquí ventas del mostrador (efectivo o terminal).",
+  SALE_NOT_FOUND: "No se encontró la venta.",
 };
 
 export function describeError(error: unknown, fallback = "Ocurrió un error."): string {

@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
 import { describeError } from "@/lib/describe-error";
+import { refundTerminalPayment } from "@/utils/pos-refunds.functions";
 import {
   cancelTerminalPayment,
   checkTerminalPayment,
@@ -519,6 +520,7 @@ export function POSPanel() {
     setMatchedClient(null);
     void qc.invalidateQueries({ queryKey: ["pos-products"] });
     void qc.invalidateQueries({ queryKey: ["admin-products"] });
+    void qc.invalidateQueries({ queryKey: ["pos-recent-sales"] });
   };
 
   // Cobro en terminal: cola de marcas pendientes + el cobro activo.
@@ -1005,6 +1007,7 @@ export function POSPanel() {
       ) : null}
 
       <div className="lg:col-span-2">
+        <RecentSalesPanel />
         <TerminalsConfig />
       </div>
     </div>
@@ -1096,6 +1099,302 @@ function TerminalPaymentDialog({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+type RecentSale = {
+  kind: "terminal" | "sale" | "transaction";
+  id: string;
+  created_at: string;
+  method: string;
+  brand: string;
+  amount_cents: number;
+  card_last4: string | null;
+  refunded: boolean;
+  refund_amount_cents: number | null;
+  description: string | null;
+  client: string | null;
+};
+
+type RefundPreview = {
+  kind: RecentSale["kind"];
+  method: string;
+  total_cents: number;
+  refund_cents: number;
+  products: { name: string; qty: number }[];
+  plans: { name: string; tokens: number; price_cents: number }[];
+  tokens_granted: number;
+  tokens_removable: number;
+  tokens_used: number;
+  client: { name: string | null; email: string | null } | null;
+};
+
+// Ventas del mostrador (terminal, efectivo y paquetes en efectivo) con el
+// botón de reembolso. Los reembolsos se hacen SIEMPRE desde aquí, nunca
+// directo en Clip, para que el dinero, los créditos y el inventario cuadren.
+function RecentSalesPanel() {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+  const [open, setOpen] = useState(true);
+  const [target, setTarget] = useState<RecentSale | null>(null);
+  const [preview, setPreview] = useState<RefundPreview | null>(null);
+  const [reason, setReason] = useState("");
+
+  const { data: sales, isLoading } = useQuery({
+    queryKey: ["pos-recent-sales"],
+    enabled: open,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("pos_recent_sales", { _limit: 40 });
+      if (error) throw error;
+      return (data ?? []) as RecentSale[];
+    },
+  });
+
+  const openRefund = async (sale: RecentSale) => {
+    setTarget(sale);
+    setPreview(null);
+    setReason("");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+    const { data, error } = await (supabase.rpc as any)("pos_refund_preview", {
+      _kind: sale.kind,
+      _id: sale.id,
+    });
+    if (error) {
+      toast.error(describeError(error, "No se pudo calcular el reembolso."));
+      setTarget(null);
+      return;
+    }
+    setPreview(data as RefundPreview);
+  };
+
+  const refund = useMutation({
+    mutationFn: async () => {
+      if (!target) return 0;
+      if (target.kind === "terminal") {
+        const res = await refundTerminalPayment({
+          data: { paymentId: target.id, reason: reason.trim() },
+        });
+        return res.refundedCents;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("pos_apply_refund", {
+        _kind: target.kind,
+        _id: target.id,
+        _reason: reason.trim(),
+      });
+      if (error) throw error;
+      return Number((data as RefundPreview).refund_cents);
+    },
+    onSuccess: (cents) => {
+      const cash = target?.kind !== "terminal";
+      toast.success(
+        cash
+          ? `Reembolso registrado. Entrega ${money(cents)} en efectivo al cliente.`
+          : `Reembolso hecho: Clip devolverá ${money(cents)} a la tarjeta.`,
+      );
+      setTarget(null);
+      setPreview(null);
+      void qc.invalidateQueries({ queryKey: ["pos-recent-sales"] });
+      void qc.invalidateQueries({ queryKey: ["pos-products"] });
+      void qc.invalidateQueries({ queryKey: ["admin-products"] });
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo reembolsar.")),
+  });
+
+  const dateFmt = new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="mt-2 border border-border">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-xs uppercase tracking-[0.12em]"
+      >
+        Ventas recientes y reembolsos
+        <span className="text-muted-foreground">{open ? "−" : "+"}</span>
+      </button>
+      {open ? (
+        <div className="border-t border-border">
+          <p className="px-4 pt-3 text-[0.7rem] text-muted-foreground">
+            Reembolsa siempre desde aquí, no directo en Clip: así se devuelve el dinero, se quitan
+            los créditos y el producto regresa al inventario en un solo paso.
+            {isAdmin ? "" : " Solo un administrador puede hacer reembolsos."}
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+                  <th className="px-4 py-2">Fecha</th>
+                  <th className="px-4 py-2">Detalle</th>
+                  <th className="px-4 py-2">Cliente</th>
+                  <th className="px-4 py-2">Pago</th>
+                  <th className="px-4 py-2 text-right">Total</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {(sales ?? []).map((s) => (
+                  <tr
+                    key={`${s.kind}-${s.id}`}
+                    className={s.refunded ? "text-muted-foreground" : ""}
+                  >
+                    <td className="whitespace-nowrap px-4 py-2 text-xs">
+                      {dateFmt.format(new Date(s.created_at))}
+                    </td>
+                    <td className="px-4 py-2">
+                      {s.description || "—"}
+                      {s.brand === "goodes" ? (
+                        <span className="ml-2 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
+                          Goodes
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-2 text-xs">{s.client ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-xs">
+                      {s.method === "tarjeta"
+                        ? `Tarjeta${s.card_last4 ? ` ••${s.card_last4}` : ""}`
+                        : s.method === "convenio"
+                          ? "Convenio"
+                          : "Efectivo"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                      {money(s.amount_cents)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                      {s.refunded ? (
+                        <span className="text-[0.65rem] uppercase tracking-[0.1em] text-destructive">
+                          Reembolsado
+                          {s.refund_amount_cents != null && s.refund_amount_cents !== s.amount_cents
+                            ? ` ${money(s.refund_amount_cents)}`
+                            : ""}
+                        </span>
+                      ) : isAdmin && s.method !== "convenio" ? (
+                        <button
+                          onClick={() => void openRefund(s)}
+                          className="border border-input px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.12em] hover:bg-muted"
+                        >
+                          Reembolsar
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+                {!isLoading && (sales ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                      Todavía no hay ventas en el mostrador.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {target ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !refund.isPending && setTarget(null)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 border border-border bg-background p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="eyebrow">Reembolsar venta</p>
+            {!preview ? (
+              <p className="text-sm text-muted-foreground">Calculando…</p>
+            ) : (
+              <>
+                <div className="space-y-1 text-sm">
+                  {preview.client?.email ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cliente: {preview.client.name || preview.client.email}
+                    </p>
+                  ) : null}
+                  {preview.products.map((p, i) => (
+                    <p key={`p${i}`}>
+                      {p.qty} × {p.name}{" "}
+                      <span className="text-muted-foreground">→ regresa al inventario</span>
+                    </p>
+                  ))}
+                  {preview.plans.map((p, i) => (
+                    <p key={`k${i}`}>
+                      {p.name} ({p.tokens} crédito{p.tokens === 1 ? "" : "s"})
+                    </p>
+                  ))}
+                </div>
+
+                {preview.tokens_granted > 0 ? (
+                  <p
+                    className={`border px-3 py-2 text-xs ${
+                      preview.tokens_used > 0
+                        ? "border-amber-600/40 bg-amber-500/10 text-amber-900"
+                        : "border-border bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {preview.tokens_used > 0
+                      ? `El cliente ya usó ${preview.tokens_used} de ${preview.tokens_granted} créditos. Solo se le quitan los ${preview.tokens_removable} que le quedan y se devuelve la parte proporcional.`
+                      : `Se le quitarán ${preview.tokens_removable} crédito${preview.tokens_removable === 1 ? "" : "s"} de su cuenta.`}
+                  </p>
+                ) : null}
+
+                <div className="flex items-baseline justify-between border-t border-border pt-3">
+                  <span className="text-sm">
+                    {preview.method === "tarjeta"
+                      ? "Se devuelve a la tarjeta"
+                      : "Entregar en efectivo"}
+                  </span>
+                  <span className="text-2xl">{money(preview.refund_cents)}</span>
+                </div>
+                {preview.refund_cents !== preview.total_cents ? (
+                  <p className="text-[0.7rem] text-muted-foreground">
+                    Pagado originalmente: {money(preview.total_cents)}
+                  </p>
+                ) : null}
+
+                <label className="block text-xs">
+                  <span className="eyebrow">Motivo (opcional)</span>
+                  <input
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    className={input}
+                    placeholder="Ej. el cliente se arrepintió"
+                  />
+                </label>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTarget(null)}
+                    disabled={refund.isPending}
+                    className="flex-1 border border-input px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => refund.mutate()}
+                    disabled={refund.isPending || preview.refund_cents <= 0}
+                    className="flex-1 bg-destructive px-4 py-2 text-[0.7rem] uppercase tracking-[0.16em] text-destructive-foreground disabled:opacity-50"
+                  >
+                    {refund.isPending ? "Reembolsando…" : "Confirmar reembolso"}
+                  </button>
+                </div>
+                {preview.refund_cents <= 0 ? (
+                  <p className="text-xs text-destructive">
+                    El cliente ya usó todos los créditos; no hay monto por reembolsar.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -6643,7 +6942,10 @@ export function FinancePanel() {
 
       const { data: saleItems } = await supabase
         .from("pos_sale_items")
-        .select("qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id)")
+        .select(
+          "qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id, status)",
+        )
+        .neq("sale.status", "reembolsado")
         .gte("sale.created_at", fetchFromIso)
         .lte("sale.created_at", toIso);
       const productIds = Array.from(
