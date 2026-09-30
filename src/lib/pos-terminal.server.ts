@@ -15,10 +15,19 @@ export type TerminalPaymentRow = {
   card_last4: string | null;
 };
 
+// Estados en los que el POS deja de esperar. OJO: aunque un cobro esté
+// "failed" o "canceled", si después Clip lo reporta aprobado (ej. el cliente
+// le dio "Reintentar" en la terminal) igual se registra la venta: se cobró.
 const FINAL = new Set(["completed", "failed", "canceled"]);
 
 export function isFinalStatus(status: string): boolean {
   return FINAL.has(status);
+}
+
+// "declined" = la tarjeta fue rechazada, pero la terminal permite reintentar
+// sobre el mismo cobro, así que se sigue esperando.
+export function isWaitingStatus(status: string): boolean {
+  return status === "creating" || status === "pending" || status === "declined";
 }
 
 export async function syncTerminalPayment(
@@ -26,7 +35,9 @@ export async function syncTerminalPayment(
   admin: any,
   row: TerminalPaymentRow,
 ): Promise<TerminalPaymentRow> {
-  if (isFinalStatus(row.status) || !row.pinpad_request_id) return row;
+  // Solo un cobro ya registrado es intocable; cualquier otro se vuelve a
+  // consultar con Clip, porque un rechazo puede convertirse en aprobado.
+  if (row.status === "completed" || !row.pinpad_request_id) return row;
 
   const detail = await getPinpadPayment(row.brand, row.pinpad_request_id);
   // Si Clip todavía no lo encuentra, lo dejamos pendiente; no inventamos estado.
@@ -78,8 +89,22 @@ export async function syncTerminalPayment(
     };
   }
 
-  if (/FAIL|REJECT|DECLIN|ERROR/.test(status)) {
-    const error = "El pago fue rechazado o falló en la terminal.";
+  // Si el staff ya lo dio por terminado (cancelado/fallido) y Clip no dice
+  // "aprobado", no se cambia nada: solo nos interesa si se llegó a cobrar.
+  if (row.status === "failed" || row.status === "canceled") return row;
+
+  if (/REJECT|DECLIN/.test(status)) {
+    const error =
+      "Tarjeta rechazada. El cliente puede reintentar en la terminal con otra tarjeta; esta pantalla se actualiza sola.";
+    await admin
+      .from("pos_terminal_payments")
+      .update({ status: "declined", clip_status: status, error, updated_at: now })
+      .eq("id", row.id);
+    return { ...row, status: "declined", error };
+  }
+
+  if (/FAIL|ERROR/.test(status)) {
+    const error = "El pago falló en la terminal.";
     await admin
       .from("pos_terminal_payments")
       .update({ status: "failed", clip_status: status, error, updated_at: now })

@@ -24,6 +24,7 @@ import { refundTerminalPayment } from "@/utils/pos-refunds.functions";
 import {
   cancelTerminalPayment,
   checkTerminalPayment,
+  reconcileTerminalPayments,
   startTerminalPayment,
   type TerminalPaymentState,
 } from "@/utils/pos-terminal.functions";
@@ -564,7 +565,11 @@ export function POSPanel() {
 
   // Mientras la terminal cobra, se consulta el estado (además del webhook).
   useEffect(() => {
-    if (!activePayment?.id || activePayment.status !== "pending") return;
+    if (
+      !activePayment?.id ||
+      (activePayment.status !== "pending" && activePayment.status !== "declined")
+    )
+      return;
     let stop = false;
     const tick = async () => {
       try {
@@ -1034,7 +1039,8 @@ function TerminalPaymentDialog({
   onClose: () => void;
 }) {
   const label = payment.brand === "goodes" ? "Goodes" : "Läätu";
-  const waiting = payment.status === "creating" || payment.status === "pending";
+  const waiting =
+    payment.status === "creating" || payment.status === "pending" || payment.status === "declined";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm space-y-4 border border-border bg-background p-6 text-center shadow-xl">
@@ -1054,6 +1060,17 @@ function TerminalPaymentDialog({
               Pide al cliente que pague en la terminal de <strong>{label}</strong>.
             </p>
             <p className="text-xs text-muted-foreground">Esta pantalla se actualiza sola.</p>
+          </div>
+        ) : null}
+        {payment.status === "declined" ? (
+          <div className="space-y-2">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-amber-600" />
+            <p className="text-sm text-amber-900">Tarjeta rechazada.</p>
+            <p className="text-xs text-muted-foreground">
+              El cliente puede tocar <strong>Reintentar</strong> en la terminal y pagar con otra
+              tarjeta. Esta pantalla sigue esperando y se actualiza sola. Si ya no va a pagar,
+              cancela el cobro también en la terminal.
+            </p>
           </div>
         ) : null}
         {payment.status === "completed" ? (
@@ -1140,6 +1157,32 @@ function RecentSalesPanel() {
   const [target, setTarget] = useState<RecentSale | null>(null);
   const [preview, setPreview] = useState<RefundPreview | null>(null);
   const [reason, setReason] = useState("");
+
+  // Al abrir el POS (y cada 2 minutos) se revisan con Clip los cobros que no
+  // quedaron registrados, por ejemplo un rechazo seguido de reintento.
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      try {
+        const { recovered } = await reconcileTerminalPayments();
+        if (alive && recovered > 0) {
+          toast.success(
+            `Se registraron ${recovered} cobro(s) con terminal que habían quedado pendientes.`,
+          );
+          void qc.invalidateQueries({ queryKey: ["pos-recent-sales"] });
+          void qc.invalidateQueries({ queryKey: ["pos-products"] });
+        }
+      } catch {
+        // sin conexión o sin permisos: se reintenta en el siguiente ciclo
+      }
+    };
+    void run();
+    const timer = window.setInterval(() => void run(), 120_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [qc]);
 
   const { data: sales, isLoading } = useQuery({
     queryKey: ["pos-recent-sales"],
