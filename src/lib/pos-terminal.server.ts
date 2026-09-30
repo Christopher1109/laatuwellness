@@ -35,7 +35,9 @@ export async function syncTerminalPayment(
   const now = new Date().toISOString();
   const status = detail.status;
 
-  if (status === "COMPLETED") {
+  // En la práctica Clip responde "APPROVED" (su documentación dice
+  // "COMPLETED"); se aceptan ambos, además de "PAID" por si cambian.
+  if (/^(COMPLETED|APPROVED|PAID|SUCCESS)$/.test(status)) {
     const paid = detail.amountPaidCents ?? detail.amountCents ?? 0;
     if (paid < row.amount_cents) {
       const error = `Clip reporta un pago de $${(paid / 100).toFixed(2)}, menor al total de la venta.`;
