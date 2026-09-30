@@ -82,7 +82,9 @@ export async function createPinpadPayment(
         is_retry_enabled: true,
         // Botones para imprimir otra copia o mandar el ticket por SMS / correo.
         is_share_enabled: true,
-        is_auto_print_receipt_enabled: true,
+        // No imprime solo: al aprobarse el pago la terminal muestra las opciones y
+        // el cliente elige si quiere ticket impreso, por SMS/correo o ninguno.
+        is_auto_print_receipt_enabled: false,
         is_split_payment_enabled: false,
       },
     }),
