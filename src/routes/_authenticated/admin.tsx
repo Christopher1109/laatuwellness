@@ -125,7 +125,7 @@ function Admin() {
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
             { key: "merch", label: "Merch", icon: PackageOpen },
-            { key: "goodes", label: "Goodes", icon: Tag },
+            { key: "goodes", label: "Godde's", icon: Tag },
             { key: "cupones", label: "Cupones", icon: Ticket },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
