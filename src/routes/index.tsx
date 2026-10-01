@@ -30,11 +30,11 @@ void foto1;
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Läätu Wellness — Pilates Reformer y recuperación en Monterrey" },
+      { title: "Läätu Wellness — Pilates Reformer en San Pedro Garza García, Monterrey" },
       {
         name: "description",
         content:
-          "Estudio de Pilates Reformer, 4mat y Align. Reserva tu clase, consulta horarios y encuentra paz en el caos.",
+          "Estudio boutique de Pilates Reformer y 4mat en San Pedro Garza García. Grupos de 10 personas, fisioterapia con Align y reservas en línea. Clase de prueba para nuevos clientes.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

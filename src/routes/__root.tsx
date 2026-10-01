@@ -75,19 +75,61 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+// Dominio público (para links absolutos que piden Google y redes sociales).
+const SITE_URL = "https://laatuwellness.com";
+
+const LOCAL_BUSINESS_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "ExerciseGym",
+  "@id": `${SITE_URL}/#negocio`,
+  name: "Läätu Wellness",
+  alternateName: "LAATU Wellness",
+  description:
+    "Estudio boutique de Pilates Reformer, 4mat y fisioterapia en San Pedro Garza García, Nuevo León. Grupos de máximo 10 personas.",
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon-512.png`,
+  image: [
+    `${SITE_URL}/foto-editorial/laatu-editorial-1.jpg`,
+    `${SITE_URL}/foto-editorial/laatu-editorial-2.jpg`,
+    `${SITE_URL}/foto-editorial/laatu-editorial-3.jpg`,
+  ],
+  telephone: "+52 81 1350 6957",
+  email: "lore@laatuwellness.com",
+  priceRange: "$$",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Av. Manuel Gómez Morín 404, Villas de Aragón",
+    addressLocality: "San Pedro Garza García",
+    addressRegion: "Nuevo León",
+    postalCode: "66273",
+    addressCountry: "MX",
+  },
+  areaServed: ["San Pedro Garza García", "Monterrey", "Nuevo León"],
+  sameAs: ["https://instagram.com/laatuwellness"],
+  knowsAbout: ["Pilates Reformer", "Pilates mat", "Fisioterapia", "Rehabilitación"],
+};
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Läätu Wellness — Pilates Reformer Studio" },
+      { title: "Läätu Wellness — Estudio de Pilates Reformer en San Pedro Garza García" },
       {
         name: "description",
         content:
-          "Läätu Wellness: estudio boutique de Pilates Reformer y recuperación (sauna infrarrojo, Contrast) en Nuevo León. Abraza tu recorrido.",
+          "Läätu Wellness: estudio boutique de Pilates Reformer, 4mat y fisioterapia en San Pedro Garza García, Nuevo León. Grupos de 10 personas. Reserva en línea.",
       },
       { name: "author", content: "Läätu Wellness" },
-      { property: "og:title", content: "Läätu Wellness — Pilates Reformer Studio" },
+      { property: "og:title", content: "Läätu Wellness — Pilates Reformer en San Pedro" },
+      { property: "og:site_name", content: "Läätu Wellness" },
+      { property: "og:locale", content: "es_MX" },
+      { property: "og:image", content: `${SITE_URL}/foto-editorial/laatu-editorial-2.jpg` },
+      { property: "og:image:width", content: "1600" },
+      { property: "og:image:height", content: "1067" },
+      { name: "twitter:image", content: `${SITE_URL}/foto-editorial/laatu-editorial-2.jpg` },
+      // Datos estructurados para Google: negocio local con dirección y redes.
+      { "script:ld+json": LOCAL_BUSINESS_JSON_LD },
       {
         property: "og:description",
         content:

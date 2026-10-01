@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/contacto")({
   head: () => ({
     meta: [
-      { title: "Contacto — Läätu Wellness" },
+      { title: "Contacto y ubicación — Läätu Wellness, San Pedro Garza García" },
       {
         name: "description",
         content:

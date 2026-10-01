@@ -37,7 +37,13 @@ const HERO: Record<string, string> = {
 
 export const Route = createFileRoute("/programas/$key")({
   head: ({ params }) => {
-    const title = `Programa ${params.key} — Läätu Wellness`;
+    const nombres: Record<string, string> = {
+      reformer: "Pilates Reformer en San Pedro Garza García",
+      "4mat": "Clases de 4mat (Pilates en piso) en San Pedro Garza García",
+      rehabilitacion: "Align: fisioterapia y rehabilitación en San Pedro Garza García",
+      contraste: "Contrast: sauna infrarrojo y cold plunge en San Pedro Garza García",
+    };
+    const title = `${nombres[params.key] ?? `Programa ${params.key}`} — Läätu Wellness`;
     return {
       meta: [
         { title },
@@ -62,7 +68,6 @@ export const Route = createFileRoute("/programas/$key")({
 function ProgramaDetalle() {
   const { key } = Route.useParams();
 
-
   const { data: modulo, isLoading } = useQuery({
     queryKey: ["site-module", key],
     queryFn: async () => {
@@ -77,15 +82,10 @@ function ProgramaDetalle() {
     },
   });
 
-
-
-
   const { data: classTypes } = useQuery({
     queryKey: ["class-types", key],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as unknown as (t: string) => any)(
-        "class_types",
-      )
+      const { data, error } = await (supabase.from as unknown as (t: string) => any)("class_types")
         .select("*")
         .eq("module_key", key)
         .eq("active", true)
@@ -183,8 +183,6 @@ function ProgramaDetalle() {
           </div>
         </div>
       </section>
-
     </SiteLayout>
-
   );
 }
