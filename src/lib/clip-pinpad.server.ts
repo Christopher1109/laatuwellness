@@ -3,7 +3,7 @@
 //
 // Cada marca tiene su propia cuenta Clip y por lo tanto sus propias claves:
 //   Läätu  -> CLIP_LAATU_API_KEY  / CLIP_LAATU_SECRET
-//   Godde's -> CLIP_GOODES_API_KEY / CLIP_GOODES_SECRET
+//   Goddes´s -> CLIP_GOODES_API_KEY / CLIP_GOODES_SECRET
 // Estas NO son las mismas que CLIP_API_KEY / CLIP_SECRET_KEY (cobros en línea).
 
 const PINPAD_API_BASE = "https://api.payclip.io/f2f/pinpad/v1";
@@ -12,7 +12,7 @@ export type PosBrand = "laatu" | "goodes";
 
 export const BRAND_LABEL: Record<PosBrand, string> = {
   laatu: "Läätu",
-  goodes: "Godde's",
+  goodes: "Goddes´s",
 };
 
 function pinpadAuth(brand: PosBrand): string {
