@@ -3309,8 +3309,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // ============================================================================
 // GODDE'S — productos de la marca aliada, SOLO se venden en persona (nunca
-// en la página web). Se guardan con brand='goodes' (identificador interno)
-// 'merch', así jamás aparecen en /merch ni en la Tienda de /app aunque
+// en la página web). Se guardan con brand='goodes' (identificador interno), no
+// con la categoría 'merch', así jamás aparecen en /merch ni en la Tienda de /app aunque
 // alguien active la casilla "Publicado" por error.
 // ============================================================================
 export function GoodesPanel() {
