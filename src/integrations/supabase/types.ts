@@ -393,6 +393,8 @@ export type Database = {
           id: string
           kind: string
           max_uses: number | null
+          max_uses_per_user: number | null
+          new_clients_only: boolean
           reward_tokens: number
           times_used: number
         }
@@ -403,6 +405,8 @@ export type Database = {
           id?: string
           kind?: string
           max_uses?: number | null
+          max_uses_per_user?: number | null
+          new_clients_only?: boolean
           reward_tokens?: number
           times_used?: number
         }
@@ -413,6 +417,8 @@ export type Database = {
           id?: string
           kind?: string
           max_uses?: number | null
+          max_uses_per_user?: number | null
+          new_clients_only?: boolean
           reward_tokens?: number
           times_used?: number
         }
@@ -520,6 +526,54 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_requests: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          id: string
+          notes: string | null
+          plan_id: string
+          requested_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          id?: string
+          notes?: string | null
+          plan_id: string
+          requested_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          id?: string
+          notes?: string | null
+          plan_id?: string
+          requested_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_requests_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "token_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -686,33 +740,39 @@ export type Database = {
       }
       pos_sales: {
         Row: {
+          brand: string | null
           created_at: string
           external_ref: string | null
           id: string
           order_code: string | null
           payment_method: string
+          refunded_at: string | null
           sold_by: string | null
           status: string
           total_cents: number
           user_id: string | null
         }
         Insert: {
+          brand?: string | null
           created_at?: string
           external_ref?: string | null
           id?: string
           order_code?: string | null
           payment_method?: string
+          refunded_at?: string | null
           sold_by?: string | null
           status?: string
           total_cents?: number
           user_id?: string | null
         }
         Update: {
+          brand?: string | null
           created_at?: string
           external_ref?: string | null
           id?: string
           order_code?: string | null
           payment_method?: string
+          refunded_at?: string | null
           sold_by?: string | null
           status?: string
           total_cents?: number
@@ -720,9 +780,120 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_terminal_payments: {
+        Row: {
+          amount_cents: number
+          amount_paid_cents: number | null
+          brand: string
+          card_brand: string | null
+          card_last4: string | null
+          clip_refund_id: string | null
+          clip_status: string | null
+          created_at: string
+          error: string | null
+          id: string
+          items: Json
+          pinpad_request_id: string | null
+          plans: Json
+          refund_amount_cents: number | null
+          refund_reason: string | null
+          refunded_at: string | null
+          refunded_by: string | null
+          sale_id: string | null
+          serial_number: string
+          sold_by: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          amount_paid_cents?: number | null
+          brand: string
+          card_brand?: string | null
+          card_last4?: string | null
+          clip_refund_id?: string | null
+          clip_status?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          items?: Json
+          pinpad_request_id?: string | null
+          plans?: Json
+          refund_amount_cents?: number | null
+          refund_reason?: string | null
+          refunded_at?: string | null
+          refunded_by?: string | null
+          sale_id?: string | null
+          serial_number: string
+          sold_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          amount_paid_cents?: number | null
+          brand?: string
+          card_brand?: string | null
+          card_last4?: string | null
+          clip_refund_id?: string | null
+          clip_status?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          items?: Json
+          pinpad_request_id?: string | null
+          plans?: Json
+          refund_amount_cents?: number | null
+          refund_reason?: string | null
+          refunded_at?: string | null
+          refunded_by?: string | null
+          sale_id?: string | null
+          serial_number?: string
+          sold_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_terminal_payments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_terminals: {
+        Row: {
+          active: boolean
+          brand: string
+          label: string
+          serial_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          brand: string
+          label: string
+          serial_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          brand?: string
+          label?: string
+          serial_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           active: boolean
+          brand: string
           category: string
           cost_cents: number
           created_at: string
@@ -740,6 +911,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          brand?: string
           category?: string
           cost_cents?: number
           created_at?: string
@@ -757,6 +929,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          brand?: string
           category?: string
           cost_cents?: number
           created_at?: string
@@ -825,6 +998,33 @@ export type Database = {
           id?: string
           module_key?: string
           note?: string
+        }
+        Relationships: []
+      }
+      schedule_slot_blocks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          day: string
+          id: string
+          module_key: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          day: string
+          id?: string
+          module_key: string
+          start_time: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          day?: string
+          id?: string
+          module_key?: string
+          start_time?: string
         }
         Relationships: []
       }
@@ -1114,6 +1314,7 @@ export type Database = {
         Row: {
           active: boolean
           category: string
+          clip_recurring_link_url: string | null
           created_at: string
           currency: string
           description: string
@@ -1122,6 +1323,7 @@ export type Database = {
           includes: string
           is_staff_only: boolean
           name: string
+          new_clients_only: boolean
           price_cents: number
           purchasable_once: boolean
           recurring: boolean
@@ -1135,6 +1337,7 @@ export type Database = {
         Insert: {
           active?: boolean
           category?: string
+          clip_recurring_link_url?: string | null
           created_at?: string
           currency?: string
           description?: string
@@ -1143,6 +1346,7 @@ export type Database = {
           includes?: string
           is_staff_only?: boolean
           name: string
+          new_clients_only?: boolean
           price_cents: number
           purchasable_once?: boolean
           recurring?: boolean
@@ -1156,6 +1360,7 @@ export type Database = {
         Update: {
           active?: boolean
           category?: string
+          clip_recurring_link_url?: string | null
           created_at?: string
           currency?: string
           description?: string
@@ -1164,6 +1369,7 @@ export type Database = {
           includes?: string
           is_staff_only?: boolean
           name?: string
+          new_clients_only?: boolean
           price_cents?: number
           purchasable_once?: boolean
           recurring?: boolean
@@ -1185,6 +1391,8 @@ export type Database = {
           id: string
           payment_method: string
           plan_id: string | null
+          refund_amount_cents: number | null
+          refunded_at: string | null
           status: string
           tokens: number
           user_id: string
@@ -1197,6 +1405,8 @@ export type Database = {
           id?: string
           payment_method?: string
           plan_id?: string | null
+          refund_amount_cents?: number | null
+          refunded_at?: string | null
           status?: string
           tokens?: number
           user_id: string
@@ -1209,6 +1419,8 @@ export type Database = {
           id?: string
           payment_method?: string
           plan_id?: string | null
+          refund_amount_cents?: number | null
+          refunded_at?: string | null
           status?: string
           tokens?: number
           user_id?: string
@@ -1303,6 +1515,7 @@ export type Database = {
         Args: { _delta: number; _product_id: string; _reason: string }
         Returns: {
           active: boolean
+          brand: string
           category: string
           cost_cents: number
           created_at: string
@@ -1434,6 +1647,10 @@ export type Database = {
           starts_at: string
         }[]
       }
+      complete_membership_request: {
+        Args: { _request_id: string; _staff_id: string }
+        Returns: undefined
+      }
       copy_schedule_month: {
         Args: { _from_month: string; _module_key: string; _to_month: string }
         Returns: number
@@ -1545,9 +1762,41 @@ export type Database = {
         }
       }
       person_label: { Args: { _user_id: string }; Returns: string }
-      pos_checkout: {
-        Args: { _items: Json; _payment_method: string; _user_id: string }
+      plan_purchase_block_reason: {
+        Args: { _plan_id: string; _user_id: string }
         Returns: string
+      }
+      pos_apply_refund: {
+        Args: {
+          _by?: string
+          _clip_refund_id?: string
+          _id: string
+          _kind: string
+          _reason: string
+        }
+        Returns: Json
+      }
+      pos_checkout: {
+        Args: {
+          _brand?: string
+          _items: Json
+          _payment_method: string
+          _user_id: string
+        }
+        Returns: string
+      }
+      pos_finalize_terminal_payment: {
+        Args: { _payment_id: string }
+        Returns: string
+      }
+      pos_recent_sales: { Args: { _limit?: number }; Returns: Json }
+      pos_refund_preview: {
+        Args: { _id: string; _kind: string }
+        Returns: Json
+      }
+      pos_sell_plans_cash: {
+        Args: { _plans: Json; _user_id: string }
+        Returns: number
       }
       publish_schedule_range: {
         Args: { _from: string; _module_key: string; _to: string }
@@ -1565,6 +1814,15 @@ export type Database = {
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
+      }
+      set_schedule_slot_block: {
+        Args: {
+          _blocked: boolean
+          _day: string
+          _module_key: string
+          _start_time: string
+        }
+        Returns: number
       }
       staff_worked_seconds: {
         Args: { _from: string; _staff_id: string; _to: string }
