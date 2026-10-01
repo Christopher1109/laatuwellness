@@ -3308,8 +3308,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 // ============================================================================
-// GOODES — productos de la marca aliada, SOLO se venden en persona (nunca
-// en la página web). Se guardan con brand='goodes' en vez de category
+// GODDE'S — productos de la marca aliada, SOLO se venden en persona (nunca
+// en la página web). Se guardan con brand='goodes' (identificador interno)
 // 'merch', así jamás aparecen en /merch ni en la Tienda de /app aunque
 // alguien active la casilla "Publicado" por error.
 // ============================================================================
