@@ -785,7 +785,7 @@ export function POSPanel() {
                     <p className="truncate">{p.name}</p>
                     {brand === "goodes" ? (
                       <span className="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
-                        Goodes
+                        Godde's
                       </span>
                     ) : null}
                   </div>
@@ -950,7 +950,7 @@ export function POSPanel() {
                 : "border-border bg-muted text-muted-foreground"
             }`}
           >
-            Se enviará a la terminal: {cartBrand === "goodes" ? "Goodes" : "Läätu"}
+            Se enviará a la terminal: {cartBrand === "goodes" ? "Godde's" : "Läätu"}
           </p>
         ) : null}
         {isMixedBrand ? (
@@ -959,7 +959,7 @@ export function POSPanel() {
             {brandGroups.map((g, i) => (
               <p key={g.brand} className="flex justify-between">
                 <span>
-                  {i + 1}. {g.brand === "goodes" ? "Goodes" : "Läätu"}
+                  {i + 1}. {g.brand === "goodes" ? "Godde's" : "Läätu"}
                   {usesTerminal ? " (su terminal)" : ""}
                 </span>
                 <span>{money(g.total)}</span>
@@ -1038,7 +1038,7 @@ function TerminalPaymentDialog({
   onRetry: () => void;
   onClose: () => void;
 }) {
-  const label = payment.brand === "goodes" ? "Goodes" : "Läätu";
+  const label = payment.brand === "goodes" ? "Godde's" : "Läätu";
   const waiting =
     payment.status === "creating" || payment.status === "pending" || payment.status === "declined";
   return (
@@ -1294,7 +1294,7 @@ function RecentSalesPanel() {
                       {s.description || "—"}
                       {s.brand === "goodes" ? (
                         <span className="ml-2 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
-                          Goodes
+                          Godde's
                         </span>
                       ) : null}
                     </td>
@@ -1688,7 +1688,7 @@ export function InventoryPanel() {
             <span className="eyebrow">Marca / terminal</span>
             <select name="brand" defaultValue="laatu" className={input}>
               <option value="laatu">Läätu</option>
-              <option value="goodes">Goodes</option>
+              <option value="goodes">Godde's</option>
             </select>
           </label>
           <label className="text-xs">
@@ -1882,7 +1882,7 @@ function InventoryRow({
                 className={input}
               >
                 <option value="laatu">Läätu</option>
-                <option value="goodes">Goodes</option>
+                <option value="goodes">Godde's</option>
               </select>
             </label>
             <label className="text-xs">
@@ -1982,7 +1982,7 @@ function InventoryRow({
       <td className="px-4 py-3">
         {brand === "goodes" ? (
           <span className="bg-amber-500/15 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] text-amber-800">
-            Goodes
+            Godde's
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">Läätu</span>
@@ -3361,7 +3361,7 @@ export function GoodesPanel() {
       }
     },
     onSuccess: () => {
-      toast.success("Producto de Goodes guardado.");
+      toast.success("Producto de Godde's guardado.");
       setEditingId(null);
       setCreating(false);
       void qc.invalidateQueries({ queryKey: ["admin-goodes"] });
@@ -3386,10 +3386,10 @@ export function GoodesPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="eyebrow">Goodes</p>
+        <p className="eyebrow">Godde's</p>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Productos de la marca Goodes — solo se venden en el mostrador, en la terminal de Clip de
-          Goodes. Nunca aparecen en la página web ni en la app.
+          Productos de la marca Godde's — solo se venden en el mostrador, en la terminal de Clip de
+          Godde's. Nunca aparecen en la página web ni en la app.
         </p>
       </div>
 
@@ -3398,7 +3398,7 @@ export function GoodesPanel() {
         onClick={() => setCreating(true)}
         className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
       >
-        + Agregar producto de Goodes
+        + Agregar producto de Godde's
       </button>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -3451,7 +3451,7 @@ export function GoodesPanel() {
           </div>
         ))}
         {(data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin productos de Goodes todavía.</p>
+          <p className="text-sm text-muted-foreground">Sin productos de Godde's todavía.</p>
         ) : null}
       </div>
 
