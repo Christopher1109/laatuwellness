@@ -5,7 +5,7 @@ import { Schedule } from "@/components/schedule";
 export const Route = createFileRoute("/horarios")({
   head: () => ({
     meta: [
-      { title: "Horarios y reservas — Läätu Wellness" },
+      { title: "Horarios de clases de Pilates y reservas — Läätu Wellness San Pedro" },
       {
         name: "description",
         content:

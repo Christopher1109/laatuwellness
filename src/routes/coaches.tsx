@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/coaches")({
   head: () => ({
     meta: [
-      { title: "Coaches — Läätu Wellness" },
+      { title: "Coaches de Pilates — Läätu Wellness San Pedro Garza García" },
       {
         name: "description",
         content:
@@ -172,154 +172,154 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
 
   return (
     <>
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/70 p-4 py-10 backdrop-blur-sm"
-      onClick={onClose}
-    >
       <div
-        className="w-full max-w-xl border border-border bg-background shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/40 px-6 py-5 sm:px-8">
-          <div className="flex items-center gap-4">
-            <div className="hidden h-14 w-14 shrink-0 overflow-hidden bg-muted sm:block">
-              {coach.image_url ? (
-                <img
-                  src={coach.image_url}
-                  alt={coach.name}
-                  className="h-full w-full object-cover grayscale"
-                />
-              ) : (
-                <BirdBadge variant={2} size="sm" />
-              )}
-            </div>
-            <div>
-              <p className="eyebrow">Próximos 7 días</p>
-              <h3 className="mt-1.5 text-lg leading-tight">{coach.name}</h3>
-              {coach.specialty ? (
-                <p className="text-xs text-muted-foreground">{coach.specialty}</p>
-              ) : null}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="shrink-0 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
-          >
-            Cerrar
-          </button>
-        </div>
-        <div className="max-h-[62vh] overflow-y-auto px-6 py-2 sm:px-8">
-          {isLoading ? (
-            <p className="py-8 text-sm text-muted-foreground">Cargando…</p>
-          ) : grupos.length === 0 ? (
-            <p className="py-8 text-sm text-muted-foreground">
-              Sin clases programadas en los próximos 7 días.
-            </p>
-          ) : (
-            grupos.map(([dia, items]) => (
-              <div key={dia} className="py-4">
-                <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
-                  {dia}
-                </p>
-                <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {items.map((c) => (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onClick={() => reservar(c)}
-                        disabled={book.isPending}
-                        className="group flex w-full items-center justify-between gap-3 border border-border px-4 py-3 text-left transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
-                      >
-                        <span>
-                          <span className="block text-base tabular-nums">
-                            {new Intl.DateTimeFormat("es-MX", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: false,
-                            }).format(new Date(c.starts_at))}
-                          </span>
-                          <span className="block truncate text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            {c.room}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground group-hover:text-foreground">
-                          {book.isPending ? "…" : "Reservar"}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="border-t border-border px-6 py-4 sm:px-8">
-          <a
-            href="/horarios"
-            className="inline-block bg-foreground px-5 py-2.5 text-[0.66rem] uppercase tracking-[0.16em] text-background"
-          >
-            Reservar un lugar
-          </a>
-        </div>
-      </div>
-    </div>
-
-    {confirming && !pickingSeat ? (
-      <div
-        className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm"
-        onClick={() => setConfirming(null)}
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-foreground/70 p-4 py-10 backdrop-blur-sm"
+        onClick={onClose}
       >
         <div
-          className="w-full max-w-sm border border-border bg-background p-6 shadow-2xl"
+          className="w-full max-w-xl border border-border bg-background shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="eyebrow">Confirmar reserva</p>
-          <h3 className="mt-2 text-lg">Vas a reservar esta clase</h3>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {coach.name} ·{" "}
-            {new Intl.DateTimeFormat("es-MX", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            }).format(new Date(confirming.starts_at))}{" "}
-            ·{" "}
-            {new Intl.DateTimeFormat("es-MX", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }).format(new Date(confirming.starts_at))}{" "}
-            · {confirming.room}
-          </p>
-          <div className="mt-6 flex gap-2">
+          <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/40 px-6 py-5 sm:px-8">
+            <div className="flex items-center gap-4">
+              <div className="hidden h-14 w-14 shrink-0 overflow-hidden bg-muted sm:block">
+                {coach.image_url ? (
+                  <img
+                    src={coach.image_url}
+                    alt={coach.name}
+                    className="h-full w-full object-cover grayscale"
+                  />
+                ) : (
+                  <BirdBadge variant={2} size="sm" />
+                )}
+              </div>
+              <div>
+                <p className="eyebrow">Próximos 7 días</p>
+                <h3 className="mt-1.5 text-lg leading-tight">{coach.name}</h3>
+                {coach.specialty ? (
+                  <p className="text-xs text-muted-foreground">{coach.specialty}</p>
+                ) : null}
+              </div>
+            </div>
             <button
-              onClick={() => setConfirming(null)}
-              className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em]"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="shrink-0 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
             >
-              Cancelar
+              Cerrar
             </button>
-            <button
-              onClick={() => setPickingSeat(confirming)}
-              className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+          </div>
+          <div className="max-h-[62vh] overflow-y-auto px-6 py-2 sm:px-8">
+            {isLoading ? (
+              <p className="py-8 text-sm text-muted-foreground">Cargando…</p>
+            ) : grupos.length === 0 ? (
+              <p className="py-8 text-sm text-muted-foreground">
+                Sin clases programadas en los próximos 7 días.
+              </p>
+            ) : (
+              grupos.map(([dia, items]) => (
+                <div key={dia} className="py-4">
+                  <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
+                    {dia}
+                  </p>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {items.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => reservar(c)}
+                          disabled={book.isPending}
+                          className="group flex w-full items-center justify-between gap-3 border border-border px-4 py-3 text-left transition-colors hover:border-foreground hover:bg-muted disabled:opacity-50"
+                        >
+                          <span>
+                            <span className="block text-base tabular-nums">
+                              {new Intl.DateTimeFormat("es-MX", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              }).format(new Date(c.starts_at))}
+                            </span>
+                            <span className="block truncate text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                              {c.room}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground group-hover:text-foreground">
+                            {book.isPending ? "…" : "Reservar"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-t border-border px-6 py-4 sm:px-8">
+            <a
+              href="/horarios"
+              className="inline-block bg-foreground px-5 py-2.5 text-[0.66rem] uppercase tracking-[0.16em] text-background"
             >
-              Sí, elegir lugar
-            </button>
+              Reservar un lugar
+            </a>
           </div>
         </div>
       </div>
-    ) : null}
 
-    {pickingSeat ? (
-      <SeatPickerModal
-        classItem={pickingSeat}
-        pending={book.isPending}
-        onClose={() => {
-          setPickingSeat(null);
-          setConfirming(null);
-        }}
-        onConfirm={(seat) => book.mutate({ classId: pickingSeat.id, seat })}
-      />
-    ) : null}
+      {confirming && !pickingSeat ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/70 p-4 backdrop-blur-sm"
+          onClick={() => setConfirming(null)}
+        >
+          <div
+            className="w-full max-w-sm border border-border bg-background p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="eyebrow">Confirmar reserva</p>
+            <h3 className="mt-2 text-lg">Vas a reservar esta clase</h3>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {coach.name} ·{" "}
+              {new Intl.DateTimeFormat("es-MX", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              }).format(new Date(confirming.starts_at))}{" "}
+              ·{" "}
+              {new Intl.DateTimeFormat("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).format(new Date(confirming.starts_at))}{" "}
+              · {confirming.room}
+            </p>
+            <div className="mt-6 flex gap-2">
+              <button
+                onClick={() => setConfirming(null)}
+                className="flex-1 border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => setPickingSeat(confirming)}
+                className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+              >
+                Sí, elegir lugar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pickingSeat ? (
+        <SeatPickerModal
+          classItem={pickingSeat}
+          pending={book.isPending}
+          onClose={() => {
+            setPickingSeat(null);
+            setConfirming(null);
+          }}
+          onConfirm={(seat) => book.mutate({ classId: pickingSeat.id, seat })}
+        />
+      ) : null}
     </>
   );
 }
@@ -369,9 +369,7 @@ function Coaches() {
         </div>
       </section>
 
-      {selected ? (
-        <CoachScheduleModal coach={selected} onClose={() => setSelected(null)} />
-      ) : null}
+      {selected ? <CoachScheduleModal coach={selected} onClose={() => setSelected(null)} /> : null}
     </SiteLayout>
   );
 }
