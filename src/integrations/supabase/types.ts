@@ -1313,15 +1313,21 @@ export type Database = {
       token_plans: {
         Row: {
           active: boolean
+          available_from: string | null
+          available_until: string | null
           category: string
           clip_recurring_link_url: string | null
+          compare_at_price_cents: number | null
           created_at: string
           currency: string
+          daily_class_limit: number | null
           description: string
           excludes: string
           id: string
           includes: string
+          is_promo: boolean
           is_staff_only: boolean
+          max_sales: number | null
           name: string
           new_clients_only: boolean
           price_cents: number
@@ -1336,15 +1342,21 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          available_from?: string | null
+          available_until?: string | null
           category?: string
           clip_recurring_link_url?: string | null
+          compare_at_price_cents?: number | null
           created_at?: string
           currency?: string
+          daily_class_limit?: number | null
           description?: string
           excludes?: string
           id?: string
           includes?: string
+          is_promo?: boolean
           is_staff_only?: boolean
+          max_sales?: number | null
           name: string
           new_clients_only?: boolean
           price_cents: number
@@ -1359,15 +1371,21 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          available_from?: string | null
+          available_until?: string | null
           category?: string
           clip_recurring_link_url?: string | null
+          compare_at_price_cents?: number | null
           created_at?: string
           currency?: string
+          daily_class_limit?: number | null
           description?: string
           excludes?: string
           id?: string
           includes?: string
+          is_promo?: boolean
           is_staff_only?: boolean
+          max_sales?: number | null
           name?: string
           new_clients_only?: boolean
           price_cents?: number
@@ -1766,6 +1784,7 @@ export type Database = {
         Args: { _plan_id: string; _user_id: string }
         Returns: string
       }
+      plan_sales_count: { Args: { _plan_id: string }; Returns: number }
       pos_apply_refund: {
         Args: {
           _by?: string
@@ -1829,6 +1848,10 @@ export type Database = {
         Returns: number
       }
       token_balance: { Args: { _user_id: string }; Returns: number }
+      user_daily_class_limit: {
+        Args: { _at: string; _user_id: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "staff" | "coach"
