@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { describeError } from "@/lib/describe-error";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
 
 type CheckoutSessionResult = { clientSecret: string } | { error: string };
