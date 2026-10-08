@@ -8,6 +8,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { PlanCheckoutModal } from "@/components/payments/plan-checkout-modal";
 import { usePlanLocks } from "@/hooks/use-plan-locks";
+import { isPlanInSaleWindow, spotsLeft } from "@/lib/plan-availability";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
@@ -81,8 +82,26 @@ function Paquetes() {
       // is_staff_only todavía no existe en la base real. Si no existe,
       // p.is_staff_only es undefined y el plan se muestra (correcto).
       return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
+          !p.is_staff_only && isPlanInSaleWindow(p),
       );
+    },
+  });
+
+  // Lugares vendidos de membresías con cupo (ej. Founders Access).
+  const limitedIds = (plans ?? []).filter((p) => p.max_sales != null).map((p) => p.id);
+  const { data: soldCounts } = useQuery({
+    queryKey: ["plan-sales-count", limitedIds.join(",")],
+    enabled: limitedIds.length > 0,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const out: Record<string, number> = {};
+      for (const id of limitedIds) {
+        const { data, error } = await supabase.rpc("plan_sales_count", { _plan_id: id });
+        if (error) throw error;
+        out[id] = Number(data ?? 0);
+      }
+      return out;
     },
   });
 
@@ -138,13 +157,26 @@ function Paquetes() {
                   <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((p) =>
                       (() => {
-                        const lockLabel = planLock(p as typeof p & { new_clients_only?: boolean });
+                        const left = spotsLeft(p.max_sales, soldCounts?.[p.id] ?? 0);
+                        const soldOut = left === 0;
+                        const lockLabel = soldOut
+                          ? "Agotado"
+                          : planLock(p as typeof p & { new_clients_only?: boolean });
                         const alreadyPurchased = Boolean(lockLabel);
                         return (
                           <article
                             key={p.id}
-                            className="flex flex-col border border-border bg-background p-8 shadow-sm"
+                            className={
+                              p.is_promo
+                                ? "flex flex-col border-2 border-foreground bg-background p-8 shadow-lg sm:col-span-2 lg:col-span-1"
+                                : "flex flex-col border border-border bg-background p-8 shadow-sm"
+                            }
                           >
+                            {p.is_promo ? (
+                              <p className="mb-3 self-start bg-foreground px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-background">
+                                Promoción
+                              </p>
+                            ) : null}
                             <h3 className="text-xl">{p.name}</h3>
                             {p.subtitle ? (
                               <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -153,7 +185,20 @@ function Paquetes() {
                             ) : null}
                             <p className="mt-3 text-sm text-muted-foreground">{p.description}</p>
 
-                            <p className="mt-6 text-2xl">{money(p.price_cents, p.currency)}</p>
+                            <p className="mt-6 text-2xl">
+                              {p.compare_at_price_cents ? (
+                                <span className="mr-2 text-base text-muted-foreground line-through">
+                                  {money(p.compare_at_price_cents, p.currency)}
+                                </span>
+                              ) : null}
+                              {money(p.price_cents, p.currency)}
+                            </p>
+                            {p.is_promo ? (
+                              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-foreground">
+                                Solo 25 lugares · hasta el 31 de octubre
+                                {left !== null && soldCounts ? ` · ${soldOut ? "agotado" : `quedan ${left}`}` : ""}
+                              </p>
+                            ) : null}
                             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                               {p.tokens} {p.tokens === 1 ? "crédito" : "créditos"}
                               {p.recurring ? " · recurrente" : ""}
