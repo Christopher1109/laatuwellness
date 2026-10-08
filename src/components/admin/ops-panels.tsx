@@ -1,3 +1,4 @@
+import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -355,6 +356,9 @@ type PosPlan = {
   category: string | null;
   purchasable_once?: boolean;
   new_clients_only?: boolean;
+  max_sales?: number | null;
+  available_from?: string | null;
+  available_until?: string | null;
 };
 type BrandGroup = {
   brand: PosBrandKey;
@@ -386,13 +390,13 @@ export function POSPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.from as any)("token_plans")
         .select(
-          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only",
+          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only, max_sales, available_from, available_until",
         )
         .eq("active", true)
         .order("sort_order")
         .order("price_cents");
       if (error) throw error;
-      return (data ?? []) as PosPlan[];
+      return ((data ?? []) as PosPlan[]).filter((p) => isPlanInSaleWindow(p));
     },
   });
 

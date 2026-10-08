@@ -1,3 +1,4 @@
+import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -895,7 +896,8 @@ function CreditosTab() {
         .order("sort_order");
       if (error) throw error;
       return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
+          !p.is_staff_only && isPlanInSaleWindow(p),
       );
     },
   });
