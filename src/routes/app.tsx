@@ -1,3 +1,4 @@
+import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -210,6 +211,7 @@ const ERRORS: Record<string, string> = {
   CLASS_FULL: "Esta clase ya está llena.",
   ALREADY_BOOKED: "Ya tienes esta clase reservada.",
   CLASS_PAST: "Esta clase ya pasó.",
+  DAILY_LIMIT_REACHED: "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
   AUTH_REQUIRED: "Inicia sesión para reservar.",
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
 };
@@ -894,7 +896,8 @@ function CreditosTab() {
         .order("sort_order");
       if (error) throw error;
       return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) => !p.is_staff_only,
+        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
+          !p.is_staff_only && isPlanInSaleWindow(p),
       );
     },
   });

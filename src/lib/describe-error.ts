@@ -8,6 +8,10 @@ const KNOWN: Record<string, string> = {
   PLAN_ALREADY_PURCHASED: "Este paquete solo se puede comprar una vez por cuenta y ya se compró.",
   NEW_CLIENTS_ONLY:
     "Este paquete es solo para clientes nuevos, y esta cuenta ya tiene compras anteriores.",
+  DAILY_LIMIT_REACHED: "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
+  PLAN_NOT_YET_AVAILABLE: "Esta promoción todavía no está disponible.",
+  PLAN_EXPIRED: "Esta promoción ya terminó.",
+  PLAN_SOLD_OUT: "Agotado: ya se vendieron todos los lugares de esta membresía.",
   PLAN_ONLY_ONE: "Este paquete solo se puede agregar una vez.",
   PLAN_SALE_REQUIRES_CLIENT: "Para vender paquetes o clases hay que elegir al cliente.",
   AUTH_REQUIRED: "Inicia sesión para continuar.",

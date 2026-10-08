@@ -13,6 +13,7 @@ const ERRORS: Record<string, string> = {
   CLASS_FULL: "Esta clase ya está llena.",
   ALREADY_BOOKED: "Ya tienes esta clase reservada.",
   CLASS_PAST: "Esta clase ya pasó.",
+  DAILY_LIMIT_REACHED: "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
   AUTH_REQUIRED: "Inicia sesión para reservar.",
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
   NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
