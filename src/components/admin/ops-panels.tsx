@@ -453,7 +453,7 @@ export function POSPanel() {
       Object.entries(planCart)
         .filter(([id, qty]) => {
           const p = plans?.find((x) => x.id === id);
-          return qty > 0 && p && (p.purchasable_once || p.new_clients_only);
+          return qty > 0 && p && (p.purchasable_once || p.new_clients_only || p.max_sales != null || p.available_until != null || p.available_from != null);
         })
         .map(([id]) => id)
         .sort(),

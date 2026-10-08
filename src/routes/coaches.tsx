@@ -128,6 +128,8 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
       } else if (m.includes("ALREADY_BOOKED")) toast.error("Ya tienes esta clase reservada.");
       else if (m.includes("CLASS_FULL")) toast.error("Esta clase ya está llena.");
       else if (m.includes("CLASS_PAST")) toast.error("Esta clase ya pasó.");
+      else if (m.includes("DAILY_LIMIT_REACHED"))
+        toast.error("Tu membresía no permite más reservas ese día.");
       else toast.error("No pudimos completar la reserva.");
     },
   });

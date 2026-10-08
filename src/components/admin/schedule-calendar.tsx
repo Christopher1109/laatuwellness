@@ -786,7 +786,9 @@ function ClassDetailDrawer({
             ? "Esa persona ya tiene esta clase reservada."
             : e.message.includes("INSUFFICIENT_TOKENS")
               ? "No tiene créditos suficientes."
-              : "No se pudo registrar.",
+              : e.message.includes("DAILY_LIMIT_REACHED")
+                ? "Su membresía ya alcanzó el límite de clases de ese día."
+                : "No se pudo registrar.",
       ),
   });
 
