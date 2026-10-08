@@ -8,6 +8,13 @@
       "when": 1790217643856,
       "tag": "0000_newcomer_single_purchase_enforcement",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791503333829,
+      "tag": "0001_membership_daily_limits_founders",
+      "breakpoints": true
     }
   ]
 }
