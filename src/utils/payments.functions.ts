@@ -59,16 +59,6 @@ export const chargeMembershipFee = createServerFn({ method: "POST" })
     if (fee.status !== "pending_charge") return { charged: false, error: "Fee ya procesado" };
 
     try {
-      // Reglas del plan (ventana de promoción, cupo, compra única) antes de cobrar.
-      {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: reason, error: reasonError } = await supabaseAdmin.rpc(
-          "plan_purchase_block_reason",
-          { _user_id: data.userId ?? "00000000-0000-0000-0000-000000000000", _plan_id: data.planId },
-        );
-        if (reasonError) return { error: describeError(reasonError) };
-        if (reason) return { error: describeError(String(reason)) };
-      }
       const stripe = createStripeClient(data.environment);
 
       const customers = await stripe.customers.search({
@@ -134,6 +124,16 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<CheckoutSessionResult> => {
     try {
+      // Reglas del plan (ventana de promoción, cupo, compra única) antes de cobrar.
+      {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: reason, error: reasonError } = await supabaseAdmin.rpc(
+          "plan_purchase_block_reason",
+          { _user_id: data.userId ?? "00000000-0000-0000-0000-000000000000", _plan_id: data.planId },
+        );
+        if (reasonError) return { error: describeError(reasonError) };
+        if (reason) return { error: describeError(String(reason)) };
+      }
       const stripe = createStripeClient(data.environment);
 
       // El plan guarda el id legible del precio (lookup_key), estable entre
