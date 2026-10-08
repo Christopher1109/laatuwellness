@@ -15,6 +15,13 @@
       "when": 1791503333829,
       "tag": "0001_membership_daily_limits_founders",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791503870565,
+      "tag": "0002_membership_30day_access_founders_renewal",
+      "breakpoints": true
     }
   ]
 }
