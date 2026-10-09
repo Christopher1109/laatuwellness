@@ -43,6 +43,13 @@
       "when": 1791504435519,
       "tag": "0005_credit_lots_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791504473647,
+      "tag": "0006_book_class_cost_fix",
+      "breakpoints": true
     }
   ]
 }
