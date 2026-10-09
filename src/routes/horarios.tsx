@@ -4,7 +4,9 @@ import { Schedule } from "@/components/schedule";
 
 export const Route = createFileRoute("/horarios")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/horarios" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/horarios" },
       { title: "Horarios de clases de Pilates y reservas — Läätu Wellness San Pedro" },
       {
         name: "description",

@@ -9,7 +9,11 @@ import { createMerchClipCheckout } from "@/utils/clip.functions";
 
 export const Route = createFileRoute("/merch")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/merch" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/merch" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Merch — Läätu Wellness" },
       {
         name: "description",

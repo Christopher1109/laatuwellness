@@ -5,7 +5,9 @@ import studio from "@/assets/studio-space.jpg";
 
 export const Route = createFileRoute("/nosotros")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/nosotros" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/nosotros" },
       { title: "Nosotros — Läätu Wellness" },
       {
         name: "description",

@@ -10,7 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/coaches")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/coaches" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/coaches" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Coaches de Pilates — Läätu Wellness San Pedro Garza García" },
       {
         name: "description",
