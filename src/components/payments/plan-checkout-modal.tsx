@@ -78,9 +78,11 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
               {plan.name} · {money(plan.price_cents, plan.currency ?? "MXN")}
               {plan.recurring ? " / mes" : ""}
             </h3>
-            <p className="text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-              {plan.tokens} {plan.tokens === 1 ? "crédito" : "créditos"}
-            </p>
+            {plan.tokens > 0 ? (
+              <p className="text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
+                {plan.tokens} {plan.tokens === 1 ? "crédito" : "créditos"}
+              </p>
+            ) : null}
           </div>
           <button
             onClick={onClose}
@@ -108,8 +110,8 @@ export function PlanCheckoutModal({ plan, user, onClose }: PlanCheckoutModalProp
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Serás redirigido a Clip para completar tu pago con tarjeta. Al volver, tus
-                créditos se acreditarán automáticamente.
+                Serás redirigido a Clip para completar tu pago con tarjeta. Al volver, tu
+                compra se activará automáticamente.
               </p>
               <button
                 onClick={handleClipPay}

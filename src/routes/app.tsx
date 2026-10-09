@@ -1,3 +1,4 @@
+import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -179,6 +180,7 @@ function AppTopBar() {
     },
   });
 
+  const { data: membership } = useMembershipStatus(user?.id);
   const firstName = (profile?.full_name || "").split(" ")[0];
 
   const signOut = async () => {
@@ -192,7 +194,9 @@ function AppTopBar() {
         <p className="text-[0.6rem] uppercase tracking-[0.18em] text-muted-foreground">
           {firstName ? `Hola, ${firstName}` : "Läätu"}
         </p>
-        <p className="text-lg leading-none">{balance ?? 0} créditos</p>
+        <p className="text-lg leading-none">
+          {membership ? membership.plan_name : `${balance ?? 0} créditos`}
+        </p>
       </div>
       <button
         onClick={signOut}
@@ -897,7 +901,7 @@ function CreditosTab() {
       if (error) throw error;
       return (data ?? []).filter(
         (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
-          !p.is_staff_only && isPlanInSaleWindow(p),
+          !p.is_staff_only && isPlanInSaleWindow(p) && !p.renews_plan_id,
       );
     },
   });
@@ -932,6 +936,7 @@ function CreditosTab() {
     return tx;
   }, [transactions, plans]);
 
+  const { data: membership } = useMembershipStatus(user?.id);
   const [view, setView] = useState<"creditos" | "membresia">("creditos");
   const creditPlans = grouped.filter(([c]) => c !== "membresia");
   const membershipPlans = grouped.find(([c]) => c === "membresia")?.[1] ?? [];
@@ -961,24 +966,17 @@ function CreditosTab() {
         </button>
       </div>
 
-      <div className="mt-8 border border-border p-6 text-center">
-        <p className="eyebrow">Créditos disponibles</p>
-        <p className="mt-2 text-4xl">{balance ?? 0}</p>
-      </div>
+      {membership ? null : (
+        <div className="mt-8 border border-border p-6 text-center">
+          <p className="eyebrow">Créditos disponibles</p>
+          <p className="mt-2 text-4xl">{balance ?? 0}</p>
+        </div>
+      )}
 
       {view === "membresia" ? (
         <div className="mt-8">
-          {activeMembership ? (
-            <div className="border border-foreground p-5">
-              <p className="eyebrow">Membresía activa</p>
-              <p className="mt-1 text-lg">{activeMembership.token_plans?.name ?? "Membresía"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Desde el{" "}
-                {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
-                  new Date(activeMembership.created_at),
-                )}
-              </p>
-            </div>
+          {membership ? (
+            <MembershipStatusCard userId={user?.id} user={user} />
           ) : (
             <div className="flex flex-col items-center gap-3 py-14 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
