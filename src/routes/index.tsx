@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Constellation, Coordinates, BirdBadge, Wordmark, PatternField } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
-import { supabase } from "@/integrations/supabase/client";
+import { listPublicModules } from "@/utils/public-catalog.functions";
+import { PublicCatalogError, PublicCatalogNotFound } from "@/components/public-catalog-boundaries";
 import { cn } from "@/lib/utils";
 
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
@@ -28,8 +28,13 @@ const PROGRAM_BULLETS: Record<string, string[]> = {
 void foto1;
 
 export const Route = createFileRoute("/")({
+  loader: () => listPublicModules(),
+  errorComponent: PublicCatalogError,
+  notFoundComponent: PublicCatalogNotFound,
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/" },
       { title: "Läätu Wellness — Pilates Reformer en San Pedro Garza García, Monterrey" },
       {
         name: "description",
@@ -64,18 +69,7 @@ function Home() {
     }
   }, [navigate]);
 
-  const { data: modules } = useQuery({
-    queryKey: ["site-modules"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("site_modules")
-        .select("*")
-        .eq("enabled", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const modules = Route.useLoaderData();
 
   const programas = (modules ?? []).filter((m) => m.category !== "bar");
 
@@ -196,7 +190,7 @@ function Home() {
                   <h3 className="mt-6 text-xl">{m.name}</h3>
                   {PROGRAM_BULLETS[m.key] ? (
                     <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-                      {PROGRAM_BULLETS[m.key]!.map((line) => (
+                      {PROGRAM_BULLETS[m.key]?.map((line) => (
                         <li key={line}>· {line}</li>
                       ))}
                     </ul>
@@ -257,6 +251,27 @@ function Home() {
               />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ---------- Ubicación ---------- */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <p className="eyebrow">Encuéntranos</p>
+          <h2 className="statement mt-4 max-w-xl text-2xl sm:text-3xl">
+            Estudio de Pilates Reformer en San Pedro Garza García.
+          </h2>
+          <p className="mt-6 max-w-xl text-muted-foreground">
+            Av. Manuel Gómez Morín 404, Villas de Aragón, 66273 San Pedro Garza García, N.L.
+          </p>
+          <a
+            href="https://www.google.com/maps/search/?api=1&query=Av.+Manuel+G%C3%B3mez+Mor%C3%ADn+404,+Villas+de+Arag%C3%B3n,+San+Pedro+Garza+Garc%C3%ADa,+N.L."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-block text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+          >
+            Cómo llegar →
+          </a>
         </div>
       </section>
 

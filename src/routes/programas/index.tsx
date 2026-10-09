@@ -1,13 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { BirdBadge, PatternField } from "@/components/brand";
-import { supabase } from "@/integrations/supabase/client";
+import { listPublicModules } from "@/utils/public-catalog.functions";
+import { PublicCatalogError, PublicCatalogNotFound } from "@/components/public-catalog-boundaries";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
 
 export const Route = createFileRoute("/programas/")({
+  loader: () => listPublicModules(),
+  errorComponent: PublicCatalogError,
+  notFoundComponent: PublicCatalogNotFound,
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/programas" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/programas" },
       { title: "Programas — Läätu Wellness" },
       {
         name: "description",
@@ -35,18 +40,7 @@ const PROGRAM_BULLETS: Record<string, string[]> = {
 };
 
 function Programas() {
-  const { data } = useQuery({
-    queryKey: ["site-modules"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("site_modules")
-        .select("*")
-        .eq("enabled", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const data = Route.useLoaderData();
 
   const salones = (data ?? []).filter((m) => m.category === "salon");
   const servicios = (data ?? []).filter((m) => m.category === "servicio");
@@ -77,7 +71,7 @@ function Programas() {
                     <span className="block text-xl">{m.name}</span>
                     {PROGRAM_BULLETS[m.key] ? (
                       <span className="mt-3 block space-y-1 text-sm text-muted-foreground">
-                        {PROGRAM_BULLETS[m.key]!.map((line) => (
+                        {PROGRAM_BULLETS[m.key]?.map((line) => (
                           <span key={line} className="block">
                             · {line}
                           </span>
