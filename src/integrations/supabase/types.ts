@@ -1333,6 +1333,7 @@ export type Database = {
           price_cents: number
           purchasable_once: boolean
           recurring: boolean
+          renews_plan_id: string | null
           sort_order: number
           stripe_price_id: string
           subtitle: string
@@ -1362,6 +1363,7 @@ export type Database = {
           price_cents: number
           purchasable_once?: boolean
           recurring?: boolean
+          renews_plan_id?: string | null
           sort_order?: number
           stripe_price_id?: string
           subtitle?: string
@@ -1391,6 +1393,7 @@ export type Database = {
           price_cents?: number
           purchasable_once?: boolean
           recurring?: boolean
+          renews_plan_id?: string | null
           sort_order?: number
           stripe_price_id?: string
           subtitle?: string
@@ -1398,10 +1401,20 @@ export type Database = {
           tokens?: number
           validity_days?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "token_plans_renews_plan_id_fkey"
+            columns: ["renews_plan_id"]
+            isOneToOne: false
+            referencedRelation: "token_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
+          access_ends_at: string | null
+          access_starts_at: string | null
           amount_cents: number
           created_at: string
           currency: string
@@ -1416,6 +1429,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          access_ends_at?: string | null
+          access_starts_at?: string | null
           amount_cents?: number
           created_at?: string
           currency?: string
@@ -1430,6 +1445,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          access_ends_at?: string | null
+          access_starts_at?: string | null
           amount_cents?: number
           created_at?: string
           currency?: string
@@ -1779,6 +1796,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      membership_end: {
+        Args: { _days: number; _start: string }
+        Returns: string
+      }
+      membership_status: { Args: { _user_id: string }; Returns: Json }
       person_label: { Args: { _user_id: string }; Returns: string }
       plan_purchase_block_reason: {
         Args: { _plan_id: string; _user_id: string }

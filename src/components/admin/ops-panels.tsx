@@ -1,3 +1,4 @@
+import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -359,6 +360,7 @@ type PosPlan = {
   max_sales?: number | null;
   available_from?: string | null;
   available_until?: string | null;
+  renews_plan_id?: string | null;
 };
 type BrandGroup = {
   brand: PosBrandKey;
@@ -390,7 +392,7 @@ export function POSPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.from as any)("token_plans")
         .select(
-          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only, max_sales, available_from, available_until",
+          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only, max_sales, available_from, available_until, renews_plan_id",
         )
         .eq("active", true)
         .order("sort_order")
@@ -457,7 +459,7 @@ export function POSPanel() {
       Object.entries(planCart)
         .filter(([id, qty]) => {
           const p = plans?.find((x) => x.id === id);
-          return qty > 0 && p && (p.purchasable_once || p.new_clients_only || p.max_sales != null || p.available_until != null || p.available_from != null);
+          return qty > 0 && p && (p.purchasable_once || p.new_clients_only || p.max_sales != null || p.available_until != null || p.available_from != null || p.renews_plan_id != null);
         })
         .map(([id]) => id)
         .sort(),
@@ -3054,6 +3056,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
         >
           ← Volver a clientes
         </button>
+        <div className="mb-6 max-w-md">
+          <MembershipStatusCard userId={clientId} staffView />
+        </div>
 
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
           <div className="flex items-center gap-4">
@@ -4325,6 +4330,11 @@ function CouponEditRow({
   );
 }
 
+function mtyDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Monterrey" }).format(new Date(iso));
+}
+
 function PackageEditPopout({
   plan,
   onClose,
@@ -4397,7 +4407,12 @@ function PackageEditPopout({
             description: String(f.get("description") || ""),
             category: String(f.get("category") || "clases_pilates"),
             price_cents: Math.round(Number(f.get("price") || 0) * 100),
-            tokens: Number(f.get("tokens") || 1),
+            tokens: Math.max(0, Number(f.get("tokens") || 0)),
+            daily_class_limit: f.get("daily_class_limit") ? Number(f.get("daily_class_limit")) : null,
+            max_sales: f.get("max_sales") ? Number(f.get("max_sales")) : null,
+            // Fechas en hora de Monterrey (UTC-6, sin horario de verano).
+            available_from: f.get("available_from") ? `${f.get("available_from")}T00:00:00-06:00` : null,
+            available_until: f.get("available_until") ? `${f.get("available_until")}T23:59:59-06:00` : null,
             recurring: f.get("recurring") === "on",
             validity_days: f.get("validity_days") ? Number(f.get("validity_days")) : null,
             includes: String(f.get("includes") || ""),
@@ -4469,6 +4484,28 @@ function PackageEditPopout({
               className={input}
             />
           </label>
+        </div>
+        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+          <label className="text-xs">
+            <span className="eyebrow">Clases por día (membresía)</span>
+            <input name="daily_class_limit" type="number" min={1} defaultValue={plan?.daily_class_limit ?? ""} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Cupo total (vacío = sin límite)</span>
+            <input name="max_sales" type="number" min={1} defaultValue={plan?.max_sales ?? ""} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Venta desde</span>
+            <input name="available_from" type="date" defaultValue={mtyDate(plan?.available_from)} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Venta hasta (23:59)</span>
+            <input name="available_until" type="date" defaultValue={mtyDate(plan?.available_until)} className={input} />
+          </label>
+          <p className="col-span-2 text-[0.65rem] text-muted-foreground">
+            Fuera de estas fechas o al llenarse el cupo, se oculta sola de la web y del POS. Para
+            reabrir una promoción, pon fechas nuevas y usa "Publicar".
+          </p>
         </div>
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" name="recurring" defaultChecked={plan?.recurring} />

@@ -1,3 +1,4 @@
+import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,6 +77,8 @@ function Cuenta() {
     },
     enabled: Boolean(user),
   });
+
+  const membership = useMembershipStatus(user?.id);
 
   const waiver = useQuery({
     queryKey: ["waiver", user?.id],
@@ -221,10 +224,17 @@ function Cuenta() {
             {profile.data?.full_name || "Tu recorrido"}
           </h1>
           <div className="mt-10 grid gap-px border border-border bg-border sm:grid-cols-3">
-            <div className="bg-background p-6">
-              <p className="eyebrow">Tokens disponibles</p>
-              <p className="mt-3 text-4xl">{balance.data ?? 0}</p>
-            </div>
+            {membership.data ? (
+              <div className="bg-background p-6">
+                <p className="eyebrow">Membresía</p>
+                <p className="mt-3 text-lg">{membership.data.plan_name}</p>
+              </div>
+            ) : (
+              <div className="bg-background p-6">
+                <p className="eyebrow">Tokens disponibles</p>
+                <p className="mt-3 text-4xl">{balance.data ?? 0}</p>
+              </div>
+            )}
             <div className="bg-background p-6">
               <p className="eyebrow">Waiver</p>
               <p className="mt-3 text-lg">{waiver.data ? "Firmado" : "Pendiente"}</p>
@@ -234,6 +244,11 @@ function Cuenta() {
               <p className="mt-3 text-4xl">{upcoming.length}</p>
             </div>
           </div>
+          {membership.data ? (
+            <div className="mt-6 max-w-md">
+              <MembershipStatusCard userId={user?.id} user={user} />
+            </div>
+          ) : null}
         </div>
       </section>
 

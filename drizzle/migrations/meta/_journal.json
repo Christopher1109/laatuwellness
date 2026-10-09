@@ -15,6 +15,27 @@
       "when": 1791503333829,
       "tag": "0001_membership_daily_limits_founders",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791503870565,
+      "tag": "0002_membership_30day_access_founders_renewal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791503909435,
+      "tag": "0003_allow_zero_token_memberships",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791504046590,
+      "tag": "0004_fix_membership_end_date",
+      "breakpoints": true
     }
   ]
 }

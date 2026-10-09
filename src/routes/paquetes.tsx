@@ -83,7 +83,7 @@ function Paquetes() {
       // p.is_staff_only es undefined y el plan se muestra (correcto).
       return (data ?? []).filter(
         (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
-          !p.is_staff_only && isPlanInSaleWindow(p),
+          !p.is_staff_only && isPlanInSaleWindow(p) && !p.renews_plan_id,
       );
     },
   });
@@ -200,7 +200,9 @@ function Paquetes() {
                               </p>
                             ) : null}
                             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                              {p.tokens} {p.tokens === 1 ? "crédito" : "créditos"}
+                              {p.daily_class_limit
+                                ? `${p.daily_class_limit === 1 ? "1 clase" : `${p.daily_class_limit} clases`} por día · ${p.validity_days ?? 30} días`
+                                : `${p.tokens} ${p.tokens === 1 ? "crédito" : "créditos"}`}
                               {p.recurring ? " · recurrente" : ""}
                             </p>
 
