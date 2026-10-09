@@ -1,3 +1,4 @@
+import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
@@ -3058,6 +3059,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
         </button>
         <div className="mb-6 max-w-md">
           <MembershipStatusCard userId={clientId} staffView />
+          <div className="mt-3">
+            <CreditLotsSummary userId={clientId} />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">

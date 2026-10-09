@@ -1,3 +1,4 @@
+import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -224,17 +225,15 @@ function Cuenta() {
             {profile.data?.full_name || "Tu recorrido"}
           </h1>
           <div className="mt-10 grid gap-px border border-border bg-border sm:grid-cols-3">
-            {membership.data ? (
-              <div className="bg-background p-6">
-                <p className="eyebrow">Membresía</p>
-                <p className="mt-3 text-lg">{membership.data.plan_name}</p>
-              </div>
-            ) : (
-              <div className="bg-background p-6">
-                <p className="eyebrow">Tokens disponibles</p>
-                <p className="mt-3 text-4xl">{balance.data ?? 0}</p>
-              </div>
-            )}
+            <div className="bg-background p-6">
+              <p className="eyebrow">Créditos de paquetes</p>
+              <p className="mt-3 text-4xl">{balance.data ?? 0}</p>
+              {membership.data ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  + membresía {membership.data.plan_name}
+                </p>
+              ) : null}
+            </div>
             <div className="bg-background p-6">
               <p className="eyebrow">Waiver</p>
               <p className="mt-3 text-lg">{waiver.data ? "Firmado" : "Pendiente"}</p>
@@ -244,11 +243,10 @@ function Cuenta() {
               <p className="mt-3 text-4xl">{upcoming.length}</p>
             </div>
           </div>
-          {membership.data ? (
-            <div className="mt-6 max-w-md">
-              <MembershipStatusCard userId={user?.id} user={user} />
-            </div>
-          ) : null}
+          <div className="mt-6 grid max-w-3xl gap-4 sm:grid-cols-2">
+            {membership.data ? <MembershipStatusCard userId={user?.id} user={user} /> : null}
+            <CreditLotsSummary userId={user?.id} />
+          </div>
         </div>
       </section>
 

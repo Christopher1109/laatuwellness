@@ -1,3 +1,4 @@
+import { BookingPaymentChoice } from "@/components/booking-payment-choice";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -140,10 +141,11 @@ export function SeatPickerModal({
 }: {
   classItem: SeatPickerClass;
   onClose: () => void;
-  onConfirm: (seat: number | null) => void;
+  onConfirm: (seat: number | null, useCredits: boolean) => void;
   pending: boolean;
 }) {
   const [seat, setSeat] = useState<number | null>(null);
+  const [useCredits, setUseCredits] = useState(false);
 
   const { data: takenSeats } = useQuery({
     queryKey: ["class-taken-seats", classItem.id],
@@ -202,6 +204,11 @@ export function SeatPickerModal({
         <p className="mt-3 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
           Verde = libre · oscuro = ocupado
         </p>
+        <BookingPaymentChoice
+          startsAt={classItem.starts_at}
+          useCredits={useCredits}
+          onChange={setUseCredits}
+        />
         <div className="mt-6 flex gap-2">
           <button
             onClick={onClose}
@@ -211,7 +218,7 @@ export function SeatPickerModal({
           </button>
           <button
             disabled={!seat || pending}
-            onClick={() => onConfirm(seat)}
+            onClick={() => onConfirm(seat, useCredits)}
             className="flex-1 bg-foreground px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
           >
             Confirmar lugar {seat ? `#${seat}` : ""}
@@ -331,8 +338,20 @@ export function Schedule({
   const [pickingSeatFor, setPickingSeatFor] = useState<ClassRow | null>(null);
 
   const book = useMutation({
-    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
+    mutationFn: async ({
+      classId,
+      seat,
+      useCredits = false,
+    }: {
+      classId: string;
+      seat: number | null;
+      useCredits?: boolean;
+    }) => {
+      const { error } = await supabase.rpc("book_class", {
+        _class_id: classId,
+        _seat: seat,
+        _use_credits: useCredits,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -614,7 +633,7 @@ export function Schedule({
           classItem={pickingSeatFor}
           onClose={() => setPickingSeatFor(null)}
           pending={book.isPending}
-          onConfirm={(seat) => book.mutate({ classId: pickingSeatFor.id, seat })}
+          onConfirm={(seat, useCredits) => book.mutate({ classId: pickingSeatFor.id, seat, useCredits })}
         />
       ) : null}
     </div>

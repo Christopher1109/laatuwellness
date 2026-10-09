@@ -1,3 +1,5 @@
+import { BookingPaymentChoice } from "@/components/booking-payment-choice";
+import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
@@ -195,7 +197,8 @@ function AppTopBar() {
           {firstName ? `Hola, ${firstName}` : "Läätu"}
         </p>
         <p className="text-lg leading-none">
-          {membership ? membership.plan_name : `${balance ?? 0} créditos`}
+          {membership ? `${membership.plan_name} · ` : ""}
+          {balance ?? 0} créditos
         </p>
       </div>
       <button
@@ -386,8 +389,20 @@ function HorariosTab() {
   };
 
   const book = useMutation({
-    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
+    mutationFn: async ({
+      classId,
+      seat,
+      useCredits = false,
+    }: {
+      classId: string;
+      seat: number | null;
+      useCredits?: boolean;
+    }) => {
+      const { error } = await supabase.rpc("book_class", {
+        _class_id: classId,
+        _seat: seat,
+        _use_credits: useCredits,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -593,7 +608,7 @@ function HorariosTab() {
           mine={bookedIds.has(openClass.id)}
           waiting={waitlistedIds.has(openClass.id)}
           onClose={() => setOpenClass(null)}
-          onReserve={(seat) => book.mutate({ classId: openClass.id, seat })}
+          onReserve={(seat, useCredits) => book.mutate({ classId: openClass.id, seat, useCredits })}
           onJoinWaitlist={() => joinWaitlist.mutate(openClass.id)}
           pending={book.isPending || joinWaitlist.isPending}
         />
@@ -617,11 +632,12 @@ function AppClassDetail({
   mine: boolean;
   waiting: boolean;
   onClose: () => void;
-  onReserve: (seat: number | null) => void;
+  onReserve: (seat: number | null, useCredits: boolean) => void;
   onJoinWaitlist: () => void;
   pending: boolean;
 }) {
   const [seat, setSeat] = useState<number | null>(null);
+  const [useCredits, setUseCredits] = useState(false);
   const full = classItem.taken >= classItem.capacity;
 
   const { data: takenSeats } = useQuery({
@@ -710,9 +726,14 @@ function AppClassDetail({
                     );
                   })}
                 </div>
+                <BookingPaymentChoice
+                  startsAt={classItem.starts_at}
+                  useCredits={useCredits}
+                  onChange={setUseCredits}
+                />
                 <button
                   disabled={!seat || pending}
-                  onClick={() => onReserve(seat)}
+                  onClick={() => onReserve(seat, useCredits)}
                   className="mt-6 w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
                 >
                   Reservar lugar {seat ? `#${seat}` : ""}
@@ -966,12 +987,17 @@ function CreditosTab() {
         </button>
       </div>
 
-      {membership ? null : (
-        <div className="mt-8 border border-border p-6 text-center">
-          <p className="eyebrow">Créditos disponibles</p>
-          <p className="mt-2 text-4xl">{balance ?? 0}</p>
-        </div>
-      )}
+      <div className="mt-8 space-y-3">
+        {membership ? <MembershipStatusCard userId={user?.id} user={user} /> : null}
+        {(balance ?? 0) > 0 ? (
+          <CreditLotsSummary userId={user?.id} />
+        ) : (
+          <div className="border border-border p-6 text-center">
+            <p className="eyebrow">Créditos de paquetes</p>
+            <p className="mt-2 text-4xl">0</p>
+          </div>
+        )}
+      </div>
 
       {view === "membresia" ? (
         <div className="mt-8">

@@ -104,8 +104,20 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
   const [pickingSeat, setPickingSeat] = useState<ClassRow | null>(null);
 
   const book = useMutation({
-    mutationFn: async ({ classId, seat }: { classId: string; seat: number | null }) => {
-      const { error } = await supabase.rpc("book_class", { _class_id: classId, _seat: seat });
+    mutationFn: async ({
+      classId,
+      seat,
+      useCredits = false,
+    }: {
+      classId: string;
+      seat: number | null;
+      useCredits?: boolean;
+    }) => {
+      const { error } = await supabase.rpc("book_class", {
+        _class_id: classId,
+        _seat: seat,
+        _use_credits: useCredits,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -319,7 +331,7 @@ function CoachScheduleModal({ coach, onClose }: { coach: Coach; onClose: () => v
             setPickingSeat(null);
             setConfirming(null);
           }}
-          onConfirm={(seat) => book.mutate({ classId: pickingSeat.id, seat })}
+          onConfirm={(seat, useCredits) => book.mutate({ classId: pickingSeat.id, seat, useCredits })}
         />
       ) : null}
     </>
