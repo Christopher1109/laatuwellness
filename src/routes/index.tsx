@@ -254,27 +254,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ---------- Ubicación ---------- */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-          <p className="eyebrow">Encuéntranos</p>
-          <h2 className="statement mt-4 max-w-xl text-2xl sm:text-3xl">
-            Estudio de Pilates Reformer en San Pedro Garza García.
-          </h2>
-          <p className="mt-6 max-w-xl text-muted-foreground">
-            Av. Manuel Gómez Morín 404, Villas de Aragón, 66273 San Pedro Garza García, N.L.
-          </p>
-          <a
-            href="https://www.google.com/maps/search/?api=1&query=Av.+Manuel+G%C3%B3mez+Mor%C3%ADn+404,+Villas+de+Arag%C3%B3n,+San+Pedro+Garza+Garc%C3%ADa,+N.L."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 inline-block text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
-          >
-            Cómo llegar →
-          </a>
-        </div>
-      </section>
-
       {/* ---------- Cierre ---------- */}
       <section className="surface-dark constellation grain relative overflow-hidden">
         <PatternField
