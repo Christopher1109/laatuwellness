@@ -78,7 +78,7 @@ export function MembershipStatusCard({
         </button>
       ) : null}
       {renewing ? (
-        <PlanCheckoutModal plan={renewing} user={user} onClose={() => setRenewing(null)} />
+        <PlanCheckoutModal plan={renewing} user={user ?? null} onClose={() => setRenewing(null)} />
       ) : null}
     </div>
   );
