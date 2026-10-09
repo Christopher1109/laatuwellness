@@ -195,7 +195,7 @@ function Paquetes() {
                             </p>
                             {p.is_promo ? (
                               <p className="mt-2 text-xs uppercase tracking-[0.14em] text-foreground">
-                                Solo 25 lugares · hasta el 31 de octubre
+                                Solo 25 lugares · hasta el 26 de octubre
                                 {left !== null && soldCounts ? ` · ${soldOut ? "agotado" : `quedan ${left}`}` : ""}
                               </p>
                             ) : null}
