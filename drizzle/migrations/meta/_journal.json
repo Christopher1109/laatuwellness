@@ -29,6 +29,13 @@
       "when": 1791503909435,
       "tag": "0003_allow_zero_token_memberships",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791504046590,
+      "tag": "0004_fix_membership_end_date",
+      "breakpoints": true
     }
   ]
 }
