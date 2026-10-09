@@ -12,7 +12,9 @@ import { isPlanInSaleWindow, spotsLeft } from "@/lib/plan-availability";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/paquetes" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/paquetes" },
       { title: "Precios, paquetes y membresías de Pilates — Läätu Wellness San Pedro" },
       {
         name: "description",

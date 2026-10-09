@@ -124,10 +124,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Läätu Wellness — Pilates Reformer en San Pedro" },
       { property: "og:site_name", content: "Läätu Wellness" },
       { property: "og:locale", content: "es_MX" },
-      { property: "og:image", content: `${SITE_URL}/foto-editorial/laatu-editorial-2.jpg` },
-      { property: "og:image:width", content: "1600" },
-      { property: "og:image:height", content: "1067" },
-      { name: "twitter:image", content: `${SITE_URL}/foto-editorial/laatu-editorial-2.jpg` },
       // Datos estructurados para Google: negocio local con dirección y redes.
       { "script:ld+json": LOCAL_BUSINESS_JSON_LD },
       {

@@ -1,10 +1,10 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/site-chrome";
 import { Coordinates } from "@/components/brand";
 import { Schedule } from "@/components/schedule";
 import { whatsappHref } from "@/components/whatsapp-button";
-import { supabase } from "@/integrations/supabase/client";
+import { getPublicProgram } from "@/utils/public-catalog.functions";
+import { PublicCatalogError, PublicCatalogNotFound } from "@/components/public-catalog-boundaries";
 
 import foto1 from "@/assets/laatu-foto-1.jpg.asset.json";
 import foto2 from "@/assets/laatu-foto-2.jpg.asset.json";
@@ -13,18 +13,6 @@ import foto4 from "@/assets/laatu-foto-4.jpg.asset.json";
 
 const editorial1 = "/foto-editorial/laatu-editorial-1.jpg";
 void foto1;
-
-// TODO: quitar este tipo local y usar Tables<"class_types"> en cuanto se
-// regeneren los tipos de Supabase contra la base real (la tabla ya existe
-// en la migración pero los tipos generados todavía no la incluyen).
-type ClassType = {
-  id: string;
-  module_key: string;
-  name: string;
-  description: string;
-  active: boolean;
-  sort_order: number;
-};
 
 const HERO: Record<string, string> = {
   reformer: editorial1,
@@ -36,29 +24,52 @@ const HERO: Record<string, string> = {
 };
 
 export const Route = createFileRoute("/programas/$key")({
-  head: ({ params }) => {
+  loader: async ({ params }) => {
+    const program = await getPublicProgram({ data: { key: params.key } });
+    if (!program) throw notFound();
+    return program;
+  },
+  errorComponent: PublicCatalogError,
+  notFoundComponent: PublicCatalogNotFound,
+  head: ({ params, loaderData }) => {
     const nombres: Record<string, string> = {
       reformer: "Pilates Reformer en San Pedro Garza García",
       "4mat": "Clases de 4mat (Pilates en piso) en San Pedro Garza García",
       rehabilitacion: "Align: fisioterapia y rehabilitación en San Pedro Garza García",
       contraste: "Contrast: sauna infrarrojo y cold plunge en San Pedro Garza García",
     };
-    const title = `${nombres[params.key] ?? `Programa ${params.key}`} — Läätu Wellness`;
+    const title = `${nombres[params.key] ?? loaderData?.modulo.name ?? `Programa ${params.key}`} — Läätu Wellness`;
+    const source = (loaderData?.modulo.description || loaderData?.modulo.long_description || "")
+      .replace(/\s+/g, " ").trim();
+    const location = "San Pedro Garza García";
+    const localized = source && !source.includes(location) && source.length + location.length + 5 <= 155
+      ? `${source} · ${location}.` : source;
+    const description = localized.length > 155
+      ? `${localized.slice(0, 154).replace(/\s+\S*$/, "").trimEnd()}…`
+      : localized;
+    const image = HERO[params.key];
+    const url = `https://laatuwellness.com/programas/${encodeURIComponent(params.key)}`;
     return {
+      links: [{ rel: "canonical", href: url }],
       meta: [
         { title },
+        { property: "og:url", content: url },
+        ...(!loaderData ? [{ name: "robots", content: "noindex" }] : []),
         {
           name: "description",
-          content:
-            "Consulta horarios, cupos y paquetes de sesiones de este programa de Läätu Wellness y reserva en línea.",
+          content: description || "Consulta los programas de Läätu Wellness en San Pedro Garza García.",
         },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         { property: "og:title", content: title },
         {
           property: "og:description",
-          content: "Horarios en vivo, cupos disponibles y compra de sesiones en Läätu Wellness.",
+          content: description || "Consulta los programas de Läätu Wellness en San Pedro Garza García.",
         },
+        ...(image?.startsWith("https://") ? [
+          { property: "og:image", content: image },
+          { name: "twitter:image", content: image },
+        ] : []),
       ],
     };
   },
@@ -66,46 +77,7 @@ export const Route = createFileRoute("/programas/$key")({
 });
 
 function ProgramaDetalle() {
-  const { key } = Route.useParams();
-
-  const { data: modulo, isLoading } = useQuery({
-    queryKey: ["site-module", key],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("site_modules")
-        .select("*")
-        .eq("key", key)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw notFound();
-      return data;
-    },
-  });
-
-  const { data: classTypes } = useQuery({
-    queryKey: ["class-types", key],
-    queryFn: async () => {
-      const { data, error } = await (supabase.from as unknown as (t: string) => any)("class_types")
-        .select("*")
-        .eq("module_key", key)
-        .eq("active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data as ClassType[];
-    },
-  });
-
-  if (isLoading) {
-    return (
-      <SiteLayout>
-        <div className="mx-auto max-w-6xl px-5 py-32 sm:px-8">
-          <p className="text-muted-foreground">Cargando programa…</p>
-        </div>
-      </SiteLayout>
-    );
-  }
-
-  if (!modulo) return null;
+  const { modulo, classTypes } = Route.useLoaderData();
 
   return (
     <SiteLayout>

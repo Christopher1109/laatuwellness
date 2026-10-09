@@ -7,7 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/contacto")({
   head: () => ({
+    links: [{ rel: "canonical", href: "https://laatuwellness.com/contacto" }],
     meta: [
+      { property: "og:url", content: "https://laatuwellness.com/contacto" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Contacto y ubicación — Läätu Wellness, San Pedro Garza García" },
       {
         name: "description",
