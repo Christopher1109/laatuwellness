@@ -424,6 +424,39 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_lots: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted: number
+          id: string
+          label: string
+          remaining: number
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted: number
+          id?: string
+          label?: string
+          remaining: number
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted?: number
+          id?: string
+          label?: string
+          remaining?: number
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       inventory_movements: {
         Row: {
           created_at: string
@@ -1621,7 +1654,7 @@ export type Database = {
             }
           }
         | {
-            Args: { _class_id: string; _seat?: number }
+            Args: { _class_id: string; _seat?: number; _use_credits?: boolean }
             Returns: {
               class_id: string
               created_at: string
@@ -1795,6 +1828,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      membership_day_usage: {
+        Args: { _at: string; _user_id: string }
+        Returns: Json
       }
       membership_end: {
         Args: { _days: number; _start: string }
