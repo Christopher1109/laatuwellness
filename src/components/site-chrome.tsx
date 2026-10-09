@@ -265,6 +265,16 @@ export function SiteFooter() {
                     lore@laatuwellness.com
                   </a>
                 </li>
+                <li className="pt-2">
+                  <a
+                    href="https://www.google.com/maps/search/?api=1&query=Av.+Manuel+G%C3%B3mez+Mor%C3%ADn+404,+Villas+de+Arag%C3%B3n,+San+Pedro+Garza+Garc%C3%ADa,+N.L."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-foreground"
+                  >
+                    Av. Manuel Gómez Morín 404, San Pedro Garza García, N.L. →
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
