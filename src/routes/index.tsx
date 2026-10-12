@@ -215,11 +215,10 @@ function Home() {
             <div>
               <p className="eyebrow">Conócenos</p>
               <h2 className="statement mt-4 text-[clamp(1.8rem,4vw,2.8rem)]">
-                Diez personas por salón.
+                Movimiento que se adapta a ti.
               </h2>
               <p className="mt-6 text-muted-foreground">
-                Grupos pequeños de diez personas, corrección individual y un ritmo que respeta tu
-                cuerpo. Ser flexible no es una debilidad.
+                Grupos pequeños, corrección individual y un ritmo que respeta tu cuerpo.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link

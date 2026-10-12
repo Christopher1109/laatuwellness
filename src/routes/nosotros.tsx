@@ -46,8 +46,8 @@ function Nosotros() {
     <SiteLayout>
       <PageHeader
         eyebrow="Presentación"
-        title="Ser flexible no es una debilidad."
-        intro="Läätu es un estudio boutique de Pilates y recuperación. Un lugar honesto, silencioso y sin pretensión donde el movimiento se vuelve pausa."
+        title="Moverte bien, por más tiempo."
+        intro="Läätu es un estudio boutique de Pilates, Barré, Fuerza funcional, Yoga y Mat."
       />
 
       <section className="border-b border-border">
