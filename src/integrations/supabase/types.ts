@@ -1361,6 +1361,7 @@ export type Database = {
           is_promo: boolean
           is_staff_only: boolean
           max_sales: number | null
+          membership_starts_at: string | null
           name: string
           new_clients_only: boolean
           price_cents: number
@@ -1391,6 +1392,7 @@ export type Database = {
           is_promo?: boolean
           is_staff_only?: boolean
           max_sales?: number | null
+          membership_starts_at?: string | null
           name: string
           new_clients_only?: boolean
           price_cents: number
@@ -1421,6 +1423,7 @@ export type Database = {
           is_promo?: boolean
           is_staff_only?: boolean
           max_sales?: number | null
+          membership_starts_at?: string | null
           name?: string
           new_clients_only?: boolean
           price_cents?: number

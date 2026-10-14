@@ -197,9 +197,12 @@ function Paquetes() {
                             </p>
                             {p.is_promo ? (
                               <p className="mt-2 text-xs uppercase tracking-[0.14em] text-foreground">
-                                Solo 25 lugares · hasta el 26 de octubre
-                                {left !== null && soldCounts ? ` · ${soldOut ? "agotado" : `quedan ${left}`}` : ""}
+                                {p.max_sales ? `Solo ${p.max_sales} lugares · ` : ""}hasta el 26 de
+                                octubre
                               </p>
+                            ) : null}
+                            {p.max_sales && left !== null && soldCounts ? (
+                              <SpotsBar total={p.max_sales} left={left} />
                             ) : null}
                             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                               {p.daily_class_limit
@@ -288,5 +291,37 @@ function Paquetes() {
         <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </SiteLayout>
+  );
+}
+
+// Barra de cupo de una membresía limitada: se va llenando conforme se venden
+// lugares y dice cuántos quedan.
+function SpotsBar({ total, left }: { total: number; left: number }) {
+  const sold = Math.min(total, Math.max(0, total - left));
+  const pct = total > 0 ? Math.round((sold / total) * 100) : 0;
+  return (
+    <div className="mt-3">
+      <div
+        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={sold}
+        aria-label={`${sold} de ${total} lugares vendidos`}
+      >
+        <div
+          className="h-full rounded-full bg-foreground transition-[width] duration-700 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-1.5 flex justify-between text-[0.68rem] uppercase tracking-[0.14em]">
+        <span className="text-muted-foreground">
+          {sold} de {total} vendidos
+        </span>
+        <span className="font-medium text-foreground">
+          {left === 0 ? "Agotado" : left === 1 ? "Queda 1 lugar" : `Quedan ${left} lugares`}
+        </span>
+      </p>
+    </div>
   );
 }

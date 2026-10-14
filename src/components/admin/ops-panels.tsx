@@ -460,7 +460,16 @@ export function POSPanel() {
       Object.entries(planCart)
         .filter(([id, qty]) => {
           const p = plans?.find((x) => x.id === id);
-          return qty > 0 && p && (p.purchasable_once || p.new_clients_only || p.max_sales != null || p.available_until != null || p.available_from != null || p.renews_plan_id != null);
+          return (
+            qty > 0 &&
+            p &&
+            (p.purchasable_once ||
+              p.new_clients_only ||
+              p.max_sales != null ||
+              p.available_until != null ||
+              p.available_from != null ||
+              p.renews_plan_id != null)
+          );
         })
         .map(([id]) => id)
         .sort(),
@@ -2698,7 +2707,9 @@ export function ClientsPanel() {
       const { data: bookings } = await supabase.from("bookings").select("id, user_id, status");
       const { data: transactions } = await supabase
         .from("transactions")
-        .select("user_id, amount_cents, status");
+        .select(
+          "user_id, amount_cents, status, access_starts_at, access_ends_at, token_plans(name, daily_class_limit)",
+        );
       const { data: checkIns } = await supabase.from("check_ins").select("booking_id, status");
 
       const balances = new Map<string, number>();
@@ -2711,9 +2722,36 @@ export function ClientsPanel() {
       }
       const signed = new Set((waivers ?? []).map((w) => w.user_id));
       const revenue = new Map<string, number>();
+      // Membresía vigente (o pagada y por iniciar) de cada cliente, para
+      // verla en el listado sin tener que abrir la ficha.
+      const nowMs = Date.now();
+      const memberships = new Map<string, ClientMembership>();
       for (const t of transactions ?? []) {
-        if (t.status === "completed")
-          revenue.set(t.user_id, (revenue.get(t.user_id) ?? 0) + t.amount_cents);
+        if (t.status !== "completed") continue;
+        revenue.set(t.user_id, (revenue.get(t.user_id) ?? 0) + t.amount_cents);
+        const plan = t.token_plans as { name: string; daily_class_limit: number | null } | null;
+        if (!plan?.daily_class_limit || !t.access_starts_at || !t.access_ends_at) continue;
+        const start = new Date(t.access_starts_at).getTime();
+        const end = new Date(t.access_ends_at).getTime();
+        if (end < nowMs) continue;
+        const candidate: ClientMembership = {
+          name: plan.name,
+          upcoming: start > nowMs,
+          starts_at: t.access_starts_at,
+          ends_at: t.access_ends_at,
+        };
+        const prev = memberships.get(t.user_id);
+        // Prioridad: la activa hoy; si no hay, la próxima en iniciar.
+        if (
+          !prev ||
+          (prev.upcoming && !candidate.upcoming) ||
+          (prev.upcoming === candidate.upcoming &&
+            (candidate.upcoming
+              ? candidate.starts_at < prev.starts_at
+              : candidate.ends_at > prev.ends_at))
+        ) {
+          memberships.set(t.user_id, candidate);
+        }
       }
       const bookingsByUser = new Map<
         string,
@@ -2740,6 +2778,7 @@ export function ClientsPanel() {
         balance: balances.get(p.id) ?? 0,
         waiver: signed.has(p.id),
         revenue_cents: revenue.get(p.id) ?? 0,
+        membership: memberships.get(p.id) ?? null,
         refund_events: refunds.get(p.id) ?? 0,
         bookings: bookingsByUser.get(p.id) ?? { total: 0, attended: 0, no_show: 0, cancelled: 0 },
       }));
@@ -2837,7 +2876,10 @@ export function ClientsPanel() {
               onClick={() => setOpenClientId(c.id)}
               className="min-w-0 flex-1 text-left hover:opacity-70"
             >
-              <p>{c.full_name || "Sin nombre"}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p>{c.full_name || "Sin nombre"}</p>
+                {c.membership ? <MembershipBadge membership={c.membership} /> : null}
+              </div>
               <p className="text-muted-foreground">
                 {c.email}
                 {c.phone ? ` · ${c.phone}` : ""}
@@ -2873,6 +2915,36 @@ export function ClientsPanel() {
         ) : null}
       </ul>
     </div>
+  );
+}
+
+type ClientMembership = {
+  name: string;
+  upcoming: boolean;
+  starts_at: string;
+  ends_at: string;
+};
+
+const fmtShortDate = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    timeZone: "America/Monterrey",
+  }).format(new Date(iso));
+
+function MembershipBadge({ membership }: { membership: ClientMembership }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] ${
+        membership.upcoming ? TONE_CLASSES["amber"] : TONE_CLASSES["green"]
+      }`}
+      title={`Vigente del ${fmtShortDate(membership.starts_at)} al ${fmtShortDate(membership.ends_at)}`}
+    >
+      {membership.upcoming ? "Membresía por iniciar" : "Membresía activa"} · {membership.name} ·{" "}
+      {membership.upcoming
+        ? `inicia ${fmtShortDate(membership.starts_at)}`
+        : `hasta ${fmtShortDate(membership.ends_at)}`}
+    </span>
   );
 }
 
@@ -4412,11 +4484,20 @@ function PackageEditPopout({
             category: String(f.get("category") || "clases_pilates"),
             price_cents: Math.round(Number(f.get("price") || 0) * 100),
             tokens: Math.max(0, Number(f.get("tokens") || 0)),
-            daily_class_limit: f.get("daily_class_limit") ? Number(f.get("daily_class_limit")) : null,
+            daily_class_limit: f.get("daily_class_limit")
+              ? Number(f.get("daily_class_limit"))
+              : null,
             max_sales: f.get("max_sales") ? Number(f.get("max_sales")) : null,
             // Fechas en hora de Monterrey (UTC-6, sin horario de verano).
-            available_from: f.get("available_from") ? `${f.get("available_from")}T00:00:00-06:00` : null,
-            available_until: f.get("available_until") ? `${f.get("available_until")}T23:59:59-06:00` : null,
+            available_from: f.get("available_from")
+              ? `${f.get("available_from")}T00:00:00-06:00`
+              : null,
+            available_until: f.get("available_until")
+              ? `${f.get("available_until")}T23:59:59-06:00`
+              : null,
+            membership_starts_at: f.get("membership_starts_at")
+              ? `${f.get("membership_starts_at")}T00:00:00-06:00`
+              : null,
             recurring: f.get("recurring") === "on",
             validity_days: f.get("validity_days") ? Number(f.get("validity_days")) : null,
             includes: String(f.get("includes") || ""),
@@ -4492,20 +4573,55 @@ function PackageEditPopout({
         <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
           <label className="text-xs">
             <span className="eyebrow">Clases por día (membresía)</span>
-            <input name="daily_class_limit" type="number" min={1} defaultValue={plan?.daily_class_limit ?? ""} className={input} />
+            <input
+              name="daily_class_limit"
+              type="number"
+              min={1}
+              defaultValue={plan?.daily_class_limit ?? ""}
+              className={input}
+            />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Cupo total (vacío = sin límite)</span>
-            <input name="max_sales" type="number" min={1} defaultValue={plan?.max_sales ?? ""} className={input} />
+            <input
+              name="max_sales"
+              type="number"
+              min={1}
+              defaultValue={plan?.max_sales ?? ""}
+              className={input}
+            />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Venta desde</span>
-            <input name="available_from" type="date" defaultValue={mtyDate(plan?.available_from)} className={input} />
+            <input
+              name="available_from"
+              type="date"
+              defaultValue={mtyDate(plan?.available_from)}
+              className={input}
+            />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Venta hasta (23:59)</span>
-            <input name="available_until" type="date" defaultValue={mtyDate(plan?.available_until)} className={input} />
+            <input
+              name="available_until"
+              type="date"
+              defaultValue={mtyDate(plan?.available_until)}
+              className={input}
+            />
           </label>
+          <label className="col-span-2 text-xs">
+            <span className="eyebrow">La vigencia empieza a contar desde (opcional)</span>
+            <input
+              name="membership_starts_at"
+              type="date"
+              defaultValue={mtyDate(plan?.membership_starts_at)}
+              className={input}
+            />
+          </label>
+          <p className="col-span-2 text-[0.65rem] text-muted-foreground">
+            Si alguien compra antes de la fecha de inicio, sus días empiezan a correr desde esa
+            fecha y no desde el día del pago.
+          </p>
           <p className="col-span-2 text-[0.65rem] text-muted-foreground">
             Fuera de estas fechas o al llenarse el cupo, se oculta sola de la web y del POS. Para
             reabrir una promoción, pon fechas nuevas y usa "Publicar".

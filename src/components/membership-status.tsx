@@ -8,6 +8,10 @@ export type MembershipStatus = {
   plan_id: string;
   plan_name: string;
   daily_limit: number;
+  /** Inicio de la vigencia (puede ser futuro si se compró antes del arranque). */
+  starts_at?: string | null;
+  /** true si la membresía ya está pagada pero su vigencia aún no empieza. */
+  upcoming?: boolean;
   ends_at: string;
   used_today: number;
   renewal_plan_id: string | null;
@@ -48,16 +52,31 @@ export function MembershipStatusCard({
 
   return (
     <div className="border border-foreground p-5">
-      <p className="eyebrow">Membresía activa</p>
+      <p className="eyebrow">{m.upcoming ? "Membresía por iniciar" : "Membresía activa"}</p>
       <p className="mt-1 text-lg">{m.plan_name}</p>
-      <p className="mt-1 text-sm">{m.daily_limit === 1 ? "1 clase por día" : `${m.daily_limit} clases por día`}</p>
-      <p className="mt-3 text-sm">{describeMembershipToday(m.daily_limit, m.used_today)}</p>
-      <p className="mt-1 text-sm text-muted-foreground">Activa hasta el {fmtDate(m.ends_at)}</p>
-      {days <= 5 ? (
-        <p className="mt-1 text-sm font-medium">
-          {days <= 0 ? "Tu membresía vence hoy" : `Tu membresía vence en ${days} ${days === 1 ? "día" : "días"}`}
-        </p>
-      ) : null}
+      <p className="mt-1 text-sm">
+        {m.daily_limit === 1 ? "1 clase por día" : `${m.daily_limit} clases por día`}
+      </p>
+      {m.upcoming && m.starts_at ? (
+        <>
+          <p className="mt-3 text-sm">Tu membresía empieza a contar el {fmtDate(m.starts_at)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vigente hasta el {fmtDate(m.ends_at)}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="mt-3 text-sm">{describeMembershipToday(m.daily_limit, m.used_today)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">Activa hasta el {fmtDate(m.ends_at)}</p>
+          {days <= 5 ? (
+            <p className="mt-1 text-sm font-medium">
+              {days <= 0
+                ? "Tu membresía vence hoy"
+                : `Tu membresía vence en ${days} ${days === 1 ? "día" : "días"}`}
+            </p>
+          ) : null}
+        </>
+      )}
       <p className="mt-3 text-xs text-muted-foreground">
         Las clases no son acumulables. Tu acceso termina en la fecha de vencimiento.
       </p>
