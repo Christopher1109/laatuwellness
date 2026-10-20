@@ -1,4 +1,6 @@
 import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
+import { groupClientPurchases, matchesClientPurchaseFilter } from "@/lib/client-purchases";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
@@ -2706,11 +2708,13 @@ export function ClientsPanel() {
       const { data: ledger } = await supabase.from("token_ledger").select("user_id, delta, reason");
       const { data: waivers } = await supabase.from("waiver_signatures").select("user_id");
       const { data: bookings } = await supabase.from("bookings").select("id, user_id, status");
-      const { data: transactions } = await supabase
+      const { data: transactions, error: transactionsError } = await supabase
         .from("transactions")
         .select(
-          "user_id, amount_cents, status, access_starts_at, access_ends_at, token_plans(name, daily_class_limit)",
+          "user_id, plan_id, amount_cents, status, access_starts_at, access_ends_at, token_plans(name, daily_class_limit)",
         );
+      if (transactionsError) throw transactionsError;
+      const purchasesByUser = groupClientPurchases(transactions ?? []);
       const { data: checkIns } = await supabase.from("check_ins").select("booking_id, status");
 
       const balances = new Map<string, number>();
@@ -2780,6 +2784,7 @@ export function ClientsPanel() {
         waiver: signed.has(p.id),
         revenue_cents: revenue.get(p.id) ?? 0,
         membership: memberships.get(p.id) ?? null,
+        purchases: purchasesByUser.get(p.id) ?? [],
         refund_events: refunds.get(p.id) ?? 0,
         bookings: bookingsByUser.get(p.id) ?? { total: 0, attended: 0, no_show: 0, cancelled: 0 },
       }));
@@ -2803,11 +2808,16 @@ export function ClientsPanel() {
   });
 
   const [search, setSearch] = useState("");
-  const filtered = (data ?? []).filter((c) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return c.full_name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
-  });
+  const [purchaseFilter, setPurchaseFilter] = useState("all");
+  const purchaseOptions = useMemo(() => {
+    const options = new Map<string, { name: string; sales: number }>();
+    for (const client of data ?? []) for (const purchase of client.purchases) {
+      const previous = options.get(purchase.planId);
+      options.set(purchase.planId, { name: purchase.name, sales: (previous?.sales ?? 0) + purchase.count });
+    }
+    return [...options.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "es"));
+  }, [data]);
+  const filtered = (data ?? []).filter((c) => matchesClientPurchaseFilter(c, search, purchaseFilter));
 
   const summary = useMemo(() => {
     const totalRevenue = (data ?? []).reduce((sum, c) => sum + c.revenue_cents, 0);
@@ -2859,14 +2869,26 @@ export function ClientsPanel() {
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar cliente por nombre o correo…"
-          className={`${input} pl-9`}
-        />
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Buscar cliente o paquete"
+            placeholder="Buscar por nombre, correo o paquete…"
+            className={`${input} pl-9`}
+          />
+        </div>
+        <Select value={purchaseFilter} onValueChange={setPurchaseFilter}>
+          <SelectTrigger aria-label="Filtrar por paquete comprado" className="w-full sm:w-72"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los paquetes</SelectItem>
+            {purchaseOptions.map(([id, option]) => <SelectItem key={id} value={id}>
+              {option.name} · {option.sales} {option.sales === 1 ? "venta" : "ventas"}
+            </SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <ul className="divide-y divide-border border-y border-border text-sm">
@@ -2881,6 +2903,11 @@ export function ClientsPanel() {
                 <p>{c.full_name || "Sin nombre"}</p>
                 {c.membership ? <MembershipBadge membership={c.membership} /> : null}
               </div>
+              {c.purchases.length > 0 ? <div className="mt-2 flex flex-wrap gap-1.5">
+                {c.purchases.map((purchase) => <span key={purchase.planId} title="Compra realizada" className="inline-flex max-w-full items-center border border-border bg-muted px-2 py-0.5 text-[0.65rem] text-muted-foreground">
+                  {purchase.name}{purchase.count > 1 ? ` · ${purchase.count} compras` : ""}
+                </span>)}
+              </div> : null}
               <p className="text-muted-foreground">
                 {c.email}
                 {c.phone ? ` · ${c.phone}` : ""}

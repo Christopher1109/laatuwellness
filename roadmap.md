@@ -1,5 +1,11 @@
 # SEO public content
 
+# Client purchase labels
+
+- [x] Remove only Monica Alanis's fictitious 5 Classes purchase and its related credits/history.
+- [x] Add purchased-package labels and package filtering to client cards.
+- [x] Test filtering and verify Monica's cleaned history and client labels in the panel.
+
 # Client profile checkout
 
 - [x] Replace profile payment labels with cash checkout and Clip terminal collection.
