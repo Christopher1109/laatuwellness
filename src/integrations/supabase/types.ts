@@ -432,6 +432,7 @@ export type Database = {
           id: string
           label: string
           remaining: number
+          starts_at: string | null
           transaction_id: string | null
           user_id: string
         }
@@ -442,6 +443,7 @@ export type Database = {
           id?: string
           label?: string
           remaining: number
+          starts_at?: string | null
           transaction_id?: string | null
           user_id: string
         }
@@ -452,6 +454,7 @@ export type Database = {
           id?: string
           label?: string
           remaining?: number
+          starts_at?: string | null
           transaction_id?: string | null
           user_id?: string
         }
@@ -1889,6 +1892,10 @@ export type Database = {
       }
       purchase_plan: {
         Args: { _payment_method: string; _plan_id: string }
+        Returns: string
+      }
+      purchase_validity_start: {
+        Args: { _configured_start?: string; _purchased_at: string }
         Returns: string
       }
       redeem_coupon: { Args: { _code: string }; Returns: number }
