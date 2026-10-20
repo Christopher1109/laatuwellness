@@ -2,9 +2,9 @@
 
 # Client purchase labels
 
-- [ ] Remove only Monica Alanis's fictitious 5 Classes purchase and its related credits/history.
-- [ ] Add purchased-package labels and package filtering to client cards.
-- [ ] Test filtering and verify Monica's cleaned history and client labels in the panel.
+- [x] Remove only Monica Alanis's fictitious 5 Classes purchase and its related credits/history.
+- [x] Add purchased-package labels and package filtering to client cards.
+- [x] Test filtering and verify Monica's cleaned history and client labels in the panel.
 
 # Client profile checkout
 
