@@ -11,3 +11,4 @@
 
 - Public program content uses route loaders backed by public-catalog server functions and a fresh anonymous publishable client with explicit public-column projections, so SSR includes catalog content without inheriting sessions or privileged access; live schedules remain client-side.
 - Self-referencing canonical links belong on public leaf routes, never the root layout, to avoid duplicate canonical tags.
+- Package lots and membership transactions calculate validity through the shared database purchase_validity_start function; this keeps every payment channel consistent and records package start dates for client display.
