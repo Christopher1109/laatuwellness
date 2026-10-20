@@ -1,3 +1,4 @@
+import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
@@ -2964,14 +2965,6 @@ const TONE_CLASSES: Record<string, string> = {
   muted: "bg-muted text-muted-foreground",
 };
 
-const PAYMENT_METHODS = [
-  { key: "saldo", label: "Saldo de cuenta" },
-  { key: "transferencia", label: "Transferencia" },
-  { key: "tarjeta", label: "Tarjeta" },
-  { key: "efectivo", label: "Efectivo" },
-  { key: "cortesia", label: "Cortesía" },
-];
-
 type ClientTab = "reservaciones" | "compras" | "creditos" | "notas";
 const CLIENT_TABS: { key: ClientTab; label: string }[] = [
   { key: "reservaciones", label: "Reservaciones" },
@@ -2985,7 +2978,6 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
   const [tab, setTab] = useState<ClientTab>("reservaciones");
   const [showPackages, setShowPackages] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("efectivo");
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
 
   const { data: profile } = useQuery({
@@ -3077,25 +3069,6 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
       if (error) throw error;
       return data;
     },
-  });
-
-  const buyPlan = useMutation({
-    mutationFn: async ({ planId, paymentMethod }: { planId: string; paymentMethod: string }) => {
-      const { error } = await supabase.rpc("admin_purchase_plan", {
-        _user_id: clientId,
-        _plan_id: planId,
-        _payment_method: paymentMethod,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Venta registrada — créditos agregados al cliente.");
-      setShowPackages(false);
-      setPendingPlan(null);
-      void qc.invalidateQueries({ queryKey: ["client-detail-balance", clientId] });
-      void qc.invalidateQueries({ queryKey: ["client-detail-purchases", clientId] });
-    },
-    onError: () => toast.error("No se pudo registrar la compra."),
   });
 
   const saveNotes = useMutation({
@@ -3273,7 +3246,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
               {showPackages ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {(plans ?? []).map((p) => (
+                  {(plans ?? []).filter((p) => isPlanInSaleWindow(p)).map((p) => (
                     <div
                       key={p.id}
                       className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
@@ -3323,59 +3296,16 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
       </div>
 
       {pendingPlan ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-end bg-black/40"
-          onClick={() => setPendingPlan(null)}
-        >
-          <div
-            className="h-full w-full max-w-sm overflow-y-auto bg-background p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="eyebrow">Pago</p>
-            <div className="mt-3 flex items-center justify-between border-b border-border pb-3 text-sm">
-              <span>{pendingPlan.name}</span>
-              <span>{money(pendingPlan.price_cents)}</span>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-lg">
-              <span>Total</span>
-              <span>{money(pendingPlan.price_cents)}</span>
-            </div>
-
-            <div className="mt-6 space-y-2.5">
-              {PAYMENT_METHODS.map((m) => (
-                <label key={m.key} className="flex items-center gap-2.5 text-sm">
-                  <input
-                    type="radio"
-                    name="payment-method"
-                    checked={paymentMethod === m.key}
-                    onChange={() => setPaymentMethod(m.key)}
-                  />
-                  {m.label}
-                </label>
-              ))}
-            </div>
-
-            {pendingPlan.terms ? (
-              <p className="mt-6 text-xs text-muted-foreground">{pendingPlan.terms}</p>
-            ) : null}
-
-            <div className="mt-8 flex gap-2">
-              <button
-                onClick={() => setPendingPlan(null)}
-                className="flex-1 border border-input px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em]"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={buyPlan.isPending}
-                onClick={() => buyPlan.mutate({ planId: pendingPlan.id, paymentMethod })}
-                className="flex-1 bg-emerald-600 px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-white disabled:opacity-50"
-              >
-                {buyPlan.isPending ? "Procesando…" : "Pagar"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProfilePlanCheckout
+          clientId={clientId}
+          plan={pendingPlan}
+          onClose={() => setPendingPlan(null)}
+          onPaid={() => {
+            setPendingPlan(null);
+            setShowPackages(false);
+            setTab("compras");
+          }}
+        />
       ) : null}
     </div>
   );
