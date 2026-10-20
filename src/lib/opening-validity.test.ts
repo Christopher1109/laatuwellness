@@ -4,7 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 
 // Exercise the actual database rule rather than a duplicate JavaScript formula.
 const env = loadEnv("development", process.cwd(), "VITE_");
-const client = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+const url = env["VITE_SUPABASE_URL"];
+const key = env["VITE_SUPABASE_PUBLISHABLE_KEY"];
+if (!url || !key) throw new Error("Public database test configuration is missing");
+const client = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
