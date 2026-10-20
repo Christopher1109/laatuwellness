@@ -13,3 +13,4 @@
 - Self-referencing canonical links belong on public leaf routes, never the root layout, to avoid duplicate canonical tags.
 - Package lots and membership transactions calculate validity through the shared database purchase_validity_start function; this keeps every payment channel consistent and records package start dates for client display.
 - Client-profile checkout reuses POS cash fulfillment and Clip terminal server functions; cash amounts are validated server-side, and card purchases are credited only after terminal approval so profile purchases follow the same fulfillment rules as the counter.
+- Client purchase labels and package filters derive from completed transactions, not credit balances; this preserves purchased-package history independently of remaining credits and excludes unpaid/refunded sales.
