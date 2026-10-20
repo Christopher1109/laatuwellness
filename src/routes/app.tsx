@@ -85,13 +85,13 @@ function AppShell() {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppTopBar />
-      <main className="flex-1 pb-28">
+      <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         {tab === "horarios" ? <HorariosTab /> : null}
         {tab === "reservas" ? <ReservasTab /> : null}
         {tab === "creditos" ? <CreditosTab /> : null}
         {tab === "tienda" ? <TiendaTab /> : null}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md">
         <div className="mx-auto flex max-w-md items-stretch">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -191,7 +191,7 @@ function AppTopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/95 px-5 py-4 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/95 px-5 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-md">
       <div>
         <p className="text-[0.6rem] uppercase tracking-[0.18em] text-muted-foreground">
           {firstName ? `Hola, ${firstName}` : "Läätu"}
@@ -435,7 +435,7 @@ function HorariosTab() {
 
   return (
     <div>
-      <div className="sticky top-[65px] z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
+      <div className="sticky top-[calc(65px+env(safe-area-inset-top))] z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <div className="flex flex-1 gap-1.5 overflow-x-auto">
             {strip.map((d) => {
@@ -535,7 +535,7 @@ function HorariosTab() {
           onClick={() => setShowCalendar(false)}
         >
           <div
-            className="w-full max-w-sm rounded-t-2xl bg-background p-6 sm:rounded-lg"
+            className="w-full max-w-sm rounded-t-2xl bg-background p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:rounded-lg sm:pb-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -657,7 +657,7 @@ function AppClassDetail({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
-      <div className="mx-auto max-w-md px-5 py-6">
+      <div className="mx-auto max-w-md px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">
         <button
           onClick={onClose}
           className="mb-5 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
@@ -1213,7 +1213,7 @@ function TiendaTab() {
       ) : null}
 
       {itemCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-[calc(4rem+max(0.5rem,env(safe-area-inset-bottom)))] z-30 border-t border-border bg-background p-4">
           <button
             onClick={() => setConfirming(true)}
             className="flex w-full items-center justify-between bg-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] text-background"
@@ -1262,7 +1262,7 @@ function TiendaTab() {
 
       {confirming ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-10"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))]"
           onClick={() => !paying && setConfirming(false)}
         >
           <div className="w-full max-w-sm bg-background p-6" onClick={(e) => e.stopPropagation()}>
