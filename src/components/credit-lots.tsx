@@ -13,10 +13,11 @@ export function CreditLotsSummary({ userId }: { userId: string | undefined }) {
     queryKey: ["credit-lots", userId],
     enabled: Boolean(userId),
     queryFn: async () => {
+      if (!userId) return [];
       const { data, error } = await supabase
         .from("credit_lots")
-        .select("id, label, remaining, expires_at")
-        .eq("user_id", userId!)
+        .select("id, label, remaining, starts_at, expires_at")
+        .eq("user_id", userId)
         .gt("remaining", 0)
         .order("expires_at", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -43,6 +44,11 @@ export function CreditLotsSummary({ userId }: { userId: string | undefined }) {
               <span className="block text-xs text-muted-foreground">
                 {l.expires_at ? `Vence el ${fmt(l.expires_at)}` : "Sin vencimiento"}
               </span>
+              {l.starts_at && new Date(l.starts_at).getTime() > Date.now() ? (
+                <span className="block text-xs text-muted-foreground">
+                  Tu vigencia comienza el {fmt(l.starts_at)}
+                </span>
+              ) : null}
               {days !== null && days <= 5 ? (
                 <span className="block text-xs font-medium">
                   {days <= 0
