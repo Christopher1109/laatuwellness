@@ -99,7 +99,7 @@ export function AdminShell({
   );
 
   return (
-    <div className="fixed inset-0 flex bg-background text-foreground">
+    <div className="fixed inset-0 flex bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-foreground">
       {/* sidebar — desktop */}
       <aside className="surface-dark hidden w-64 shrink-0 lg:block">{Nav}</aside>
 
@@ -107,7 +107,7 @@ export function AdminShell({
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <aside className="surface-dark absolute inset-y-0 left-0 w-72">{Nav}</aside>
+          <aside className="surface-dark absolute inset-y-0 left-0 w-72 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">{Nav}</aside>
         </div>
       ) : null}
 

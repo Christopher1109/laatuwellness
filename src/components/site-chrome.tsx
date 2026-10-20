@@ -30,7 +30,7 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-20 max-w-7xl items-center gap-8 px-5 sm:h-24 sm:px-8">
         <BrandLink className="shrink-0" />
 
