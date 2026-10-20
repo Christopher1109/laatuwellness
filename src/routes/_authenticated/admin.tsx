@@ -50,6 +50,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
     meta: [
       { title: "Panel del estudio — Läätu Wellness" },
       { name: "description", content: "Sistema administrativo de Läätu Wellness." },
+      { property: "og:title", content: "Panel del estudio — Läätu Wellness" },
+      { property: "og:description", content: "Sistema administrativo de Läätu Wellness." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Admin,
