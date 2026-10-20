@@ -2,8 +2,8 @@
 
 # Client profile checkout
 
-- [ ] Replace profile payment labels with cash checkout and Clip terminal collection.
-- [ ] Verify payment validation, purchase history refresh, and authenticated client flow without real card charges.
+- [x] Replace profile payment labels with cash checkout and Clip terminal collection.
+- [x] Verify cash/change tests, existing purchase history, and authenticated rejection of an ineligible purchase; no real cash sale or terminal charge was generated, so approval and post-payment refresh remain unverified live.
 
 # Opening validity
 
