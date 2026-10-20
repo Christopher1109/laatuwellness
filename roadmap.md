@@ -1,5 +1,10 @@
 # SEO public content
 
+# Client profile checkout
+
+- [ ] Replace profile payment labels with cash checkout and Clip terminal collection.
+- [ ] Verify payment validation, purchase history refresh, and authenticated client flow without real card charges.
+
 # Opening validity
 
 - [x] Apply October 26 opening floor to package and membership validity, including prior purchases.
