@@ -1,5 +1,11 @@
 # SEO public content
 
+# Faster schedule entry and staff access
+
+- [ ] Simplify adding schedule hours without changing schedule publishing rules.
+- [ ] Apply and test the requested staff navigation and verify staff access.
+- [ ] Identify the staff account; provide a safe password-reset path rather than disclose an unreadable password.
+
 # Client purchase labels
 
 - [x] Remove only Monica Alanis's fictitious 5 Classes purchase and its related credits/history.
