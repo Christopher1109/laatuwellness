@@ -1,5 +1,5 @@
 export const STAFF_PANEL_SECTIONS = {
-  operation: ["programacion", "horarios-clases", "horarios-consultorio", "pos", "pedidos", "inventario"],
+  operation: ["programacion", "horarios-clases", "horarios-consultorio", "pos", "pedidos", "inventario", "check-in"],
   people: ["clientes"],
   business: ["paquetes", "merch", "goodes", "cupones"],
 } as const;

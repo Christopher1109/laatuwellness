@@ -38,6 +38,7 @@ import {
   FinancePanel,
   DashboardPanel,
   StaffHomePanel,
+  CheckInPanel,
   CouponsPanel,
 
   MerchPanel,
@@ -185,7 +186,8 @@ function Admin() {
   const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
-    ((isAdmin || (isStaff && !isCoach)) && active === "panel-staff") ||
+    ((isAdmin || (isStaff && !isCoach)) &&
+      (active === "panel-staff" || (active === "check-in" && canStaffAccessPanel(active)))) ||
     (groups.flatMap((g) => g.items).some((i) => i.key === active) &&
       (isAdmin || isCoach || canStaffAccessPanel(active)))
       ? active
@@ -246,6 +248,7 @@ function Admin() {
       ) : null}
 
       {activeKey === "programacion" ? <SchedulePlannerPanel /> : null}
+      {activeKey === "check-in" ? <CheckInPanel /> : null}
       {activeKey === "horarios-clases" ? (
         (() => {
           const current = focusModule ?? classModule;
