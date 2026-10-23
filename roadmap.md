@@ -1,5 +1,10 @@
 # SEO public content
 
+# Administrator password reset
+
+- [ ] Add admin-only direct password changes for users without recovery emails.
+- [ ] Test authorization and verify the password dialog in an authenticated admin session.
+
 # Faster schedule entry and staff access
 
 - [x] Simplify adding schedule hours without changing schedule publishing rules; verified save and reload with staff5.
