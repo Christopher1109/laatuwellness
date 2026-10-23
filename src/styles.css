@@ -214,6 +214,20 @@
   text-wrap: balance;
 }
 
+/* Tablet-only ergonomics, scoped away from the approved public site. */
+@media (pointer: coarse) {
+  :is(.admin-panel, .admin-detail) :is(button, input:not([type="checkbox"]):not([type="radio"]), select, [role="combobox"], summary) {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  :is(.admin-panel, .admin-detail) button {
+    white-space: normal;
+  }
+  :is(.admin-panel, .admin-detail) :is(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+
 @utility constellation {
   background-image: var(--pattern-constellation);
   background-size: 22px 22px;

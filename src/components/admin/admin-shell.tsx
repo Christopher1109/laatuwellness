@@ -33,14 +33,15 @@ export function AdminShell({
 }) {
   const [open, setOpen] = useState(false);
 
-  const activeLabel = groups.flatMap((g) => g.items).find((i) => i.key === active)?.label ?? title;
+  const activeLabel = groups.flatMap((g) => g.items).find((i) => i.key === active)?.label ??
+    (active === "check-in" ? "Check-in" : active === "panel-staff" ? "Panel de staff" : title);
 
   const Nav = (
-    <nav className="flex h-full flex-col">
+    <nav className="flex h-full min-h-0 flex-col">
       <div className="px-6 py-7">
         <Wordmark tone="ivory" variant="stack" className="h-10" />
       </div>
-      <div className="flex-1 space-y-6 overflow-y-auto px-3 pb-6">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-3 pb-6">
         {groups.map((g, gi) => (
           <div key={gi}>
             {g.label ? (
@@ -100,19 +101,19 @@ export function AdminShell({
   );
 
   return (
-    <div className="fixed inset-0 flex bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-foreground">
+    <div className="admin-panel fixed inset-0 flex overflow-hidden bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-foreground">
       {/* sidebar — desktop */}
-      <aside className="surface-dark hidden w-64 shrink-0 lg:block">{Nav}</aside>
+      <aside className="surface-dark hidden w-64 shrink-0 xl:block">{Nav}</aside>
 
       {/* sidebar — mobile drawer */}
       {open ? (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-40 xl:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
           <aside className="surface-dark absolute inset-y-0 left-0 w-72 max-w-[85vw] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))] text-foreground"
+              className="absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))] size-11 text-foreground"
               aria-label="Cerrar menú"
               onClick={() => setOpen(false)}
             >
@@ -123,17 +124,17 @@ export function AdminShell({
         </div>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-4 border-b border-border px-5 py-4 lg:px-8">
-          <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-b border-border px-4 py-3 md:px-6 xl:flex xl:px-8">
+          <Button variant="ghost" size="icon" className="size-11 shrink-0 xl:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
             <Menu className="h-5 w-5" />
           </Button>
           <div className="min-w-0">
             <p className="eyebrow">{subtitle ?? "Panel del estudio"}</p>
-            <h1 className="text-lg font-medium">{activeLabel}</h1>
+            <h1 className="break-words text-lg font-medium">{activeLabel}</h1>
           </div>
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto px-5 py-8 lg:px-8">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 md:px-6 md:py-6 xl:px-8">{children}</main>
       </div>
     </div>
   );

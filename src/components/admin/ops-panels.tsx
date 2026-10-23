@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
 import { describeError } from "@/lib/describe-error";
@@ -68,11 +69,11 @@ export function Popout({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="admin-detail fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
-        className={`max-h-[85vh] w-full ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto bg-background p-6`}
+        className={`max-h-[calc(100dvh-2rem)] w-full ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto overscroll-contain bg-background p-5 sm:p-6`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -2198,8 +2199,8 @@ export function CheckInPanel() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end gap-4">
-        <label className="min-w-[280px] text-xs">
+      <div className="mb-6 grid min-w-0 items-end gap-4 md:grid-cols-2">
+        <label className="min-w-0 text-xs">
           <span className="eyebrow">Clase (se selecciona sola según la hora)</span>
           <select value={classId} onChange={(e) => setClassId(e.target.value)} className={input}>
             {(classes ?? []).map((c) => (
@@ -2212,7 +2213,7 @@ export function CheckInPanel() {
             ))}
           </select>
         </label>
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
@@ -2234,30 +2235,30 @@ export function CheckInPanel() {
 
       <ul className="divide-y divide-border border-y border-border text-sm">
         {filteredRows.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div>
+          <li key={r.id} className="grid min-w-0 gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div className="min-w-0 break-words">
               <p>{r.profile?.full_name || "Sin nombre"}</p>
               <p className="text-muted-foreground">{r.profile?.email}</p>
             </div>
-            <div className="flex gap-2">
-              <button
+            <div className="grid shrink-0 grid-cols-3 gap-2">
+              <Button variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "a_tiempo" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] ${r.checkin?.status === "a_tiempo" ? "border-foreground bg-foreground text-background" : "border-input"}`}
               >
                 A tiempo
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "tarde" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] ${r.checkin?.status === "tarde" ? "border-foreground bg-foreground text-background" : "border-input"}`}
               >
                 Tarde
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "no_show" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] text-destructive ${r.checkin?.status === "no_show" ? "border-destructive bg-destructive text-background" : "border-input"}`}
               >
                 No-show
-              </button>
+              </Button>
             </div>
           </li>
         ))}
@@ -2449,24 +2450,24 @@ const STAFF_HOME_DESCRIPTIONS: Record<string, string> = {
 
 export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string, moduleKey?: string) => void }) {
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 py-6 sm:grid-cols-3">
+    <div className="mx-auto grid max-w-5xl gap-4 py-2 md:grid-cols-2 xl:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
-        <button
+        <Button variant="outline"
           key={key}
           type="button"
           onClick={() => onGoTo(key)}
-          className="group flex flex-col items-start gap-5 border border-border bg-background p-8 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground hover:shadow-md"
+          className="group grid h-auto min-h-44 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start justify-start gap-4 whitespace-normal border-border bg-background p-6 text-left md:min-h-48 xl:flex xl:flex-col xl:gap-5"
         >
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background transition-colors group-hover:bg-foreground/90">
             <Icon className="h-6 w-6" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-lg">{label}</p>
             <p className="mt-1.5 text-sm text-muted-foreground">
               {STAFF_HOME_DESCRIPTIONS[key] ?? ""}
             </p>
           </div>
-        </button>
+        </Button>
       ))}
     </div>
   );
