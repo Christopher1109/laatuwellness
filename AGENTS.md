@@ -16,3 +16,4 @@
 - Client purchase labels and package filters derive from completed transactions, not credit balances; this preserves purchased-package history independently of remaining credits and excludes unpaid/refunded sales.
 - Staff navigation is constrained by the shared admin-navigation access rule, with database roles enforcing data access independently of menu visibility.
 - Schedule hour entry uses a dedicated quick-entry control and the existing pending-template mutation, preserving month scope and explicit class publishing.
+- Direct password resets use one authenticated server function that verifies the caller through user_roles before resolving targets and invoking privileged Auth updates; reusable controls cover staff, coaches and clients without exposing or storing passwords.
