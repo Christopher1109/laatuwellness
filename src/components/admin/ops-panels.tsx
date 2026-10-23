@@ -1,4 +1,5 @@
 import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
+import { ScheduleHourEntry } from "@/components/admin/schedule-hour-entry";
 import { groupClientPurchases, matchesClientPurchaseFilter } from "@/lib/client-purchases";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreditLotsSummary } from "@/components/credit-lots";
@@ -6201,7 +6202,6 @@ export function SchedulePlannerPanel() {
   const qc = useQueryClient();
   const [moduleKey, setModuleKey] = useState<string>("reformer");
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
-  const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
   // Modo rápido: eliges un coach (o Rotación/Pendiente) y cada bloque que
   // tocas se asigna al instante, sin abrir el menú en cada uno.
@@ -6986,34 +6986,8 @@ export function SchedulePlannerPanel() {
         </table>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end gap-3">
-        <label className="text-xs">
-          <span className="eyebrow">Agregar hora nueva</span>
-          <input
-            type="time"
-            value={newTime}
-            onChange={(e) => setNewTime(e.target.value)}
-            className={`${input} w-32`}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={!newTime || addTimeRow.isPending}
-          onClick={() => {
-            const t = newTime.slice(0, 5);
-            setExtraTimes((prev) => (prev.includes(t) ? prev : [...prev, t]));
-            setNewTime("");
-            addTimeRow.mutate(t);
-          }}
-          className="border border-input px-4 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-50"
-        >
-          + Agregar renglón de hora
-        </button>
-        <p className="text-xs text-muted-foreground">
-          El renglón se guarda al instante y sigue ahí aunque salgas o refresques; asigna un coach
-          para que esa hora se publique como clase.
-        </p>
-      </div>
+      <ScheduleHourEntry key={`${moduleKey}:${monthKey}`} times={times} pending={addTimeRow.isPending}
+        onAdd={(time) => addTimeRow.mutate(time)} />
 
       <div className="mt-8 border-t border-border pt-6">
         <p className="eyebrow mb-2">¿Hasta cuándo aplicar este horario?</p>

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { canStaffAccessPanel } from "@/lib/admin-navigation";
 import { AdminShell, type AdminNavGroup } from "@/components/admin/admin-shell";
 import { AdminSchedulePanel } from "@/components/admin/schedule-calendar";
 import { KardexPanel } from "@/components/admin/kardex-panel";
@@ -150,6 +151,7 @@ function Admin() {
             {
               label: "Operación",
               items: [
+                 { key: "programacion", label: "Programación de clases", icon: CalendarDays },
                 { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
                 {
                   key: "horarios-consultorio",
@@ -162,10 +164,15 @@ function Admin() {
               ],
             },
             {
-              label: "Negocio",
-              items: [
-                { key: "clientes", label: "Clientes", icon: Contact },
+               label: "Personas",
+               items: [{ key: "clientes", label: "Clientes", icon: Contact }],
+             },
+             {
+               label: "Negocio",
+               items: [
                 { key: "paquetes", label: "Paquetes", icon: Tag },
+                 { key: "merch", label: "Merch", icon: PackageOpen },
+                 { key: "goodes", label: "Goddes´s", icon: Tag },
                 { key: "cupones", label: "Cupones", icon: Ticket },
               ],
             },
@@ -178,7 +185,9 @@ function Admin() {
   const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
-    active === "panel-staff" || groups.flatMap((g) => g.items).some((i) => i.key === active)
+    (isAdmin && active === "panel-staff") ||
+    (groups.flatMap((g) => g.items).some((i) => i.key === active) &&
+      (isAdmin || isCoach || canStaffAccessPanel(active)))
       ? active
       : firstKey;
 
