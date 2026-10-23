@@ -2,9 +2,9 @@
 
 # Faster schedule entry and staff access
 
-- [ ] Simplify adding schedule hours without changing schedule publishing rules.
-- [ ] Apply and test the requested staff navigation and verify staff access.
-- [ ] Identify the staff account; provide a safe password-reset path rather than disclose an unreadable password.
+- [x] Simplify adding schedule hours without changing schedule publishing rules; verified save and reload with staff5.
+- [x] Apply and test the requested staff navigation and verify real client reads with staff5.
+- [ ] Restore staff5 password access through the existing email recovery flow.
 
 # Client purchase labels
 
