@@ -2,7 +2,7 @@
 
 # Staff iPad check-in
 
-- [ ] Reconnect the staff tablet Check-in shortcut to the existing attendance panel and verify with the staff session.
+- [x] Reconnect the staff tablet Check-in shortcut to the existing attendance panel; verified opening with staff5 at iPad size and 8 access/navigation tests. No attendance record was changed; selected class had no reservations.
 
 # App team panel
 
