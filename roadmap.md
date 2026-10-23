@@ -2,8 +2,8 @@
 
 # App team panel
 
-- [ ] Open the shared web panel for admin, staff and coaches from the app, preserving existing role access.
-- [ ] Test role destinations and verify the installed-app entry and panel navigation with an authenticated session.
+- [x] Open the shared web panel for admin, staff and coaches from the app, preserving existing role access.
+- [x] Pass 7 navigation/access tests; verify installed-app entry with real admin, staff5 and coach sessions, mobile menu navigation and reload. Client session remains in the customer app; no purchases or bookings changed.
 
 # Administrator password reset
 
