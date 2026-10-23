@@ -1,5 +1,9 @@
 # SEO public content
 
+# iPad panel layout
+
+- [x] Adapt shared navigation, staff cards, attendance controls and class details for touch and tablet widths. Verified staff navigation, check-in, schedules and POS at 820×1180, 1180×820 and 1024×1366 without page overflow; 8 access tests pass and build OK. No purchases or attendance changed; no attendees available to verify attendance-row layout live.
+
 # Staff iPad check-in
 
 - [x] Reconnect the staff tablet Check-in shortcut to the existing attendance panel; verified opening with staff5 at iPad size and 8 access/navigation tests. No attendance record was changed; selected class had no reservations.

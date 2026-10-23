@@ -870,9 +870,9 @@ function ClassDetailDrawer({
   const avatar = cls ? coachAvatar(cls.instructor) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+    <div className="admin-detail fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <div
-        className="h-full w-full max-w-[min(60rem,96vw)] overflow-y-auto bg-background p-6 lg:p-9"
+        className="h-full w-full max-w-[min(60rem,100vw)] overflow-y-auto overscroll-contain bg-background p-4 sm:p-6 lg:p-9"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between border-b border-border pb-4">
@@ -1039,7 +1039,7 @@ function ClassDetailDrawer({
 
         {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
 
-        <div className="mb-6 grid gap-6 sm:grid-cols-3">
+        <div className="mb-6 grid min-w-0 gap-6 lg:grid-cols-2">
           <div>
             <p className="eyebrow mb-2">Reservaciones</p>
             <div className="space-y-1.5">
