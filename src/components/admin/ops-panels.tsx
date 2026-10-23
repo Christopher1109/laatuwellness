@@ -1,4 +1,5 @@
 import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
+import { PasswordResetControl } from "@/components/admin/password-reset";
 import { ScheduleHourEntry } from "@/components/admin/schedule-hour-entry";
 import { groupClientPurchases, matchesClientPurchaseFilter } from "@/lib/client-purchases";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -2381,7 +2382,8 @@ export function StaffDirectoryPanel() {
                 {s.user_id ? "" : " · aún no ha iniciado sesión"}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <PasswordResetControl targetId={s.id} targetKind="staff" name={s.full_name} email={s.email} />
               <select
                 value={s.role}
                 onChange={(e) =>
@@ -3459,6 +3461,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
           <div className="flex flex-wrap gap-2">
             {isAdmin ? (
               <>
+                {profile ? <PasswordResetControl targetId={clientId} targetKind="client" name={profile.full_name || "Cliente"} email={profile.email} /> : null}
                 <button
                   onClick={() => setEditing(true)}
                   disabled={!profile}
@@ -7118,6 +7121,9 @@ export function CoachesPanel() {
               >
                 Editar
               </button>
+              <div className="mt-2">
+                <PasswordResetControl targetId={c.id} targetKind="staff" name={c.full_name} email={c.email} />
+              </div>
             </div>
           ))}
         </div>
