@@ -4,7 +4,7 @@
 
 - [x] Simplify adding schedule hours without changing schedule publishing rules; verified save and reload with staff5.
 - [x] Apply and test the requested staff navigation and verify real client reads with staff5.
-- [ ] Restore staff5 password access through the existing email recovery flow.
+- [ ] Complete staff5 password recovery: request accepted, but the email link must be opened by the mailbox owner; current password cannot be retrieved.
 
 # Client purchase labels
 
