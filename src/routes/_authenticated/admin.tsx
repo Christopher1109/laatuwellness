@@ -185,7 +185,7 @@ function Admin() {
   const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
-    (isAdmin && active === "panel-staff") ||
+    ((isAdmin || (isStaff && !isCoach)) && active === "panel-staff") ||
     (groups.flatMap((g) => g.items).some((i) => i.key === active) &&
       (isAdmin || isCoach || canStaffAccessPanel(active)))
       ? active
