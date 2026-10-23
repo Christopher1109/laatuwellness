@@ -7,7 +7,23 @@ import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, ShoppingCart, Users, ClipboardCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  ClipboardCheck,
+  Mail,
+  Pencil,
+  Phone,
+  Receipt,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  ShoppingCart,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { deleteClient, updateClientProfile } from "@/utils/client-admin.functions";
 import {
   CartesianGrid,
   Legend,
@@ -3000,12 +3016,228 @@ const CLIENT_TABS: { key: ClientTab; label: string }[] = [
   { key: "notas", label: "Notas" },
 ];
 
+const fmtLongDate = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Monterrey",
+  }).format(new Date(iso));
+
+function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string | undefined }) {
+  return (
+    <div className="border border-border bg-background p-4">
+      <p className="eyebrow">{label}</p>
+      <p className="mt-2 text-2xl leading-none">{value}</p>
+      {hint ? <p className="mt-2 text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  text,
+  action,
+}: {
+  icon: typeof Calendar;
+  title: string;
+  text: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center border border-dashed border-border px-6 py-12 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <p className="mt-4 text-sm">{title}</p>
+      <p className="mt-1 max-w-sm text-xs text-muted-foreground">{text}</p>
+      {action ? <div className="mt-5">{action}</div> : null}
+    </div>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: typeof Mail; label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">
+        <p className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <p className="mt-0.5 break-words text-sm">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function EditClientPopout({
+  profile,
+  onClose,
+  onSaved,
+}: {
+  profile: Tables<"profiles">;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const updateFn = useServerFn(updateClientProfile);
+  const [fullName, setFullName] = useState(profile.full_name ?? "");
+  const [email, setEmail] = useState(profile.email ?? "");
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const save = useMutation({
+    mutationFn: () =>
+      updateFn({ data: { clientId: profile.id, fullName, email, phone } }),
+    onSuccess: () => {
+      toast.success("Datos del cliente actualizados.");
+      onSaved();
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudieron guardar los cambios.")),
+  });
+  const emailChanged = email.trim().toLowerCase() !== (profile.email ?? "").toLowerCase();
+
+  return (
+    <Popout onClose={onClose}>
+      <p className="eyebrow">Editar cliente</p>
+      <p className="mt-1 text-lg">{profile.full_name || "Sin nombre"}</p>
+      <form
+        className="mt-6 space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <label className="block">
+          <span className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+            Nombre completo
+          </span>
+          <input
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className={`${input} mt-1`}
+            required
+          />
+        </label>
+        <label className="block">
+          <span className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+            Correo
+          </span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={`${input} mt-1`}
+            required
+          />
+          {emailChanged ? (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              El cliente tendrá que iniciar sesión con este nuevo correo.
+            </span>
+          ) : null}
+        </label>
+        <label className="block">
+          <span className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+            Teléfono
+          </span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className={`${input} mt-1`}
+            placeholder="81 1234 5678"
+          />
+        </label>
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={save.isPending}
+            className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-40"
+          >
+            {save.isPending ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+      </form>
+    </Popout>
+  );
+}
+
+function DeleteClientPopout({
+  profile,
+  onClose,
+  onDeleted,
+}: {
+  profile: Tables<"profiles">;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const deleteFn = useServerFn(deleteClient);
+  const [confirmText, setConfirmText] = useState("");
+  const remove = useMutation({
+    mutationFn: () => deleteFn({ data: { clientId: profile.id } }),
+    onSuccess: () => {
+      toast.success("Cliente eliminado.");
+      onDeleted();
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo borrar al cliente.")),
+  });
+  const ready = confirmText.trim().toUpperCase() === "BORRAR";
+
+  return (
+    <Popout onClose={onClose}>
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10">
+        <Trash2 className="h-5 w-5 text-destructive" />
+      </div>
+      <p className="mt-4 text-lg">Borrar a {profile.full_name || profile.email}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Se elimina su cuenta junto con sus reservaciones, créditos y notas. Esta acción no se puede
+        deshacer. Si el cliente ya tiene compras pagadas no se podrá borrar, para no alterar las
+        finanzas del estudio.
+      </p>
+      <label className="mt-5 block">
+        <span className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+          Escribe BORRAR para confirmar
+        </span>
+        <input
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          className={`${input} mt-1`}
+          autoFocus
+        />
+      </label>
+      <div className="mt-6 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          disabled={!ready || remove.isPending}
+          onClick={() => remove.mutate()}
+          className="bg-destructive px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-destructive-foreground disabled:opacity-40"
+        >
+          {remove.isPending ? "Borrando…" : "Borrar cliente"}
+        </button>
+      </div>
+    </Popout>
+  );
+}
+
 function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const { isAdmin } = useAuth();
   const [tab, setTab] = useState<ClientTab>("reservaciones");
   const [showPackages, setShowPackages] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ["client-detail-profile", clientId],
@@ -3020,6 +3252,18 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     },
   });
 
+  const { data: waiverSigned } = useQuery({
+    queryKey: ["client-detail-waiver", clientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("waiver_signatures")
+        .select("user_id")
+        .eq("user_id", clientId)
+        .limit(1);
+      return (data ?? []).length > 0;
+    },
+  });
+
   const { data: reservations } = useQuery({
     queryKey: ["client-detail-bookings", clientId],
     queryFn: async () => {
@@ -3028,7 +3272,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
         .select("*")
         .eq("user_id", clientId)
         .order("created_at", { ascending: false })
-        .limit(60);
+        .limit(200);
       if (error) throw error;
       const classIds = (bookings ?? []).map((b) => b.class_id);
       const { data: classes } = classIds.length
@@ -3108,10 +3352,45 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     },
     onSuccess: () => {
       toast.success("Notas guardadas.");
+      setNotesDraft(null);
       void qc.invalidateQueries({ queryKey: ["client-detail-profile", clientId] });
     },
     onError: () => toast.error("No se pudieron guardar las notas."),
   });
+
+  const stats = useMemo(() => {
+    const rows = reservations ?? [];
+    let attended = 0;
+    let noShow = 0;
+    let cancelled = 0;
+    let lastVisit: string | null = null;
+    let nextClass: string | null = null;
+    const now = Date.now();
+    for (const r of rows) {
+      const st = r.checkin?.status;
+      if (r.status === "cancelada") cancelled += 1;
+      if (st === "a_tiempo" || st === "tarde") {
+        attended += 1;
+        const at = r.cls?.starts_at;
+        if (at && (!lastVisit || at > lastVisit)) lastVisit = at;
+      }
+      if (st === "no_show") noShow += 1;
+      const at = r.cls?.starts_at;
+      if (
+        at &&
+        r.status !== "cancelada" &&
+        r.status !== "lista_espera" &&
+        new Date(at).getTime() > now &&
+        (!nextClass || at < nextClass)
+      ) {
+        nextClass = at;
+      }
+    }
+    const paid = (purchases ?? [])
+      .filter((t) => t.status === "completed")
+      .reduce((sum, t) => sum + t.amount_cents, 0);
+    return { attended, noShow, cancelled, lastVisit, nextClass, paid };
+  }, [reservations, purchases]);
 
   const initials = (profile?.full_name || profile?.email || "")
     .split(" ")
@@ -3120,206 +3399,353 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
     .map((p) => p[0]?.toUpperCase())
     .join("");
 
+  const tabCounts: Partial<Record<ClientTab, number>> = {
+    reservaciones: (reservations ?? []).length,
+    compras: (purchases ?? []).length,
+  };
+
+  const refreshProfile = () => {
+    void qc.invalidateQueries({ queryKey: ["client-detail-profile", clientId] });
+    void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+  };
+
   return (
     <div>
-      <div>
-        <button
-          onClick={onClose}
-          className="mb-6 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
-        >
-          ← Volver a clientes
-        </button>
-        <div className="mb-6 max-w-md">
-          <MembershipStatusCard userId={clientId} staffView />
-          <div className="mt-3">
-            <CreditLotsSummary userId={clientId} />
-          </div>
-        </div>
+      <button
+        onClick={onClose}
+        className="mb-6 inline-flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" /> Volver a clientes
+      </button>
 
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center bg-muted text-lg text-muted-foreground">
-              {initials}
+      {/* Encabezado: identidad del cliente + acciones */}
+      <div className="border border-border bg-muted/40 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="flex min-w-0 items-center gap-5">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-foreground text-xl tracking-wide text-background">
+              {initials || "?"}
             </div>
-            <div>
-              <p className="text-lg font-medium">{profile?.full_name || "Sin nombre"}</p>
-              <p className="text-sm text-muted-foreground">
-                {profile?.email}
-                {profile?.phone ? ` · ${profile.phone}` : ""}
-              </p>
+            <div className="min-w-0">
+              <p className="truncate text-2xl">{profile?.full_name || "Sin nombre"}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem]",
+                    waiverSigned ? TONE_CLASSES["green"] : TONE_CLASSES["amber"],
+                  )}
+                >
+                  {waiverSigned ? (
+                    <ShieldCheck className="h-3 w-3" />
+                  ) : (
+                    <ShieldAlert className="h-3 w-3" />
+                  )}
+                  {waiverSigned ? "Waiver firmado" : "Sin waiver"}
+                </span>
+                {profile?.created_at ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[0.65rem]",
+                      TONE_CLASSES["muted"],
+                    )}
+                  >
+                    Cliente desde {fmtLongDate(profile.created_at)}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex flex-wrap gap-2">
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  disabled={!profile}
+                  className="inline-flex items-center gap-2 border border-input bg-background px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted disabled:opacity-40"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </button>
+                <button
+                  onClick={() => setDeleting(true)}
+                  disabled={!profile}
+                  className="inline-flex items-center gap-2 border border-destructive/40 bg-background px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Borrar
+                </button>
+              </>
+            ) : null}
             <button
-              onClick={() => setTab("compras")}
-              className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
+              onClick={() => {
+                setTab("creditos");
+                setShowPackages(true);
+              }}
+              className="inline-flex items-center gap-2 bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background"
             >
-              Ver compras
-            </button>
-            <button
-              onClick={() => setTab("creditos")}
-              className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background"
-            >
-              Comprar créditos
+              <ShoppingCart className="h-3.5 w-3.5" /> Comprar créditos
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex gap-6 border-b border-border">
-          {CLIENT_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "border-b-2 pb-3 text-[0.72rem] uppercase tracking-[0.12em]",
-                tab === t.key
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* Resumen rápido */}
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Créditos" value={balance ?? 0} hint="Disponibles hoy" />
+        <StatTile label="Asistencias" value={stats.attended} />
+        <StatTile label="No-shows" value={stats.noShow} />
+        <StatTile label="Cancelaciones" value={stats.cancelled} />
+        <StatTile label="Total pagado" value={money(stats.paid)} />
+        <StatTile
+          label="Última visita"
+          value={stats.lastVisit ? fmtShortDate(stats.lastVisit) : "—"}
+          hint={stats.nextClass ? `Próxima: ${fmtShortDate(stats.nextClass)}` : undefined}
+        />
+      </div>
 
-        <div className="py-8">
-          {tab === "reservaciones" ? (
-            <div>
-              <p className="mb-4 eyebrow">Historial de reservaciones</p>
-              <div className="space-y-1.5">
-                {(reservations ?? []).map((r) => {
-                  const { label, tone } = bookingStatusTone(r.status, r.checkin?.status);
-                  return (
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Columna principal: pestañas */}
+        <div className="min-w-0">
+          <div className="flex gap-6 overflow-x-auto border-b border-border">
+            {CLIENT_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  "shrink-0 border-b-2 pb-3 text-[0.72rem] uppercase tracking-[0.12em]",
+                  tab === t.key
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t.label}
+                {tabCounts[t.key] ? (
+                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[0.6rem] text-muted-foreground">
+                    {tabCounts[t.key]}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          <div className="py-6">
+            {tab === "reservaciones" ? (
+              (reservations ?? []).length === 0 ? (
+                <EmptyState
+                  icon={Calendar}
+                  title="Sin reservaciones todavía"
+                  text="Cuando el cliente reserve una clase aparecerá aquí, con su asistencia y lugar."
+                />
+              ) : (
+                <div className="space-y-1.5">
+                  {(reservations ?? []).map((r) => {
+                    const { label, tone } = bookingStatusTone(r.status, r.checkin?.status);
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate">
+                            {r.cls
+                              ? new Intl.DateTimeFormat("es-MX", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                  timeZone: "America/Monterrey",
+                                }).format(new Date(r.cls.starts_at))
+                              : ""}
+                            {r.seat_number ? (
+                              <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
+                                {r.seat_number}
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
+                          </p>
+                        </div>
+                        <span className={cn("shrink-0 px-2 py-1 text-[0.62rem]", TONE_CLASSES[tone])}>
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : null}
+
+            {tab === "compras" ? (
+              (purchases ?? []).length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="Sin compras registradas"
+                  text="Aquí verás los paquetes y membresías que el cliente haya pagado."
+                  action={
+                    <button
+                      onClick={() => {
+                        setTab("creditos");
+                        setShowPackages(true);
+                      }}
+                      className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background"
+                    >
+                      Vender un paquete
+                    </button>
+                  }
+                />
+              ) : (
+                <div className="space-y-1.5">
+                  {(purchases ?? []).map((t) => (
                     <div
-                      key={r.id}
+                      key={t.id}
                       className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
                     >
                       <div className="min-w-0">
-                        <p className="truncate">
-                          {r.cls
-                            ? new Intl.DateTimeFormat("es-MX", {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                              }).format(new Date(r.cls.starts_at))
-                            : ""}
-                          {r.seat_number ? (
-                            <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
-                              {r.seat_number}
-                            </span>
-                          ) : null}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
+                        <p className="truncate">{t.plan?.name ?? "Compra"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Intl.DateTimeFormat("es-MX", {
+                            dateStyle: "medium",
+                            timeZone: "America/Monterrey",
+                          }).format(new Date(t.created_at))}{" "}
+                          · {t.payment_method}
                         </p>
                       </div>
-                      <span className={cn("shrink-0 px-2 py-1 text-[0.62rem]", TONE_CLASSES[tone])}>
-                        {label}
+                      <span className="shrink-0 text-right text-xs text-muted-foreground">
+                        {money(t.amount_cents)}
+                        <br />+{t.tokens} créditos
                       </span>
                     </div>
-                  );
-                })}
-                {(reservations ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin reservaciones todavía.</p>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {tab === "compras" ? (
-            <div>
-              <p className="mb-4 eyebrow">Historial de compras</p>
-              <div className="space-y-1.5">
-                {(purchases ?? []).map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate">{t.plan?.name ?? "Compra"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
-                          new Date(t.created_at),
-                        )}{" "}
-                        · {t.payment_method}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-right text-xs text-muted-foreground">
-                      {money(t.amount_cents)}
-                      <br />+{t.tokens} créditos
-                    </span>
-                  </div>
-                ))}
-                {(purchases ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin compras registradas.</p>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {tab === "creditos" ? (
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-4 border border-border p-6">
-                <div>
-                  <p className="eyebrow">Créditos activos</p>
-                  <p className="mt-1 text-4xl">{balance ?? 0}</p>
+                  ))}
                 </div>
+              )
+            ) : null}
+
+            {tab === "creditos" ? (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-4 border border-border p-6">
+                  <div>
+                    <p className="eyebrow">Créditos activos</p>
+                    <p className="mt-1 text-4xl">{balance ?? 0}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowPackages((v) => !v)}
+                    className="bg-foreground px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-background"
+                  >
+                    {showPackages ? "Ocultar paquetes" : "Comprar paquete"}
+                  </button>
+                </div>
+
+                {showPackages ? (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {(plans ?? []).filter((p) => isPlanInSaleWindow(p)).map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {money(p.price_cents)} · {p.tokens} créditos
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setPendingPlan(p)}
+                          className="shrink-0 bg-foreground px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.1em] text-background"
+                        >
+                          Comprar
+                        </button>
+                      </div>
+                    ))}
+                    {(plans ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Sin paquetes publicados.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {tab === "notas" ? (
+              <div>
+                <p className="mb-4 eyebrow">Notas internas del staff</p>
+                <textarea
+                  key={profile?.id}
+                  defaultValue={profile?.admin_notes ?? ""}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                  rows={8}
+                  placeholder="Alergias, preferencias, incidentes, lo que sea útil para el equipo…"
+                  className={input}
+                />
                 <button
-                  onClick={() => setShowPackages((v) => !v)}
-                  className="bg-foreground px-5 py-2.5 text-[0.68rem] uppercase tracking-[0.14em] text-background"
+                  disabled={notesDraft === null || saveNotes.isPending}
+                  onClick={() => notesDraft !== null && saveNotes.mutate(notesDraft)}
+                  className="mt-3 bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-40"
                 >
-                  Comprar paquete
+                  Guardar notas
                 </button>
               </div>
+            ) : null}
+          </div>
+        </div>
 
-              {showPackages ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {(plans ?? []).filter((p) => isPlanInSaleWindow(p)).map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {money(p.price_cents)} · {p.tokens} créditos
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setPendingPlan(p)}
-                        className="shrink-0 bg-foreground px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.1em] text-background"
-                      >
-                        Comprar
-                      </button>
-                    </div>
-                  ))}
-                  {(plans ?? []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin paquetes publicados.</p>
-                  ) : null}
-                </div>
+        {/* Columna lateral: contacto, membresía y notas */}
+        <aside className="space-y-4">
+          <div className="border border-border p-5">
+            <div className="flex items-center justify-between">
+              <p className="eyebrow">Contacto</p>
+              {isAdmin && profile ? (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground"
+                >
+                  Editar
+                </button>
               ) : null}
             </div>
-          ) : null}
-
-          {tab === "notas" ? (
-            <div>
-              <p className="mb-4 eyebrow">Notas internas del staff</p>
-              <textarea
-                defaultValue={profile?.admin_notes ?? ""}
-                onChange={(e) => setNotesDraft(e.target.value)}
-                rows={8}
-                placeholder="Alergias, preferencias, incidentes, lo que sea útil para el equipo…"
-                className={input}
+            <div className="mt-1 divide-y divide-border">
+              <InfoRow
+                icon={Mail}
+                label="Correo"
+                value={
+                  profile?.email ? (
+                    <a href={`mailto:${profile.email}`} className="hover:underline">
+                      {profile.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )
+                }
               />
+              <InfoRow
+                icon={Phone}
+                label="Teléfono"
+                value={
+                  profile?.phone ? (
+                    <a href={`tel:${profile.phone}`} className="hover:underline">
+                      {profile.phone}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">Sin teléfono</span>
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <MembershipStatusCard userId={clientId} staffView />
+          <CreditLotsSummary userId={clientId} />
+
+          <div className="border border-border p-5">
+            <div className="flex items-center justify-between">
+              <p className="eyebrow">Notas</p>
               <button
-                disabled={notesDraft === null || saveNotes.isPending}
-                onClick={() => notesDraft !== null && saveNotes.mutate(notesDraft)}
-                className="mt-3 bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.12em] text-background disabled:opacity-40"
+                onClick={() => setTab("notas")}
+                className="text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground"
               >
-                Guardar notas
+                {profile?.admin_notes ? "Ver" : "Agregar"}
               </button>
             </div>
-          ) : null}
-        </div>
+            <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm text-muted-foreground">
+              {profile?.admin_notes || "Sin notas del staff."}
+            </p>
+          </div>
+        </aside>
       </div>
 
       {pendingPlan ? (
@@ -3331,6 +3757,28 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
             setPendingPlan(null);
             setShowPackages(false);
             setTab("compras");
+          }}
+        />
+      ) : null}
+
+      {editing && profile ? (
+        <EditClientPopout
+          profile={profile}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            refreshProfile();
+          }}
+        />
+      ) : null}
+
+      {deleting && profile ? (
+        <DeleteClientPopout
+          profile={profile}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => {
+            setDeleting(false);
+            onClose();
           }}
         />
       ) : null}
@@ -5755,6 +6203,12 @@ export function SchedulePlannerPanel() {
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [newTime, setNewTime] = useState("");
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
+  // Modo rápido: eliges un coach (o Rotación/Pendiente) y cada bloque que
+  // tocas se asigna al instante, sin abrir el menú en cada uno.
+  const [brush, setBrush] = useState<string | null>(null);
+  // Hasta dónde se publica: por default solo la semana que estás viendo.
+  const [publishScope, setPublishScope] = useState<"week" | "month" | "until">("week");
+  const [publishUntil, setPublishUntil] = useState("");
   // Navegación solo por semanas; al cruzar al mes siguiente el patrón
   // cambia al de ese mes (las horas se heredan, los coaches no).
   const [weekCursor, setWeekCursor] = useState<Date>(() => startOfIsoWeek(new Date()));
@@ -5954,12 +6408,50 @@ export function SchedulePlannerPanel() {
   const coachName = (id: string | null) =>
     (coaches ?? []).find((c) => c.id === id)?.full_name ?? "";
 
+  // Horas que solo se muestran heredadas del mes anterior (aún no guardadas
+  // en este mes).
+  const inheritedTimes = useMemo(
+    () =>
+      (templates ?? []).length === 0
+        ? Array.from(new Set((prevTemplates ?? []).map((t) => t.start_time.slice(0, 5))))
+        : [],
+    [templates, prevTemplates],
+  );
+
   const times = useMemo(() => {
     const own = (templates ?? []).map((t) => t.start_time.slice(0, 5));
-    const inherited =
-      own.length === 0 ? (prevTemplates ?? []).map((t) => t.start_time.slice(0, 5)) : [];
-    return Array.from(new Set([...own, ...inherited, ...extraTimes])).sort();
-  }, [templates, prevTemplates, extraTimes]);
+    return Array.from(new Set([...own, ...inheritedTimes, ...extraTimes])).sort();
+  }, [templates, inheritedTimes, extraTimes]);
+
+  const moduleRoom = SCHEDULE_MODULES.find((m) => m.key === moduleKey)?.label ?? "";
+  const pendingRow = (weekday: number, time: string, month: string) => ({
+    module_key: moduleKey,
+    weekday,
+    start_time: `${time}:00`,
+    month,
+    coach_id: null,
+    is_rotation: false,
+    active: false,
+    room: moduleRoom,
+    capacity: moduleKey === "rehabilitacion" ? 1 : 10,
+    duration_min: moduleKey === "rehabilitacion" ? 40 : 50,
+  });
+
+  // Antes de guardar el primer bloque de un mes nuevo, se guardan como
+  // "Pendiente" todas las horas heredadas; si no, al asignar la primera
+  // persona desaparecían las demás horas de la cuadrícula.
+  const materializeInherited = async () => {
+    const pending = [...inheritedTimes, ...extraTimes];
+    if ((templates ?? []).length > 0 || pending.length === 0) return;
+    const rows = pending.flatMap((time) =>
+      Array.from({ length: 7 }, (_, weekday) => pendingRow(weekday, time, monthKey)),
+    );
+    const { error } = await (supabase.from as any)("schedule_templates").upsert(rows, {
+      onConflict: "module_key,weekday,start_time,month",
+      ignoreDuplicates: true,
+    });
+    if (error) throw error;
+  };
 
   const cellFor = (weekday: number, time: string) =>
     (templates ?? []).find((t) => t.weekday === weekday && t.start_time.slice(0, 5) === time);
@@ -5974,6 +6466,7 @@ export function SchedulePlannerPanel() {
       coach_id: string | null;
       is_rotation: boolean;
     }) => {
+      await materializeInherited();
       const { error } = await (supabase.from as any)("schedule_templates").upsert(
         {
           module_key: moduleKey,
@@ -5993,6 +6486,7 @@ export function SchedulePlannerPanel() {
     },
     onSuccess: () => {
       setEditingCell(null);
+      setExtraTimes([]);
       invalidateTemplates();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -6011,6 +6505,7 @@ export function SchedulePlannerPanel() {
 
   const addTimeRow = useMutation({
     mutationFn: async (time: string) => {
+      await materializeInherited();
       const rows = Array.from({ length: 7 }, (_, weekday) => ({
         module_key: moduleKey,
         weekday,
@@ -6055,30 +6550,92 @@ export function SchedulePlannerPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo eliminar la hora."),
   });
 
-  // La actualización cubre únicamente el mes que estás viendo (desde hoy si
-  // el mes ya empezó). Los demás meses no se tocan.
+  // Rango a publicar según lo que elijan: solo la semana que se ve (default),
+  // el mes completo, o hasta una fecha. Nunca hacia atrás de hoy.
   const updateRange = useMemo(() => {
-    const monthEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    let from = monthCursor;
+    let from: Date;
+    let to: Date;
+    if (publishScope === "month") {
+      from = monthCursor;
+      to = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+    } else if (publishScope === "until" && publishUntil) {
+      from = weekStart;
+      const [y, m, d] = publishUntil.split("-").map(Number);
+      to = new Date(y!, (m ?? 1) - 1, d ?? 1);
+    } else {
+      from = weekStart;
+      to = addDays(weekStart, 6);
+    }
     if (from < today) from = today;
-    const to = monthEnd;
     return { from, to, valid: to >= from };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthCursor]);
+  }, [monthKey, ymd(weekStart), publishScope, publishUntil]);
 
   const publish = useMutation({
     mutationFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("publish_schedule_range", {
-        _module_key: moduleKey,
-        _from: ymd(updateRange.from),
-        _to: ymd(updateRange.to),
-      });
-      if (error) throw error;
-      return data as number;
+      // El horario se guarda por mes; el rango se publica mes por mes. Si un
+      // mes del rango todavía no tiene horario, se le copia el de este mes
+      // (con coaches) para que se repita tal cual.
+      await materializeInherited();
+      let touched = 0;
+      let cursor = new Date(updateRange.from);
+      while (cursor <= updateRange.to) {
+        const segMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        const segMonthKey = ymd(segMonth);
+        const segEndOfMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+        const segEnd = segEndOfMonth < updateRange.to ? segEndOfMonth : updateRange.to;
+
+        if (segMonthKey !== monthKey) {
+          const { count, error: countError } = await (supabase.from as any)("schedule_templates")
+            .select("id", { count: "exact", head: true })
+            .eq("module_key", moduleKey)
+            .eq("month", segMonthKey);
+          if (countError) throw countError;
+          // Fuera de "Hasta una fecha" no se llena un mes que todavía no se
+          // programa; solo se omite esa parte para no borrar sus clases.
+          if ((count ?? 0) === 0 && publishScope !== "until") {
+            cursor = addDays(segEnd, 1);
+            continue;
+          }
+          if ((count ?? 0) === 0) {
+            const { data: source, error: sourceError } = await (supabase.from as any)(
+              "schedule_templates",
+            )
+              .select("weekday, start_time, coach_id, is_rotation, active, room, capacity, duration_min")
+              .eq("module_key", moduleKey)
+              .eq("month", monthKey);
+            if (sourceError) throw sourceError;
+            const copies = ((source ?? []) as Omit<TemplateRow, "id" | "module_key">[]).map(
+              (t) => ({ ...t, module_key: moduleKey, month: segMonthKey }),
+            );
+            if (copies.length > 0) {
+              const { error: copyError } = await (supabase.from as any)(
+                "schedule_templates",
+              ).upsert(copies, {
+                onConflict: "module_key,weekday,start_time,month",
+                ignoreDuplicates: true,
+              });
+              if (copyError) throw copyError;
+            }
+          }
+        }
+
+        const { data, error } = await (supabase.rpc as any)("publish_schedule_range", {
+          _module_key: moduleKey,
+          _from: ymd(cursor),
+          _to: ymd(segEnd),
+        });
+        if (error) throw error;
+        touched += Number(data ?? 0);
+        cursor = addDays(segEnd, 1);
+      }
+      return touched;
     },
     onSuccess: (touched) => {
       toast.success(`Listo: ${touched} clases actualizadas y visibles para reservar.`);
+      invalidateTemplates();
+      void qc.invalidateQueries({ queryKey: ["schedule-templates", moduleKey] });
       void qc.invalidateQueries({ queryKey: ["admin-classes"] });
       void qc.invalidateQueries({ queryKey: ["classes"] });
     },
@@ -6086,7 +6643,7 @@ export function SchedulePlannerPanel() {
   });
 
   const rangeLabel = () => {
-    const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
+    const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric" });
     return `${f.format(updateRange.from)} – ${f.format(updateRange.to)}`;
   };
 
@@ -6164,11 +6721,74 @@ export function SchedulePlannerPanel() {
         Muévete semana por semana con las flechas, incluso al mes siguiente. Las horas se respetan
         de un mes a otro, pero los coaches no se repiten: cada mes nuevo empieza con los espacios en
         blanco para que los asignes. Cuando termines, dale a "Actualizar clases" para aplicar los
-        cambios a las clases reales de ese mes. Toca el nombre de un día para bloquearlo (cerrado:
+        cambios. Para ir más rápido usa la "Asignación rápida": eliges un coach y cada bloque que
+        tocas queda asignado al instante. Toca el nombre de un día para bloquearlo (cerrado:
         ese día no se publica nada), y usa "Ocultar" para quitar todo un programa de la página y de
         la app. Para quitar una sola clase de una sola semana, toca el bloque y elige "Bloquear solo
         el…": las demás semanas siguen igual.
       </p>
+
+      <div className="mb-3 border border-border p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow mr-1">Asignación rápida</span>
+          <button
+            type="button"
+            onClick={() => setBrush(null)}
+            className={cn(
+              "border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em]",
+              brush === null ? "border-foreground bg-foreground text-background" : "border-input hover:bg-muted",
+            )}
+          >
+            Apagada
+          </button>
+          {(coaches ?? []).map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setBrush(brush === c.id ? null : c.id)}
+              className={cn(
+                "px-3 py-1.5 text-[0.7rem] ring-offset-2 ring-offset-background",
+                colorForCoach(c.id, false, coachIds),
+                brush === c.id && "ring-2 ring-foreground",
+              )}
+            >
+              {c.full_name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setBrush(brush === "__rot" ? null : "__rot")}
+            className={cn(
+              "px-3 py-1.5 text-[0.7rem] ring-offset-2 ring-offset-background",
+              colorForCoach(null, true, coachIds),
+              brush === "__rot" && "ring-2 ring-foreground",
+            )}
+          >
+            Rotación
+          </button>
+          <button
+            type="button"
+            onClick={() => setBrush(brush === "__pending" ? null : "__pending")}
+            className={cn(
+              "border border-dashed border-input px-3 py-1.5 text-[0.7rem] text-muted-foreground ring-offset-2 ring-offset-background",
+              brush === "__pending" && "ring-2 ring-foreground",
+            )}
+          >
+            Pendiente
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {brush
+            ? `Toca los bloques para asignar ${
+                brush === "__rot"
+                  ? "Rotación"
+                  : brush === "__pending"
+                    ? "Pendiente"
+                    : coachName(brush)
+              }. Se guarda al instante; apágala para volver al menú de cada bloque.`
+            : "Elige un coach y toca los bloques para asignarlo uno por uno sin abrir el menú."}
+        </p>
+      </div>
 
       <div className="overflow-x-auto border border-border">
         <table className="w-full min-w-[900px] table-fixed text-sm">
@@ -6309,7 +6929,18 @@ export function SchedulePlannerPanel() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setEditingCell({ weekday, time })}
+                          onClick={() => {
+                            if (brush && !dayClosed) {
+                              upsert.mutate({
+                                weekday,
+                                time,
+                                coach_id: brush === "__rot" || brush === "__pending" ? null : brush,
+                                is_rotation: brush === "__rot",
+                              });
+                              return;
+                            }
+                            setEditingCell({ weekday, time });
+                          }}
                           className={cn(
                             "flex h-12 w-full items-center justify-center overflow-hidden px-1 text-center text-[0.7rem] leading-tight transition-opacity hover:opacity-80",
                             colorForCoach(
@@ -6384,19 +7015,66 @@ export function SchedulePlannerPanel() {
         </p>
       </div>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6">
+      <div className="mt-8 border-t border-border pt-6">
+        <p className="eyebrow mb-2">¿Hasta cuándo aplicar este horario?</p>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["week", "Solo esta semana"],
+              ["month", "Todo el mes"],
+              ["until", "Hasta una fecha"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPublishScope(key)}
+              className={cn(
+                "border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em]",
+                publishScope === key
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-input hover:bg-muted",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          {publishScope === "until" ? (
+            <input
+              type="date"
+              value={publishUntil}
+              min={ymd(addDays(weekStart, 6))}
+              onChange={(e) => setPublishUntil(e.target.value)}
+              className={`${input} w-44`}
+              aria-label="Aplicar hasta"
+            />
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => publish.mutate()}
-          disabled={publish.isPending || !updateRange.valid}
+          disabled={
+            publish.isPending ||
+            !updateRange.valid ||
+            (publishScope === "until" && !publishUntil)
+          }
           className="bg-foreground px-5 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
           {publish.isPending ? "Actualizando…" : "Actualizar clases"}
         </button>
         <p className="max-w-md text-xs text-muted-foreground">
-          {updateRange.valid
-            ? `Se aplicará solo a las clases de ${monthLabel} (${rangeLabel()}) y quedarán disponibles para reservar en la página y la app. Ningún otro mes se modifica.`
-            : "Este mes ya pasó: muévete al mes actual o a uno futuro para actualizar."}
+          {publishScope === "until" && !publishUntil
+            ? "Elige la fecha hasta la que se repetirá este horario."
+            : updateRange.valid
+              ? `Se aplicará a las clases del ${rangeLabel()} y quedarán disponibles para reservar en la página y la app.${
+                  publishScope === "until"
+                    ? " Si un mes dentro del rango todavía no tiene horario, se le copia el de este mes."
+                    : ""
+                } Fuera de ese periodo no se modifica nada.`
+              : "Ese periodo ya pasó: muévete a la semana actual o a una futura para actualizar."}
         </p>
       </div>
     </div>
