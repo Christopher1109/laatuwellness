@@ -2,14 +2,14 @@
 
 # Administrator password reset
 
-- [ ] Add admin-only direct password changes for users without recovery emails.
-- [ ] Test authorization and verify the password dialog in an authenticated admin session.
+- [x] Add admin-only direct password changes for users without recovery emails.
+- [x] Test authorization (6 regression tests) and verify staff, coach and client dialogs with the real admin account; confirmation mismatch is blocked. No existing password was changed, so reset followed by sign-in remains unverified live.
 
 # Faster schedule entry and staff access
 
 - [x] Simplify adding schedule hours without changing schedule publishing rules; verified save and reload with staff5.
 - [x] Apply and test the requested staff navigation and verify real client reads with staff5.
-- [ ] Complete staff5 password recovery: request accepted, but the email link must be opened by the mailbox owner; current password cannot be retrieved.
+- [x] Replace email-based staff5 recovery with administrator-set passwords, as requested; the administrator can now choose a new password from Staff.
 
 # Client purchase labels
 
