@@ -1,5 +1,10 @@
 # SEO public content
 
+# App team panel
+
+- [ ] Open the shared web panel for admin, staff and coaches from the app, preserving existing role access.
+- [ ] Test role destinations and verify the installed-app entry and panel navigation with an authenticated session.
+
 # Administrator password reset
 
 - [x] Add admin-only direct password changes for users without recovery emails.
