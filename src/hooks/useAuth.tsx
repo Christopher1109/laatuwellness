@@ -9,6 +9,7 @@ type AuthValue = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  rolesLoading: boolean;
   isAdmin: boolean;
   staffProfile: StaffProfile | null;
   isStaff: boolean;
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthValue>({
   session: null,
   user: null,
   loading: true,
+  rolesLoading: true,
   isAdmin: false,
   staffProfile: null,
   isStaff: false,
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [resolvedRoles, setResolvedRoles] = useState<{ userId: string; tick: number } | null>(null);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
@@ -51,10 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!uid) {
       setIsAdmin(false);
       setStaffProfile(null);
+      setResolvedRoles(null);
       return;
     }
     let cancelled = false;
-    supabase
+    const adminRequest = supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", uid)
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         if (!cancelled) setIsAdmin(Boolean(data));
       });
-    supabase
+    const staffRequest = supabase
       .from("staff_profiles")
       .select("*")
       .eq("user_id", uid)
@@ -72,6 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         if (!cancelled) setStaffProfile(data ?? null);
       });
+    void Promise.all([adminRequest, staffRequest]).then(() => {
+      if (!cancelled) setResolvedRoles({ userId: uid, tick: refreshTick });
+    });
     return () => {
       cancelled = true;
     };
@@ -85,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         loading,
+        rolesLoading: loading || Boolean(session?.user.id &&
+          (resolvedRoles?.userId !== session.user.id || resolvedRoles?.tick !== refreshTick)),
         // "admin" en user_roles o role=admin en staff_profiles cuentan como admin
         isAdmin: isAdmin || staffRole === "admin",
         staffProfile,

@@ -3,7 +3,7 @@ import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -29,6 +29,7 @@ import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
 import { cn } from "@/lib/utils";
+import { appTeamDestination } from "@/lib/app-team-navigation";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 export const Route = createFileRoute("/app")({
@@ -40,6 +41,10 @@ export const Route = createFileRoute("/app")({
         content:
           "Reserva tus clases, revisa tu lista de espera y tus créditos desde la app de Läätu.",
       },
+      { property: "og:title", content: "App — Läätu Wellness" },
+      { property: "og:description", content: "Tu cuenta y el panel del estudio en la app de Läätu Wellness." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AppShell,
@@ -69,10 +74,10 @@ const TABS: { key: Tab; label: string; icon: typeof CalendarDays }[] = [
 ];
 
 function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, loading, rolesLoading, isAdmin, isStaff, isCoach } = useAuth();
   const [tab, setTab] = useState<Tab>("horarios");
 
-  if (loading) {
+  if (loading || rolesLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -81,6 +86,9 @@ function AppShell() {
   }
 
   if (!user) return <AppLoginGate />;
+
+  const teamDestination = appTeamDestination({ isAdmin, isStaff, isCoach });
+  if (teamDestination) return <Navigate to={teamDestination} replace />;
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
