@@ -57,6 +57,13 @@
       "when": 1792471445771,
       "tag": "0007_opening_validity_floor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792766327160,
+      "tag": "0008_staff_operation_and_client_access",
+      "breakpoints": true
     }
   ]
 }
