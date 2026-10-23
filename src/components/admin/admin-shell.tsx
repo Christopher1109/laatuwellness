@@ -3,6 +3,7 @@ import { Menu, X, LogOut, Tablet } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export type AdminNavItem = {
   key: string;
@@ -107,21 +108,32 @@ export function AdminShell({
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <aside className="surface-dark absolute inset-y-0 left-0 w-72 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">{Nav}</aside>
+          <aside className="surface-dark absolute inset-y-0 left-0 w-72 max-w-[85vw] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))] text-foreground"
+              aria-label="Cerrar menú"
+              onClick={() => setOpen(false)}
+            >
+              <X />
+            </Button>
+            {Nav}
+          </aside>
         </div>
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-4 border-b border-border px-5 py-4 lg:px-8">
-          <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
+          <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
             <Menu className="h-5 w-5" />
-          </button>
-          <div>
+          </Button>
+          <div className="min-w-0">
             <p className="eyebrow">{subtitle ?? "Panel del estudio"}</p>
             <h1 className="text-lg font-medium">{activeLabel}</h1>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-5 py-8 lg:px-8">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto px-5 py-8 lg:px-8">{children}</main>
       </div>
     </div>
   );
