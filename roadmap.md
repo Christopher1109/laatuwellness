@@ -1,5 +1,9 @@
 # SEO public content
 
+# Staff iPad check-in
+
+- [ ] Reconnect the staff tablet Check-in shortcut to the existing attendance panel and verify with the staff session.
+
 # App team panel
 
 - [x] Open the shared web panel for admin, staff and coaches from the app, preserving existing role access.

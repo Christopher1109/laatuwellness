@@ -15,6 +15,7 @@
 - Client-profile checkout reuses POS cash fulfillment and Clip terminal server functions; cash amounts are validated server-side, and card purchases are credited only after terminal approval so profile purchases follow the same fulfillment rules as the counter.
 - Client purchase labels and package filters derive from completed transactions, not credit balances; this preserves purchased-package history independently of remaining credits and excludes unpaid/refunded sales.
 - Staff navigation is constrained by the shared admin-navigation access rule, with database roles enforcing data access independently of menu visibility.
+- The staff tablet Check-in shortcut opens the existing CheckInPanel through the team-only shortcut guard; it need not appear in the sidebar menu.
 - The app sends team accounts to the existing protected admin route after role resolution; sharing the web panel preserves role permissions and avoids a separate app permission model.
 - Schedule hour entry uses a dedicated quick-entry control and the existing pending-template mutation, preserving month scope and explicit class publishing.
 - Direct password resets use one authenticated server function that verifies the caller through user_roles before resolving targets and invoking privileged Auth updates; reusable controls cover staff, coaches and clients without exposing or storing passwords.
