@@ -98,7 +98,7 @@ function ClassModulePicker({ onPick }: { onPick: (key: string) => void }) {
 }
 
 function Admin() {
-  const { isAdmin, isStaff, isCoach, loading, staffProfile } = useAuth();
+  const { isAdmin, isStaff, isCoach, loading, rolesLoading, staffProfile } = useAuth();
 
   const groups: AdminNavGroup[] = isAdmin
     ? [
@@ -192,7 +192,7 @@ function Admin() {
       : firstKey;
 
 
-  if (loading) {
+  if (loading || rolesLoading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando…</div>;
   }
 
