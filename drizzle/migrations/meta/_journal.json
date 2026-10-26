@@ -64,6 +64,20 @@
       "when": 1792766327160,
       "tag": "0008_staff_operation_and_client_access",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793040221835,
+      "tag": "0009_schedule_types_tbd_booking_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793040222835,
+      "tag": "0010_laatu_catalog_colors_founders_november",
+      "breakpoints": true
     }
   ]
 }

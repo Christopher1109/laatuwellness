@@ -31,7 +31,7 @@ function Horarios() {
       <PageHeader
         eyebrow="Horarios"
         title="Reserva tu lugar."
-        intro="Filtra por día y por programa. Los cupos se actualizan en tiempo real y puedes cancelar hasta 12 horas antes para recuperar tu token."
+        intro="Filtra por día y por programa. Las clases se abren para reservar con una semana de anticipación, los cupos se actualizan en tiempo real y puedes cancelar hasta 12 horas antes para recuperar tu token."
       />
 
       <section>

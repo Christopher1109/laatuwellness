@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { BirdBadge } from "@/components/brand";
 import { cn } from "@/lib/utils";
+import { bookingWindowEnd } from "@/lib/booking-window";
 
 const ERRORS: Record<string, string> = {
   WAIVER_REQUIRED: "Necesitas firmar el waiver antes de reservar.",
@@ -18,14 +19,16 @@ const ERRORS: Record<string, string> = {
   AUTH_REQUIRED: "Inicia sesión para reservar.",
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
   NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
+  BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
 };
 
 export type Rango = "hoy" | "semana" | "siguiente";
 
+// Las clientas solo ven y reservan con una semana de anticipación, así que
+// "semana" son los próximos 7 días y "siguiente" queda solo por compatibilidad.
 export const RANGOS: { key: Rango; label: string }[] = [
   { key: "hoy", label: "Hoy" },
-  { key: "semana", label: "Esta semana" },
-  { key: "siguiente", label: "Próxima semana" },
+  { key: "semana", label: "Próximos 7 días" },
 ];
 
 function startOfDay(d: Date) {
@@ -44,22 +47,19 @@ function startOfWeek(d: Date) {
 
 export function rangeBounds(rango: Rango) {
   const now = new Date();
+  const limit = bookingWindowEnd(now);
   if (rango === "hoy") {
     const end = startOfDay(now);
     end.setDate(end.getDate() + 1);
     return { from: now, to: end };
   }
+  if (rango === "semana") return { from: now, to: limit };
   const weekStart = startOfWeek(now);
-  if (rango === "semana") {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 7);
-    return { from: now, to: end };
-  }
   const from = new Date(weekStart);
   from.setDate(from.getDate() + 7);
   const to = new Date(from);
   to.setDate(to.getDate() + 7);
-  return { from, to };
+  return { from, to: to < limit ? to : limit };
 }
 
 export function dayLabel(iso: string) {
@@ -121,6 +121,8 @@ type ClassRow = {
   capacity: number;
   tokens_cost: number;
   module_key: string | null;
+  class_type_id: string | null;
+  is_tbd: boolean;
   taken: number;
   waitlisted: number;
 };
@@ -266,6 +268,15 @@ export function Schedule({
         .order("sort_order");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: classTypes } = useQuery({
+    queryKey: ["public-class-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("class_types").select("id, name").eq("active", true);
+      if (error) throw error;
+      return new Map((data ?? []).map((t) => [t.id, t.name]));
     },
   });
 
@@ -568,7 +579,12 @@ export function Schedule({
                                   {timeLabel(c.starts_at)}
                                 </span>
                                 <span className="truncate text-sm text-muted-foreground">
-                                  {c.instructor || c.room}
+                                  {[
+                                    c.class_type_id ? classTypes?.get(c.class_type_id) : null,
+                                    c.instructor || c.room,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
                                 </span>
                               </div>
                               <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">

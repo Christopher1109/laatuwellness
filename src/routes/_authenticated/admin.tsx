@@ -29,23 +29,20 @@ import {
   POSPanel,
   InventoryPanel,
   PendingOrdersPanel,
-  StaffDirectoryPanel,
-  CoachesPanel,
   ClientsPanel,
   PayrollPanel,
   PackagesPanel,
-  CoachProfilePanel,
   FinancePanel,
   DashboardPanel,
   StaffHomePanel,
   CheckInPanel,
   CouponsPanel,
-
   MerchPanel,
   GoodesPanel,
-  SchedulePlannerPanel,
   input,
 } from "@/components/admin/ops-panels";
+import { SchedulePlannerPanel } from "@/components/admin/schedule-planner";
+import { CoachesPanel, CoachProfilePanel, StaffDirectoryPanel } from "@/components/admin/team-panels";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
