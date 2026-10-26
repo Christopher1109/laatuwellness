@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, Share, Plus, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isNativeApp } from "@/lib/native-app";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -29,8 +30,7 @@ function isMobileOrTablet() {
 
 /**
  * Invitación a instalar Läätu en la pantalla de inicio.
- * En Android/Chrome dispara el instalador nativo; en iOS muestra los pasos
- * visuales de "Compartir → Añadir a inicio".
+ * En la app nativa no se muestra: la instalación ya ocurrió desde App Store/Google Play.
  */
 export function InstallPrompt() {
   const [open, setOpen] = useState(false);
@@ -38,6 +38,7 @@ export function InstallPrompt() {
   const [ios, setIos] = useState(false);
 
   useEffect(() => {
+    if (isNativeApp()) return;
     if (isStandalone()) return;
     if (!isMobileOrTablet()) return;
 
