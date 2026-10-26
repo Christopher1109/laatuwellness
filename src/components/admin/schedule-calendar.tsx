@@ -179,8 +179,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       starts_at: string;
       capacity: number;
       duration_min: number;
+      wellhub_max_spots: number | null;
     }) => {
-      const { error } = await supabase.from("classes").insert(payload);
+      const { error } = await supabase.from("classes").insert(payload as never);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -250,6 +251,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               starts_at: new Date(local).toISOString(),
               capacity: Number(f.get("capacity") || 10),
               duration_min: Number(f.get("duration_min") || 50),
+              wellhub_max_spots: f.get("wellhub_max_spots")
+                ? Number(f.get("wellhub_max_spots"))
+                : null,
             });
             e.currentTarget.reset();
             setNewClassDate("");
@@ -290,6 +294,10 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           <label className="text-xs">
             <span className="eyebrow">Instructora / especialista</span>
             <input name="instructor" ref={instructorRef} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Cupo para Wellhub (vacío = no se ofrece)</span>
+            <input name="wellhub_max_spots" type="number" min="0" className={input} />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Fecha y hora</span>

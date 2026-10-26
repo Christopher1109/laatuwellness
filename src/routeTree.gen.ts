@@ -29,6 +29,7 @@ import { Route as ProgramasKeyRouteImport } from './routes/programas/$key'
 import { Route as ApiPublicClipPinpadWebhookRouteImport } from './routes/api/public/clip/pinpad-webhook'
 import { Route as ApiPublicClipWebhookRouteImport } from './routes/api/public/clip/webhook'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicWellhubWebhookRouteImport } from './routes/api/public/wellhub/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -131,6 +132,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWellhubWebhookRoute = ApiPublicWellhubWebhookRouteImport.update({
+  id: '/api/public/wellhub/webhook',
+  path: '/api/public/wellhub/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wellhub/webhook': typeof ApiPublicWellhubWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -219,6 +228,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   id:
     | '__root__'
     | '/'
@@ -262,6 +273,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/wellhub/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -282,6 +294,7 @@ export interface RootRouteChildren {
   ApiPublicClipPinpadWebhookRoute: typeof ApiPublicClipPinpadWebhookRoute
   ApiPublicClipWebhookRoute: typeof ApiPublicClipWebhookRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicWellhubWebhookRoute: typeof ApiPublicWellhubWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -426,6 +439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/wellhub/webhook': {
+      id: '/api/public/wellhub/webhook'
+      path: '/api/public/wellhub/webhook'
+      fullPath: '/api/public/wellhub/webhook'
+      preLoaderRoute: typeof ApiPublicWellhubWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicClipPinpadWebhookRoute: ApiPublicClipPinpadWebhookRoute,
   ApiPublicClipWebhookRoute: ApiPublicClipWebhookRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicWellhubWebhookRoute: ApiPublicWellhubWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
