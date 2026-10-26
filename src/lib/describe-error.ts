@@ -27,6 +27,7 @@ const KNOWN: Record<string, string> = {
   USE_TERMINAL_REFUND: "Esta venta se cobró con terminal; reembólsala desde su cobro con tarjeta.",
   ONLY_CASH_SALES: "Solo se pueden reembolsar aquí ventas del mostrador (efectivo o terminal).",
   SALE_NOT_FOUND: "No se encontró la venta.",
+  BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
 };
 
 export function describeError(error: unknown, fallback = "Ocurrió un error."): string {

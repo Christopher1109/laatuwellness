@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
+import { coachSwatch, normalizeHex } from "@/lib/coach-colors";
 
 const input = "mt-1 w-full border border-input bg-background px-3 py-2 text-sm";
 
@@ -157,7 +158,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_profiles")
-        .select("id, full_name")
+        .select("id, full_name, color")
         .eq("role", "coach")
         .eq("active", true)
         .order("full_name");
@@ -165,6 +166,25 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       return data;
     },
   });
+
+  const { data: classTypes } = useQuery({
+    queryKey: ["class-types", modules.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("class_types")
+        .select("id, name, module_key, default_capacity")
+        .in("module_key", modules)
+        .eq("active", true)
+        .order("sort_order")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const typeName = (id: string | null) =>
+    id ? (classTypes ?? []).find((t) => t.id === id)?.name : undefined;
+  const coachColor = (id: string | null) =>
+    normalizeHex((staffCoaches ?? []).find((c) => c.id === id)?.color);
 
   const coachAvatar = (instructor: string) =>
     coaches?.find((c) => c.name.trim().toLowerCase() === instructor.trim().toLowerCase())
@@ -176,16 +196,21 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       room: string;
       instructor: string;
       coach_id: string | null;
+      class_type_id: string | null;
+      is_tbd: boolean;
       starts_at: string;
       capacity: number;
       duration_min: number;
     }) => {
-      const { error } = await supabase.from("classes").insert(payload);
+      const { error } = await supabase
+        .from("classes")
+        .insert({ ...payload, manual_override: true });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Agregado.");
       void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
     },
     onError: () => toast.error("No se pudo crear."),
   });
@@ -242,11 +267,17 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             const f = new FormData(e.currentTarget);
             const local = String(f.get("starts_at"));
             if (!local) return;
+            const coachValue = String(f.get("coach_id") || "");
+            const tbd = coachValue === "__tbd";
             create.mutate({
               module_key: String(f.get("module_key") || modules[0]),
               room: String(f.get("room") || ""),
-              instructor: String(f.get("instructor") || ""),
-              coach_id: String(f.get("coach_id") || "") || null,
+              instructor: tbd
+                ? "Coach por anunciar"
+                : String(f.get("instructor") || ""),
+              coach_id: tbd ? null : coachValue || null,
+              class_type_id: String(f.get("class_type_id") || "") || null,
+              is_tbd: tbd,
               starts_at: new Date(local).toISOString(),
               capacity: Number(f.get("capacity") || 10),
               duration_min: Number(f.get("duration_min") || 50),
@@ -280,6 +311,9 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               }}
             >
               <option value="">— sin asignar —</option>
+              <option value="__tbd" data-name="Coach por anunciar">
+                Por definir (coach por anunciar)
+              </option>
               {(staffCoaches ?? []).map((c) => (
                 <option key={c.id} value={c.id} data-name={c.full_name}>
                   {c.full_name}
@@ -290,6 +324,17 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           <label className="text-xs">
             <span className="eyebrow">Instructora / especialista</span>
             <input name="instructor" ref={instructorRef} className={input} />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Tipo de clase</span>
+            <select name="class_type_id" defaultValue="" className={input}>
+              <option value="">Sin tipo</option>
+              {(classTypes ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-xs">
             <span className="eyebrow">Fecha y hora</span>
@@ -488,6 +533,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                     Math.round((counts.reservada / Math.max(c.capacity, 1)) * 100),
                   );
                   const avatar = coachAvatar(c.instructor);
+                  const color = coachColor(c.coach_id);
+                  const kind = typeName(c.class_type_id);
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
@@ -512,7 +559,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                             {finished ? "Concluida" : inProgress ? "En curso" : "Clase"}
                           </p>
                           <p className="truncate text-sm font-semibold">
-                            {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
+                            {kind ?? MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
                           </p>
                         </div>
 
@@ -525,9 +572,20 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                       </div>
 
                       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {c.instructor}
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5",
+                            c.is_tbd && "border border-dashed border-amber-500 bg-amber-50 text-amber-900",
+                          )}
+                          style={!c.is_tbd ? coachSwatch(color) : undefined}
+                        >
+                          <Users className="h-3 w-3" /> {c.is_tbd ? "Por definir" : c.instructor}
                         </span>
+                        {c.manual_override && !c.is_tbd ? (
+                          <span className="text-[0.62rem] uppercase tracking-[0.08em]">
+                            Cambio puntual
+                          </span>
+                        ) : null}
                         <span className="inline-flex items-center gap-1">
                           <MapPin className="h-3 w-3" /> {c.room}
                         </span>
@@ -574,6 +632,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
             void qc.invalidateQueries({ queryKey: ["admin-schedule-counts"] });
           }}
           coachAvatar={coachAvatar}
+          coaches={staffCoaches ?? []}
+          classTypes={(classTypes ?? []).map((t) => ({ id: t.id, name: t.name, module_key: t.module_key }))}
         />
       ) : null}
     </div>
@@ -595,10 +655,14 @@ function ClassDetailDrawer({
   classId,
   onClose,
   coachAvatar,
+  coaches,
+  classTypes,
 }: {
   classId: string;
   onClose: () => void;
   coachAvatar: (instructor: string) => string | null;
+  coaches: { id: string; full_name: string; color: string | null }[];
+  classTypes: { id: string; name: string; module_key: string }[];
 }) {
   const qc = useQueryClient();
 
@@ -792,18 +856,57 @@ function ClassDetailDrawer({
       ),
   });
 
+  // Los cambios de una clase puntual (quién la cubre, tipo, cupo) se marcan
+  // como manuales para que "Actualizar clases" no los regrese al patrón.
+  const refreshClass = () => {
+    invalidate();
+    void qc.invalidateQueries({ queryKey: ["admin-schedule-class", classId] });
+    void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+    void qc.invalidateQueries({ queryKey: ["classes"] });
+    void qc.invalidateQueries({ queryKey: ["app-day-classes"] });
+    void qc.invalidateQueries({ queryKey: ["coach-classes"] });
+  };
+
   const editClass = useMutation({
-    mutationFn: async (patch: { room: string; instructor: string; capacity: number }) => {
-      const { error } = await supabase.from("classes").update(patch).eq("id", classId);
+    mutationFn: async (patch: {
+      room?: string;
+      instructor?: string;
+      capacity?: number;
+      coach_id?: string | null;
+      is_tbd?: boolean;
+      class_type_id?: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from("classes")
+        .update({ ...patch, manual_override: true })
+        .eq("id", classId)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("SIN_PERMISO");
     },
     onSuccess: () => {
-      toast.success("Clase actualizada.");
+      toast.success("Clase actualizada. Ya se ve en la página, la app y el perfil del coach.");
       setShowEdit(false);
-      invalidate();
+      refreshClass();
     },
-    onError: () => toast.error("No se pudo editar la clase."),
+    onError: (e) =>
+      toast.error(
+        e instanceof Error && e.message === "SIN_PERMISO"
+          ? "No tienes permisos para editar esta clase."
+          : "No se pudo editar la clase.",
+      ),
   });
+
+  const changeCoach = (value: string) => {
+    if (value === "__tbd") {
+      editClass.mutate({ coach_id: null, is_tbd: true, instructor: "Coach por anunciar" });
+      return;
+    }
+    const coach = coaches.find((c) => c.id === value);
+    if (!coach) return;
+    editClass.mutate({ coach_id: coach.id, is_tbd: false, instructor: coach.full_name });
+  };
+  const moduleTypes = classTypes.filter((t) => t.module_key === cls?.module_key);
 
   const deleteClass = useMutation({
     mutationFn: async () => {
@@ -812,6 +915,8 @@ function ClassDetailDrawer({
     },
     onSuccess: () => {
       toast.success("Clase borrada.");
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
       onClose();
     },
     onError: () => toast.error("No se pudo borrar (¿tiene reservaciones? Cancélalas primero)."),
@@ -883,7 +988,12 @@ function ClassDetailDrawer({
             </Avatar>
             <div>
               <p className="text-sm font-medium">
-                {cls ? (MODULE_LABELS[cls.module_key ?? ""] ?? cls.module_key) : ""} ·{" "}
+                {cls
+                  ? (classTypes.find((t) => t.id === cls.class_type_id)?.name ??
+                    MODULE_LABELS[cls.module_key ?? ""] ??
+                    cls.module_key)
+                  : ""}{" "}
+                ·{" "}
                 {cls ? format(new Date(cls.starts_at), "HH:mm") : ""}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -906,6 +1016,51 @@ function ClassDetailDrawer({
             </button>
           </div>
         </div>
+
+        {cls ? (
+          <div className="mb-6 grid gap-3 border border-border bg-muted/30 p-4 sm:grid-cols-2">
+            <label className="text-xs">
+              <span className="eyebrow">Coach de esta clase (cubrir / cambiar)</span>
+              <select
+                value={cls.is_tbd ? "__tbd" : (cls.coach_id ?? "")}
+                disabled={editClass.isPending}
+                onChange={(e) => changeCoach(e.target.value)}
+                className="mt-1 w-full border border-input bg-background px-3 py-2.5 text-sm"
+              >
+                {!cls.coach_id && !cls.is_tbd ? (
+                  <option value="">{cls.instructor || "Sin asignar"}</option>
+                ) : null}
+                <option value="__tbd">Por definir (coach por anunciar)</option>
+                {coaches.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs">
+              <span className="eyebrow">Tipo de clase</span>
+              <select
+                value={cls.class_type_id ?? ""}
+                disabled={editClass.isPending}
+                onChange={(e) => editClass.mutate({ class_type_id: e.target.value || null })}
+                className="mt-1 w-full border border-input bg-background px-3 py-2.5 text-sm"
+              >
+                <option value="">Sin tipo</option>
+                {moduleTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-[0.68rem] text-muted-foreground sm:col-span-2">
+              El cambio aplica solo a esta clase y se respeta aunque se vuelva a actualizar la
+              programación.
+              {cls.manual_override ? " Esta clase ya tiene un cambio puntual." : ""}
+            </p>
+          </div>
+        ) : null}
 
         <div className="mb-7 grid gap-5 sm:grid-cols-2">
           <div>
@@ -992,13 +1147,12 @@ function ClassDetailDrawer({
 
         {showEdit && cls ? (
           <form
-            className="mb-6 grid gap-3 border border-border p-4 sm:grid-cols-3"
+            className="mb-6 grid gap-3 border border-border p-4 sm:grid-cols-2"
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
               editClass.mutate({
                 room: String(f.get("room") || cls.room),
-                instructor: String(f.get("instructor") || cls.instructor),
                 capacity: Number(f.get("capacity") || cls.capacity),
               });
             }}
@@ -1012,14 +1166,6 @@ function ClassDetailDrawer({
               />
             </label>
             <label className="text-xs">
-              <span className="eyebrow">Instructor</span>
-              <input
-                name="instructor"
-                defaultValue={cls.instructor}
-                className="mt-1 w-full border border-input bg-transparent px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="text-xs">
               <span className="eyebrow">Cupo</span>
               <input
                 name="capacity"
@@ -1029,7 +1175,7 @@ function ClassDetailDrawer({
                 className="mt-1 w-full border border-input bg-transparent px-3 py-2 text-sm"
               />
             </label>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <button className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.1em] text-background">
                 Guardar cambios
               </button>

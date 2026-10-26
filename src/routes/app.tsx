@@ -29,6 +29,7 @@ import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
 import { cn } from "@/lib/utils";
+import { BOOKING_WINDOW_DAYS, isWithinBookingWindow } from "@/lib/booking-window";
 import { appTeamDestination } from "@/lib/app-team-navigation";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
@@ -229,6 +230,7 @@ const ERRORS: Record<string, string> = {
   DAILY_LIMIT_REACHED: "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
   AUTH_REQUIRED: "Inicia sesión para reservar.",
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
+  BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
 };
 
 type AppClassRow = {
@@ -240,6 +242,7 @@ type AppClassRow = {
   capacity: number;
   tokens_cost: number;
   module_key: string | null;
+  class_type_id: string | null;
   taken: number;
   waitlisted: number;
 };
@@ -248,7 +251,8 @@ function dayStripDays() {
   const days: Date[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 7; i++) {
+  // Hoy y los 7 días siguientes: la ventana de reserva de una semana.
+  for (let i = 0; i <= BOOKING_WINDOW_DAYS; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     days.push(d);
@@ -297,6 +301,20 @@ function HorariosTab() {
       return data;
     },
   });
+  const { data: classTypeNames } = useQuery({
+    queryKey: ["public-class-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("class_types").select("id, name").eq("active", true);
+      if (error) throw error;
+      return new Map((data ?? []).map((t) => [t.id, t.name]));
+    },
+  });
+  const classLabel = (c: AppClassRow) =>
+    (c.class_type_id ? classTypeNames?.get(c.class_type_id) : undefined) ??
+    moduleName.get(c.module_key ?? "") ??
+    c.module_key ??
+    "";
+
   const moduleName = useMemo(() => {
     const map = new Map<string, string>();
     for (const m of modules ?? []) map.set(m.key, m.name);
@@ -500,7 +518,7 @@ function HorariosTab() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
-                  {moduleName.get(c.module_key ?? "") ?? c.module_key}
+                  {classLabel(c)}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {c.instructor} · {c.room} · {c.duration_min} min
@@ -584,12 +602,17 @@ function HorariosTab() {
               {monthGrid.map((d) => {
                 const inMonth = d.getMonth() === monthCursor.getMonth();
                 const active = sameDay(d, selectedDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                // Solo se puede consultar de hoy a una semana (ventana de reserva).
+                const open = d >= today && isWithinBookingWindow(d);
                 return (
                   <button
                     key={d.toISOString()}
+                    disabled={!open}
                     onClick={() => setSelectedDate(d)}
                     className={cn(
-                      "py-2 text-sm",
+                      "py-2 text-sm disabled:cursor-not-allowed disabled:opacity-25",
                       !inMonth && "text-muted-foreground/30",
                       active && "bg-foreground text-background",
                     )}
@@ -612,7 +635,7 @@ function HorariosTab() {
       {openClass ? (
         <AppClassDetail
           classItem={openClass}
-          moduleLabel={moduleName.get(openClass.module_key ?? "") ?? openClass.module_key ?? ""}
+          moduleLabel={classLabel(openClass)}
           mine={bookedIds.has(openClass.id)}
           waiting={waitlistedIds.has(openClass.id)}
           onClose={() => setOpenClass(null)}
