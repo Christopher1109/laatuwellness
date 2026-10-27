@@ -70,10 +70,13 @@ export function Popout({
   onClose,
   children,
   wide,
+  extraWide,
 }: {
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  /** Para análisis con tablas anchas (Finanzas). */
+  extraWide?: boolean;
 }) {
   return (
     <div
@@ -81,7 +84,7 @@ export function Popout({
       onClick={onClose}
     >
       <div
-        className={`max-h-[calc(100dvh-2rem)] w-full ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto overscroll-contain bg-background p-5 sm:p-6`}
+        className={`max-h-[calc(100dvh-2rem)] w-full ${extraWide ? "max-w-6xl sm:p-8" : wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto overscroll-contain bg-background p-5 sm:p-6`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -123,42 +126,44 @@ function SortableTable<T extends Record<string, unknown>>({
   };
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-border">
-          {columns.map((col) => (
-            <th
-              key={String(col.key)}
-              onClick={() => toggleSort(col.key)}
-              className={`cursor-pointer select-none py-2 text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground ${col.align === "right" ? "text-right" : "text-left"}`}
-            >
-              {col.label} {sortKey === col.key ? (dir === 1 ? "▲" : "▼") : ""}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border">
-        {sorted.map((row, i) => (
-          <tr key={i} className="hover:bg-muted/50">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-max text-sm">
+        <thead>
+          <tr className="border-b border-border">
             {columns.map((col) => (
-              <td
+              <th
                 key={String(col.key)}
-                className={`py-2 ${col.align === "right" ? "text-right text-muted-foreground" : ""}`}
+                onClick={() => toggleSort(col.key)}
+                className={`cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground first:pl-0 last:pr-0 hover:text-foreground ${col.align === "right" ? "text-right" : "text-left"}`}
               >
-                {col.format ? col.format(row[col.key]) : String(row[col.key])}
-              </td>
+                {col.label} {sortKey === col.key ? (dir === 1 ? "▲" : "▼") : ""}
+              </th>
             ))}
           </tr>
-        ))}
-        {sorted.length === 0 ? (
-          <tr>
-            <td colSpan={columns.length} className="py-4 text-center text-muted-foreground">
-              {emptyLabel}
-            </td>
-          </tr>
-        ) : null}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {sorted.map((row, i) => (
+            <tr key={i} className="hover:bg-muted/50">
+              {columns.map((col) => (
+                <td
+                  key={String(col.key)}
+                  className={`whitespace-nowrap px-3 py-3 first:pl-0 last:pr-0 ${col.align === "right" ? "text-right tabular-nums text-muted-foreground" : ""}`}
+                >
+                  {col.format ? col.format(row[col.key]) : String(row[col.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {sorted.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length} className="py-4 text-center text-muted-foreground">
+                {emptyLabel}
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -6736,7 +6741,7 @@ export function FinancePanel() {
       </button>
 
       {openCard === "tokens" ? (
-        <Popout onClose={() => setOpenCard(null)} wide>
+        <Popout onClose={() => setOpenCard(null)} extraWide>
           <p className="mb-4 eyebrow">Tokens / créditos — análisis</p>
           <div className="mb-5 flex flex-wrap gap-1.5">
             <button
@@ -6757,7 +6762,7 @@ export function FinancePanel() {
               </button>
             ))}
           </div>
-          <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Object.entries(TOKEN_CATEGORY_LABELS).map(([key, label]) => (
               <div
                 key={key}
@@ -6793,7 +6798,7 @@ export function FinancePanel() {
             ]}
           />
 
-          <p className="mb-2 mt-8 eyebrow">Quién compró y cuándo</p>
+          <p className="mb-3 mt-10 border-t border-border pt-8 eyebrow">Quién compró y cuándo</p>
           <div className="mb-3 flex flex-wrap gap-1.5">
             <button
               type="button"
@@ -6849,7 +6854,7 @@ export function FinancePanel() {
       ) : null}
 
       {openCard === "merch" ? (
-        <Popout onClose={() => setOpenCard(null)} wide>
+        <Popout onClose={() => setOpenCard(null)} extraWide>
           <p className="mb-4 eyebrow">Merch — análisis</p>
           <p className="mb-2 text-xs text-muted-foreground">
             Productos — clic en la columna para ordenar
@@ -6888,7 +6893,7 @@ export function FinancePanel() {
       ) : null}
 
       {openCard === "consumibles" ? (
-        <Popout onClose={() => setOpenCard(null)} wide>
+        <Popout onClose={() => setOpenCard(null)} extraWide>
           <p className="mb-4 eyebrow">Consumibles — análisis</p>
           <p className="mb-2 text-xs text-muted-foreground">
             Productos — clic en la columna para ordenar
