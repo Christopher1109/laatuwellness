@@ -85,6 +85,13 @@
       "when": 1793062541673,
       "tag": "0011_class_types_staff_edit",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793066163319,
+      "tag": "0012_pos_transferencia",
+      "breakpoints": true
     }
   ]
 }
