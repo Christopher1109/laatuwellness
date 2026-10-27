@@ -1911,7 +1911,7 @@ export type Database = {
         Returns: Json
       }
       pos_sell_plans_cash: {
-        Args: { _plans: Json; _user_id: string }
+        Args: { _payment_method?: string; _plans: Json; _user_id: string }
         Returns: number
       }
       publish_schedule_range: {

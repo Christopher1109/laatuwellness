@@ -1,7 +1,13 @@
 import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
 import { PasswordResetControl } from "@/components/admin/password-reset";
 import { groupClientPurchases, matchesClientPurchaseFilter } from "@/lib/client-purchases";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
@@ -453,8 +459,10 @@ export function POSPanel() {
     email: string;
   } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // Solo dos formas de pago: tarjeta en terminal Clip o efectivo.
-  const [payment, setPayment] = useState<"terminal" | "efectivo">("terminal");
+  // Formas de pago: tarjeta en terminal Clip, efectivo o transferencia. La
+  // transferencia siempre pide cliente y se registra al confirmar que llegó.
+  const [payment, setPayment] = useState<"terminal" | "efectivo" | "transferencia">("terminal");
+  const [confirmTransfer, setConfirmTransfer] = useState(false);
 
   const { data: suggestions } = useQuery({
     queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
@@ -472,7 +480,8 @@ export function POSPanel() {
   const productQty = Object.values(cart).reduce((a, b) => a + b, 0);
   const planQty = Object.values(planCart).reduce((a, b) => a + b, 0);
   const itemCount = productQty + planQty;
-  const needsClient = planQty > 0;
+  const isTransfer = payment === "transferencia";
+  const needsClient = planQty > 0 || isTransfer;
 
   // Paquetes con reglas (Newcomer = una sola compra y solo clientes nuevos):
   // al elegir al cliente se revisa si todavía puede comprarlos.
@@ -691,7 +700,11 @@ export function POSPanel() {
       if (brandGroups.length === 0) throw new Error("Agrega al menos un producto o paquete.");
       if (planBlockMessages.length > 0) throw new Error(planBlockMessages[0]);
       if (needsClient && !matchedClient) {
-        throw new Error("Para vender paquetes o clases, elige al cliente.");
+        throw new Error(
+          isTransfer
+            ? "Para cobrar por transferencia, elige al cliente."
+            : "Para vender paquetes o clases, elige al cliente.",
+        );
       }
 
       if (usesTerminal && total > 0) {
@@ -701,7 +714,9 @@ export function POSPanel() {
         return "terminal" as const;
       }
 
-      // Efectivo: una venta por marca + paquetes acreditados al cliente.
+      // Efectivo o transferencia (ya recibida): una venta por marca + paquetes
+      // acreditados al cliente.
+      const method = isTransfer ? "transferencia" : "efectivo";
       for (const group of brandGroups) {
         if (group.items.length > 0) {
           const items = group.items.map(({ id, qty }) => {
@@ -716,7 +731,7 @@ export function POSPanel() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
           const { error } = await (supabase.rpc as any)("pos_checkout", {
             _user_id: matchedClient?.id ?? null,
-            _payment_method: "efectivo",
+            _payment_method: method,
             _items: items,
             _brand: group.brand,
           });
@@ -727,6 +742,7 @@ export function POSPanel() {
           const { error } = await (supabase.rpc as any)("pos_sell_plans_cash", {
             _user_id: matchedClient.id,
             _plans: group.plans.map((pl) => ({ plan_id: pl.id, qty: pl.qty })),
+            _payment_method: method,
           });
           if (error) throw error;
         }
@@ -735,8 +751,13 @@ export function POSPanel() {
     },
     onSuccess: (mode) => {
       if (mode === "terminal") return;
+      setConfirmTransfer(false);
       toast.success(
-        planQty > 0 ? "Venta registrada y clases acreditadas al cliente." : "Venta registrada.",
+        planQty > 0
+          ? `${isTransfer ? "Transferencia registrada" : "Venta registrada"} y clases acreditadas al cliente.`
+          : isTransfer
+            ? "Transferencia registrada."
+            : "Venta registrada.",
       );
       resetSale();
     },
@@ -850,7 +871,12 @@ export function POSPanel() {
         </p>
         <label className="relative block text-xs">
           <span className="eyebrow">
-            Cliente {needsClient ? "(obligatorio para paquetes)" : "(opcional)"}
+            Cliente{" "}
+            {isTransfer
+              ? "(obligatorio para transferencia)"
+              : needsClient
+                ? "(obligatorio para paquetes)"
+                : "(opcional)"}
           </span>
           <input
             value={
@@ -905,18 +931,21 @@ export function POSPanel() {
             </span>
           ) : needsClient ? (
             <span className="mt-1 block text-[0.7rem] text-destructive">
-              Elige al cliente para acreditarle las clases.
+              {isTransfer && planQty === 0
+                ? "Elige al cliente que hizo la transferencia."
+                : "Elige al cliente para acreditarle las clases."}
             </span>
           ) : null}
         </label>
 
         <div className="text-xs">
           <span className="eyebrow">Método de pago</span>
-          <div className="mt-1 grid grid-cols-2 gap-2">
+          <div className="mt-1 grid grid-cols-3 gap-2">
             {(
               [
                 ["terminal", "Tarjeta (terminal Clip)"],
                 ["efectivo", "Efectivo"],
+                ["transferencia", "Transferencia"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -1012,14 +1041,22 @@ export function POSPanel() {
             planBlockMessages.length > 0 ||
             !!activePayment
           }
-          onClick={() => checkout.mutate()}
+          onClick={() => {
+            if (isTransfer && total > 0) {
+              setConfirmTransfer(true);
+              return;
+            }
+            checkout.mutate();
+          }}
           className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
         >
           {total === 0 && planQty > 0
             ? "Registrar convenio (sin cobro)"
             : usesTerminal
               ? "Cobrar en terminal"
-              : "Cobrar en efectivo"}
+              : isTransfer
+                ? "Cobrar por transferencia"
+                : "Cobrar en efectivo"}
         </button>
         {itemCount > 0 ? (
           <button
@@ -1031,6 +1068,65 @@ export function POSPanel() {
           </button>
         ) : null}
       </div>
+
+      {confirmTransfer && matchedClient ? (
+        <Popout onClose={() => (checkout.isPending ? null : setConfirmTransfer(false))}>
+          <p className="eyebrow">Cobro por transferencia</p>
+          <h3 className="statement mt-1 text-2xl">{money(total)}</h3>
+          <p className="mt-2 text-sm">
+            Cliente: <strong>{matchedClient.full_name || matchedClient.email}</strong>
+            <span className="block text-xs text-muted-foreground">{matchedClient.email}</span>
+          </p>
+          <ul className="mt-4 space-y-1 border-y border-border py-3 text-xs">
+            {brandGroups.flatMap((g) => [
+              ...g.plans.map((pl) => {
+                const p = plans?.find((x) => x.id === pl.id);
+                return (
+                  <li key={`tp-${pl.id}`} className="flex justify-between gap-2">
+                    <span>
+                      {pl.qty} × {p?.name}
+                    </span>
+                    <span>{money((p?.price_cents ?? 0) * pl.qty)}</span>
+                  </li>
+                );
+              }),
+              ...g.items.map((it) => {
+                const p = products?.find((x) => x.id === it.id);
+                return (
+                  <li key={`ti-${it.id}`} className="flex justify-between gap-2">
+                    <span>
+                      {it.qty} × {p?.name}
+                    </span>
+                    <span>{money((p?.price_cents ?? 0) * it.qty)}</span>
+                  </li>
+                );
+              }),
+            ])}
+          </ul>
+          <p className="mt-4 border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
+            Revisa en la cuenta del banco que la transferencia ya llegó antes de confirmar.
+            {planQty > 0 ? " Al confirmar se le acreditan las clases al cliente de inmediato." : ""}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={checkout.isPending}
+              onClick={() => setConfirmTransfer(false)}
+              className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] disabled:opacity-50"
+            >
+              Todavía no llega
+            </button>
+            <button
+              type="button"
+              disabled={checkout.isPending}
+              onClick={() => checkout.mutate()}
+              className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+            >
+              {checkout.isPending ? "Registrando…" : "Pago recibido"}
+            </button>
+          </div>
+        </Popout>
+      ) : null}
 
       {activePayment ? (
         <TerminalPaymentDialog
@@ -1184,7 +1280,7 @@ type RefundPreview = {
   client: { name: string | null; email: string | null } | null;
 };
 
-// Ventas del mostrador (terminal, efectivo y paquetes en efectivo) con el
+// Ventas del mostrador (terminal, efectivo, transferencia y paquetes) con el
 // botón de reembolso. Los reembolsos se hacen SIEMPRE desde aquí, nunca
 // directo en Clip, para que el dinero, los créditos y el inventario cuadren.
 function RecentSalesPanel() {
@@ -1270,9 +1366,11 @@ function RecentSalesPanel() {
     onSuccess: (cents) => {
       const cash = target?.kind !== "terminal";
       toast.success(
-        cash
-          ? `Reembolso registrado. Entrega ${money(cents)} en efectivo al cliente.`
-          : `Reembolso hecho: Clip devolverá ${money(cents)} a la tarjeta.`,
+        !cash
+          ? `Reembolso hecho: Clip devolverá ${money(cents)} a la tarjeta.`
+          : target?.method === "transferencia"
+            ? `Reembolso registrado. Devuelve ${money(cents)} por transferencia al cliente.`
+            : `Reembolso registrado. Entrega ${money(cents)} en efectivo al cliente.`,
       );
       setTarget(null);
       setPreview(null);
@@ -1341,7 +1439,9 @@ function RecentSalesPanel() {
                         ? `Tarjeta${s.card_last4 ? ` ••${s.card_last4}` : ""}`
                         : s.method === "convenio"
                           ? "Convenio"
-                          : "Efectivo"}
+                          : s.method === "transferencia"
+                            ? "Transferencia"
+                            : "Efectivo"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right">
                       {money(s.amount_cents)}
@@ -1429,7 +1529,9 @@ function RecentSalesPanel() {
                   <span className="text-sm">
                     {preview.method === "tarjeta"
                       ? "Se devuelve a la tarjeta"
-                      : "Entregar en efectivo"}
+                      : preview.method === "transferencia"
+                        ? "Devolver por transferencia"
+                        : "Entregar en efectivo"}
                   </span>
                   <span className="text-2xl">{money(preview.refund_cents)}</span>
                 </div>
@@ -2234,25 +2336,31 @@ export function CheckInPanel() {
 
       <ul className="divide-y divide-border border-y border-border text-sm">
         {filteredRows.map((r) => (
-          <li key={r.id} className="grid min-w-0 gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <li
+            key={r.id}
+            className="grid min-w-0 gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+          >
             <div className="min-w-0 break-words">
               <p>{r.profile?.full_name || "Sin nombre"}</p>
               <p className="text-muted-foreground">{r.profile?.email}</p>
             </div>
             <div className="grid shrink-0 grid-cols-3 gap-2">
-              <Button variant="outline"
+              <Button
+                variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "a_tiempo" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] ${r.checkin?.status === "a_tiempo" ? "border-foreground bg-foreground text-background" : "border-input"}`}
               >
                 A tiempo
               </Button>
-              <Button variant="outline"
+              <Button
+                variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "tarde" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] ${r.checkin?.status === "tarde" ? "border-foreground bg-foreground text-background" : "border-input"}`}
               >
                 Tarde
               </Button>
-              <Button variant="outline"
+              <Button
+                variant="outline"
                 onClick={() => setStatus.mutate({ bookingId: r.id, status: "no_show" })}
                 className={`border px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.14em] text-destructive ${r.checkin?.status === "no_show" ? "border-destructive bg-destructive text-background" : "border-input"}`}
               >
@@ -2292,7 +2400,8 @@ export function StaffHomePanel({ onGoTo }: { onGoTo: (key: string, moduleKey?: s
   return (
     <div className="mx-auto grid max-w-5xl gap-4 py-2 md:grid-cols-2 xl:grid-cols-3">
       {STAFF_HOME_BUTTONS.map(({ key, label, icon: Icon }) => (
-        <Button variant="outline"
+        <Button
+          variant="outline"
           key={key}
           type="button"
           onClick={() => onGoTo(key)}
@@ -2671,13 +2780,19 @@ export function ClientsPanel() {
   const [purchaseFilter, setPurchaseFilter] = useState("all");
   const purchaseOptions = useMemo(() => {
     const options = new Map<string, { name: string; sales: number }>();
-    for (const client of data ?? []) for (const purchase of client.purchases) {
-      const previous = options.get(purchase.planId);
-      options.set(purchase.planId, { name: purchase.name, sales: (previous?.sales ?? 0) + purchase.count });
-    }
+    for (const client of data ?? [])
+      for (const purchase of client.purchases) {
+        const previous = options.get(purchase.planId);
+        options.set(purchase.planId, {
+          name: purchase.name,
+          sales: (previous?.sales ?? 0) + purchase.count,
+        });
+      }
     return [...options.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "es"));
   }, [data]);
-  const filtered = (data ?? []).filter((c) => matchesClientPurchaseFilter(c, search, purchaseFilter));
+  const filtered = (data ?? []).filter((c) =>
+    matchesClientPurchaseFilter(c, search, purchaseFilter),
+  );
 
   const summary = useMemo(() => {
     const totalRevenue = (data ?? []).reduce((sum, c) => sum + c.revenue_cents, 0);
@@ -2741,12 +2856,16 @@ export function ClientsPanel() {
           />
         </div>
         <Select value={purchaseFilter} onValueChange={setPurchaseFilter}>
-          <SelectTrigger aria-label="Filtrar por paquete comprado" className="w-full sm:w-72"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Filtrar por paquete comprado" className="w-full sm:w-72">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los paquetes</SelectItem>
-            {purchaseOptions.map(([id, option]) => <SelectItem key={id} value={id}>
-              {option.name} · {option.sales} {option.sales === 1 ? "venta" : "ventas"}
-            </SelectItem>)}
+            {purchaseOptions.map(([id, option]) => (
+              <SelectItem key={id} value={id}>
+                {option.name} · {option.sales} {option.sales === 1 ? "venta" : "ventas"}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -2763,11 +2882,20 @@ export function ClientsPanel() {
                 <p>{c.full_name || "Sin nombre"}</p>
                 {c.membership ? <MembershipBadge membership={c.membership} /> : null}
               </div>
-              {c.purchases.length > 0 ? <div className="mt-2 flex flex-wrap gap-1.5">
-                {c.purchases.map((purchase) => <span key={purchase.planId} title="Compra realizada" className="inline-flex max-w-full items-center border border-border bg-muted px-2 py-0.5 text-[0.65rem] text-muted-foreground">
-                  {purchase.name}{purchase.count > 1 ? ` · ${purchase.count} compras` : ""}
-                </span>)}
-              </div> : null}
+              {c.purchases.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {c.purchases.map((purchase) => (
+                    <span
+                      key={purchase.planId}
+                      title="Compra realizada"
+                      className="inline-flex max-w-full items-center border border-border bg-muted px-2 py-0.5 text-[0.65rem] text-muted-foreground"
+                    >
+                      {purchase.name}
+                      {purchase.count > 1 ? ` · ${purchase.count} compras` : ""}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <p className="text-muted-foreground">
                 {c.email}
                 {c.phone ? ` · ${c.phone}` : ""}
@@ -2868,7 +2996,15 @@ const fmtLongDate = (iso: string) =>
     timeZone: "America/Monterrey",
   }).format(new Date(iso));
 
-function StatTile({ label, value, hint }: { label: string; value: ReactNode; hint?: string | undefined }) {
+function StatTile({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: string | undefined;
+}) {
   return (
     <div className="border border-border bg-background p-4">
       <p className="eyebrow">{label}</p>
@@ -2901,7 +3037,15 @@ function EmptyState({
   );
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Mail; label: string; value: ReactNode }) {
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Mail;
+  label: string;
+  value: ReactNode;
+}) {
   return (
     <div className="flex items-start gap-3 py-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -2927,8 +3071,7 @@ function EditClientPopout({
   const [email, setEmail] = useState(profile.email ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
   const save = useMutation({
-    mutationFn: () =>
-      updateFn({ data: { clientId: profile.id, fullName, email, phone } }),
+    mutationFn: () => updateFn({ data: { clientId: profile.id, fullName, email, phone } }),
     onSuccess: () => {
       toast.success("Datos del cliente actualizados.");
       onSaved();
@@ -3302,7 +3445,14 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
           <div className="flex flex-wrap gap-2">
             {isAdmin ? (
               <>
-                {profile ? <PasswordResetControl targetId={clientId} targetKind="client" name={profile.full_name || "Cliente"} email={profile.email} /> : null}
+                {profile ? (
+                  <PasswordResetControl
+                    targetId={clientId}
+                    targetKind="client"
+                    name={profile.full_name || "Cliente"}
+                    email={profile.email}
+                  />
+                ) : null}
                 <button
                   onClick={() => setEditing(true)}
                   disabled={!profile}
@@ -3407,7 +3557,9 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
                             {r.cls?.module_key ?? ""} · {r.cls?.room ?? ""}
                           </p>
                         </div>
-                        <span className={cn("shrink-0 px-2 py-1 text-[0.62rem]", TONE_CLASSES[tone])}>
+                        <span
+                          className={cn("shrink-0 px-2 py-1 text-[0.62rem]", TONE_CLASSES[tone])}
+                        >
                           {label}
                         </span>
                       </div>
@@ -3479,25 +3631,27 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
                 {showPackages ? (
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    {(plans ?? []).filter((p) => isPlanInSaleWindow(p)).map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {money(p.price_cents)} · {p.tokens} créditos
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setPendingPlan(p)}
-                          className="shrink-0 bg-foreground px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.1em] text-background"
+                    {(plans ?? [])
+                      .filter((p) => isPlanInSaleWindow(p))
+                      .map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between gap-3 border border-border p-3 text-sm"
                         >
-                          Comprar
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0">
+                            <p className="truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {money(p.price_cents)} · {p.tokens} créditos
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setPendingPlan(p)}
+                            className="shrink-0 bg-foreground px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.1em] text-background"
+                          >
+                            Comprar
+                          </button>
+                        </div>
+                      ))}
                     {(plans ?? []).length === 0 ? (
                       <p className="text-sm text-muted-foreground">Sin paquetes publicados.</p>
                     ) : null}
