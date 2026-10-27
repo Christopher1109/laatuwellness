@@ -33,9 +33,7 @@ function normalizeAmount(cents: number): number {
   return Number((cents / 100).toFixed(2));
 }
 
-export async function createClipPaymentLink(
-  input: ClipPaymentLinkInput,
-): Promise<ClipPaymentLink> {
+export async function createClipPaymentLink(input: ClipPaymentLinkInput): Promise<ClipPaymentLink> {
   const body: Record<string, unknown> = {
     amount: normalizeAmount(input.amount),
     currency: input.currency,

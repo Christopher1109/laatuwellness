@@ -19,13 +19,28 @@ export function groupClientPurchases(rows: PurchaseRow[]): Map<string, ClientPur
   return grouped;
 }
 
-const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const normalize = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
-export function matchesClientPurchaseFilter(client: {
-  full_name: string; email: string; purchases: ClientPurchase[];
-}, search: string, planId: string): boolean {
+export function matchesClientPurchaseFilter(
+  client: {
+    full_name: string;
+    email: string;
+    purchases: ClientPurchase[];
+  },
+  search: string,
+  planId: string,
+): boolean {
   if (planId !== "all" && !client.purchases.some((p) => p.planId === planId)) return false;
   const query = normalize(search);
-  return !query || [client.full_name, client.email, ...client.purchases.map((p) => p.name)]
-    .some((value) => normalize(value).includes(query));
+  return (
+    !query ||
+    [client.full_name, client.email, ...client.purchases.map((p) => p.name)].some((value) =>
+      normalize(value).includes(query),
+    )
+  );
 }

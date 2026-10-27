@@ -1895,6 +1895,7 @@ export type Database = {
       pos_checkout: {
         Args: {
           _brand?: string
+          _deliver_now?: boolean
           _items: Json
           _payment_method: string
           _user_id: string

@@ -67,7 +67,7 @@ const CONSULTORIO_MODULES = ["nutricion", "psicologia", "rehabilitacion"] as con
 // muestran sus clases.
 const CLASS_MODULE_BLOCKS = [
   { key: "reformer", label: "Reformer Studio", desc: "Clases de reformer" },
-  { key: "4mat", label: "Format", desc: "Clases de 4mat / Format" },
+  { key: "4mat", label: "4mat", desc: "Clases de 4mat" },
   { key: "rehabilitacion", label: "Consultorio DorisFisio", desc: "Sesiones de fisioterapia" },
   { key: "contraste", label: "Contrast Therapy", desc: "Sauna y frío" },
 ] as const;
@@ -128,7 +128,7 @@ function Admin() {
           items: [
             { key: "paquetes", label: "Paquetes", icon: Tag },
             { key: "merch", label: "Merch", icon: PackageOpen },
-            { key: "goodes", label: "Goddes´s", icon: Tag },
+            { key: "goodes", label: "Goddess", icon: Tag },
             { key: "cupones", label: "Cupones", icon: Ticket },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
@@ -170,7 +170,7 @@ function Admin() {
                items: [
                 { key: "paquetes", label: "Paquetes", icon: Tag },
                  { key: "merch", label: "Merch", icon: PackageOpen },
-                 { key: "goodes", label: "Goddes´s", icon: Tag },
+                 { key: "goodes", label: "Goddess", icon: Tag },
                 { key: "cupones", label: "Cupones", icon: Ticket },
               ],
             },

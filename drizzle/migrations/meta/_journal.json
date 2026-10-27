@@ -92,6 +92,13 @@
       "when": 1793066163319,
       "tag": "0012_pos_transferencia",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793071159712,
+      "tag": "0013_merch_entrega_pendiente",
+      "breakpoints": true
     }
   ]
 }

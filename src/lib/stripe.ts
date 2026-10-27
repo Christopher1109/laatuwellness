@@ -27,7 +27,5 @@ export function getStripeEnvironment(): StripeEnv {
 }
 
 export function paymentsConfigured(): boolean {
-  return Boolean(
-    clientToken?.startsWith("pk_test_") || clientToken?.startsWith("pk_live_"),
-  );
+  return Boolean(clientToken?.startsWith("pk_test_") || clientToken?.startsWith("pk_live_"));
 }

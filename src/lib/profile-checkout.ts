@@ -7,8 +7,12 @@ export function cashReceivedCents(value: string): number | null {
 }
 
 export function cashChangeCents(totalCents: number, receivedCents: number): number {
-  if (!Number.isSafeInteger(totalCents) || totalCents < 0 ||
-      !Number.isSafeInteger(receivedCents) || receivedCents < totalCents) {
+  if (
+    !Number.isSafeInteger(totalCents) ||
+    totalCents < 0 ||
+    !Number.isSafeInteger(receivedCents) ||
+    receivedCents < totalCents
+  ) {
     throw new Error("El efectivo recibido debe cubrir el total de la compra.");
   }
   return receivedCents - totalCents;
