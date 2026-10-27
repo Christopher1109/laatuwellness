@@ -28,3 +28,27 @@ export const collectProfileCash = createServerFn({ method: "POST" })
     if (saleError) throw new Error(describeError(saleError, "No se pudo registrar la compra."));
     return { changeCents };
   });
+
+// Transferencia: se registra solo cuando recepción confirma que el dinero ya
+// llegó; en ese momento se le acreditan las clases al cliente.
+export const collectProfileTransfer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { clientId: string; planId: string }) => {
+    const uuid = /^[a-f0-9-]{36}$/i;
+    if (!uuid.test(data.clientId) || !uuid.test(data.planId)) throw new Error("Compra inválida.");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
+    const [{ data: admin }, { data: staff }] = await Promise.all([
+      context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" }),
+      context.supabase.rpc("is_staff", { _user_id: context.userId }),
+    ]);
+    if (!admin && !staff) throw new Error("No tienes permiso para registrar ventas.");
+    const { error: saleError } = await context.supabase.rpc("pos_sell_plans_cash", {
+      _user_id: data.clientId,
+      _plans: [{ plan_id: data.planId, qty: 1 }],
+      _payment_method: "transferencia",
+    });
+    if (saleError) throw new Error(describeError(saleError, "No se pudo registrar la compra."));
+    return { ok: true as const };
+  });

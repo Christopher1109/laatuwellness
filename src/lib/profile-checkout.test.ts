@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { PROFILE_PAYMENT_METHODS, cashChangeCents, cashReceivedCents } from "./profile-checkout";
 
 describe("client profile checkout", () => {
-  it("offers only cash or actual terminal collection", () => {
-    expect([...PROFILE_PAYMENT_METHODS]).toEqual(["efectivo", "terminal"]);
+  it("offers cash, bank transfer or actual terminal collection", () => {
+    expect([...PROFILE_PAYMENT_METHODS]).toEqual(["efectivo", "transferencia", "terminal"]);
   });
   it("rejects cash that does not cover the purchase", () => {
     expect(() => cashChangeCents(37000, 36900)).toThrow();

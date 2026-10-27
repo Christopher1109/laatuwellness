@@ -1,4 +1,4 @@
-export const PROFILE_PAYMENT_METHODS = ["efectivo", "terminal"] as const;
+export const PROFILE_PAYMENT_METHODS = ["efectivo", "transferencia", "terminal"] as const;
 
 export function cashReceivedCents(value: string): number | null {
   if (!/^\d+(?:\.\d{1,2})?$/.test(value.trim())) return null;

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Tables } from "@/integrations/supabase/types";
-import { collectProfileCash } from "@/utils/profile-checkout.functions";
+import { collectProfileCash, collectProfileTransfer } from "@/utils/profile-checkout.functions";
 import { startTerminalPayment, checkTerminalPayment, cancelTerminalPayment, type TerminalPaymentState } from "@/utils/pos-terminal.functions";
 import { PROFILE_PAYMENT_METHODS, cashReceivedCents } from "@/lib/profile-checkout";
 import { describeError } from "@/lib/describe-error";
@@ -17,6 +17,7 @@ export function ProfilePlanCheckout({ clientId, plan, onClose, onPaid }: {
 }) {
   const qc = useQueryClient();
   const cashFn = useServerFn(collectProfileCash);
+  const transferFn = useServerFn(collectProfileTransfer);
   const startFn = useServerFn(startTerminalPayment);
   const checkFn = useServerFn(checkTerminalPayment);
   const cancelFn = useServerFn(cancelTerminalPayment);
@@ -34,7 +35,13 @@ export function ProfilePlanCheckout({ clientId, plan, onClose, onPaid }: {
       void qc.invalidateQueries({ queryKey: [key, clientId] });
     }
     void qc.invalidateQueries({ queryKey: ["pos-recent-sales"] });
-    toast.success(change === undefined ? "Pago aprobado. Compra registrada." : `Compra registrada. Cambio: ${money(change)}.`);
+    toast.success(
+      change === undefined
+        ? "Pago aprobado. Compra registrada."
+        : change === -1
+          ? "Transferencia registrada. Clases acreditadas al cliente."
+          : `Compra registrada. Cambio: ${money(change)}.`,
+    );
     onPaid();
   };
 
@@ -44,6 +51,10 @@ export function ProfilePlanCheckout({ clientId, plan, onClose, onPaid }: {
       if (method === "efectivo") {
         if (receivedCents === null) throw new Error("Ingresa el efectivo recibido.");
         return { cash: await cashFn({ data: { clientId, planId: plan.id, receivedCents } }) };
+      }
+      if (method === "transferencia") {
+        await transferFn({ data: { clientId, planId: plan.id } });
+        return { cash: { changeCents: -1 } };
       }
       const state = await startFn({ data: {
         brand: "laatu", clientId, items: [], plans: [{ planId: plan.id, qty: 1 }], origin: window.location.origin,
@@ -94,18 +105,20 @@ export function ProfilePlanCheckout({ clientId, plan, onClose, onPaid }: {
       <DialogHeader><DialogTitle>Comprar {plan.name}</DialogTitle></DialogHeader>
       <div className="flex justify-between border-b border-border pb-4 text-lg"><span>Total</span><span>{money(plan.price_cents)}</span></div>
       {!payment ? <>
-        <fieldset disabled={checkout.isPending} className="flex gap-6">
+        <fieldset disabled={checkout.isPending} className="flex flex-wrap gap-x-6 gap-y-3">
           <legend className="mb-3 text-sm">Forma de pago</legend>
           {PROFILE_PAYMENT_METHODS.map((key) => <label key={key} className="flex items-center gap-2 text-sm">
             <input type="radio" name="profile-payment-method" checked={method === key} onChange={() => { setMethod(key); setMessage(null); }} />
-            {key === "efectivo" ? "Efectivo" : "Tarjeta · Terminal Clip"}
+            {key === "efectivo" ? "Efectivo" : key === "transferencia" ? "Transferencia" : "Tarjeta · Terminal Clip"}
           </label>)}
         </fieldset>
         {method === "efectivo" ? <div className="space-y-3">
           <label className="block text-sm" htmlFor="profile-cash">Efectivo recibido (MXN)</label>
           <input id="profile-cash" type="number" min="0" step="0.01" inputMode="decimal" value={received} disabled={checkout.isPending} onChange={(event) => setReceived(event.target.value)} className="w-full border border-input bg-background px-3 py-2 text-sm" />
           <p className="text-sm text-muted-foreground">Cambio: {cashValid && receivedCents !== null ? money(receivedCents - plan.price_cents) : "—"}</p>
-        </div> : <p className="text-sm text-muted-foreground">Terminal Läätu · {money(plan.price_cents)}</p>}
+        </div> : method === "transferencia" ? <p className="border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+          Revisa en la cuenta del banco que ya llegó la transferencia de {money(plan.price_cents)}. Al confirmar se le acreditan las clases de inmediato.
+        </p> : <p className="text-sm text-muted-foreground">Terminal Läätu · {money(plan.price_cents)}</p>}
       </> : <div className="space-y-3">
         <p className="text-sm">{payment.status === "pending" ? "Esperando pago en la terminal Läätu…" : payment.status === "declined" ? "Tarjeta rechazada. Puedes reintentar en la misma terminal o cancelar el cobro." : payment.status === "canceled" ? "Cobro cancelado. No se registró una compra." : payment.status === "completed" ? "Pago aprobado." : payment.error ?? "El pago no se completó."}</p>
       </div>}
@@ -115,7 +128,7 @@ export function ProfilePlanCheckout({ clientId, plan, onClose, onPaid }: {
         {waiting ? <Button variant="outline" disabled={canceling} onClick={() => void cancel()}>{canceling ? "Cancelando…" : "Cancelar cobro"}</Button> : <>
           <Button variant="outline" disabled={checkout.isPending || canceling} onClick={onClose}>Cerrar</Button>
           {payment ? <Button onClick={() => { setPayment(null); setMessage(null); }}>Volver al pago</Button> : <Button disabled={checkout.isPending || (method === "efectivo" && !cashValid)} onClick={() => checkout.mutate()}>
-            {checkout.isPending ? "Procesando…" : method === "efectivo" ? "Confirmar efectivo" : "Cobrar en terminal"}
+            {checkout.isPending ? "Procesando…" : method === "efectivo" ? "Confirmar efectivo" : method === "transferencia" ? "Pago recibido" : "Cobrar en terminal"}
           </Button>}
         </>}
       </div>
