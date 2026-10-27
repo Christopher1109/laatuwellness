@@ -66,6 +66,8 @@ type StartInput = {
   items: { productId: string; qty: number }[];
   plans?: { planId: string; qty: number }[];
   origin: string;
+  /** Merch: false = el cliente no se lo lleva ahora; queda en Pedidos pendientes. */
+  deliverNow?: boolean;
 };
 
 export const startTerminalPayment = createServerFn({ method: "POST" })
@@ -95,7 +97,11 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
       throw new Error("Los paquetes de clases se cobran en la terminal de Läätu.");
     }
     if (typeof data.origin !== "string" || !data.origin) throw new Error("origin requerido");
-    return { ...data, plans };
+    const deliverNow = data.deliverNow !== false;
+    if (!deliverNow && !data.clientId) {
+      throw new Error("Para dejar un pedido pendiente de entrega hay que elegir al cliente.");
+    }
+    return { ...data, plans, deliverNow };
   })
   .handler(async ({ data, context }): Promise<TerminalPaymentState> => {
     const { supabase, userId } = context;
@@ -210,6 +216,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
         plans,
         amount_cents: amountCents,
         status: "creating",
+        deliver_now: data.deliverNow,
       })
       .select(ROW_COLUMNS)
       .single();

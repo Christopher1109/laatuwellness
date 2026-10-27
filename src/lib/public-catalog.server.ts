@@ -7,12 +7,15 @@ export function createPublicCatalogClient() {
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
   if (!url || !key) throw new Error("Public catalog configuration is missing.");
   return createClient<Database>(url, key, {
-    auth: { storage: undefined, persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    auth: {
+      storage: undefined,
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
     global: {
       fetch: (input, init) => {
-        const headers = new Headers(
-          input instanceof Request ? input.headers : undefined,
-        );
+        const headers = new Headers(input instanceof Request ? input.headers : undefined);
         new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
         if (key.startsWith("sb_") && headers.get("Authorization") === `Bearer ${key}`) {
           headers.delete("Authorization");

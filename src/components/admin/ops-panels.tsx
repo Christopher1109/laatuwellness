@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Calendar,
   ClipboardCheck,
+  FileSpreadsheet,
   Mail,
   Pencil,
   Phone,
@@ -50,6 +51,8 @@ import { Button } from "@/components/ui/button";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
 import { describeError } from "@/lib/describe-error";
+import { downloadIncomeReport } from "@/lib/finance-report";
+import { PAYMENT_LABELS } from "@/lib/finance-workbook";
 import { refundTerminalPayment } from "@/utils/pos-refunds.functions";
 import {
   cancelTerminalPayment,
@@ -181,33 +184,49 @@ const ORDER_STATUS_FLOW: Record<string, { next: string | null; label: string }> 
 export function PendingOrdersPanel() {
   const qc = useQueryClient();
   const { staffProfile } = useAuth();
-  const [filter, setFilter] = useState<"activos" | "todos">("activos");
+  const [filter, setFilter] = useState<"activos" | "entregados" | "todos">("activos");
   const [signingOrder, setSigningOrder] = useState<{ id: string; clientName: string } | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
 
+  // Solo merch: pedidos en línea y ventas del mostrador que incluyen merch.
+  // Bebidas, cafés y demás consumibles no pasan por aquí.
   const { data: orders } = useQuery({
     queryKey: ["pending-orders"],
     queryFn: async () => {
+      const { data: merch, error: merchError } = await supabase
+        .from("products")
+        .select("id")
+        .eq("category", "merch");
+      if (merchError) throw merchError;
+      const merchIds = (merch ?? []).map((m) => m.id);
+      if (merchIds.length === 0) return [];
+      const { data: items, error: itemsError } = await supabase
+        .from("pos_sale_items")
+        .select("sale_id, product_id, description, qty, unit_price_cents")
+        .in("product_id", merchIds)
+        .limit(1000);
+      if (itemsError) throw itemsError;
+      const saleIds = Array.from(new Set((items ?? []).map((i) => i.sale_id)));
+      if (saleIds.length === 0) return [];
       const { data: sales, error } = await supabase
         .from("pos_sales")
         .select("*")
+        .in("id", saleIds)
+        .neq("status", "reembolsado")
         .order("created_at", { ascending: false })
-        .limit(80);
+        .limit(200);
       if (error) throw error;
-      const saleIds = (sales ?? []).map((s) => s.id);
-      const { data: items } = saleIds.length
-        ? await supabase.from("pos_sale_items").select("*").in("sale_id", saleIds)
-        : { data: [] as { sale_id: string; description: string; qty: number }[] };
       const userIds = Array.from(
         new Set((sales ?? []).map((s) => s.user_id).filter(Boolean)),
       ) as string[];
       const { data: profiles } = userIds.length
-        ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
-        : { data: [] as { id: string; full_name: string; email: string }[] };
+        ? await supabase.from("profiles").select("id, full_name, email, phone").in("id", userIds)
+        : { data: [] as { id: string; full_name: string; email: string; phone: string | null }[] };
       return (sales ?? []).map((s) => ({
         ...s,
         items: (items ?? []).filter((i) => i.sale_id === s.id),
         client: profiles?.find((p) => p.id === s.user_id),
+        online: Boolean(s.order_code),
       }));
     },
   });
@@ -250,21 +269,34 @@ export function PendingOrdersPanel() {
     onError: (e: Error) => toast.error(e.message || "No se pudo registrar la entrega."),
   });
 
+  const pendingCount = (orders ?? []).filter((o) => o.status !== "entregado").length;
   const visible = (orders ?? []).filter((o) =>
-    filter === "activos" ? o.status !== "entregado" : true,
+    filter === "activos"
+      ? o.status !== "entregado"
+      : filter === "entregados"
+        ? o.status === "entregado"
+        : true,
   );
 
   return (
     <div>
+      <p className="mb-3 max-w-2xl text-xs text-muted-foreground">
+        Merch por entregar: compras en línea y ventas del mostrador que quedaron pendientes. Lo
+        vendido en el mostrador y entregado al momento aparece en "Entregados".
+      </p>
       <div className="mb-4 flex gap-1.5">
-        {(["activos", "todos"] as const).map((f) => (
+        {(["activos", "entregados", "todos"] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setFilter(f)}
             className={`border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] ${filter === f ? "border-foreground bg-foreground text-background" : "border-input"}`}
           >
-            {f === "activos" ? "Activos" : "Todos"}
+            {f === "activos"
+              ? `Por entregar (${pendingCount})`
+              : f === "entregados"
+                ? "Entregados"
+                : "Todos"}
           </button>
         ))}
       </div>
@@ -278,10 +310,14 @@ export function PendingOrdersPanel() {
             <div key={o.id} className="border border-border p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{clientName}</p>
-                  {(o as unknown as { order_code?: string }).order_code ? (
-                    <p className="font-mono text-[0.65rem] text-muted-foreground">
-                      {(o as unknown as { order_code?: string }).order_code}
+                  <p className="eyebrow text-[0.6rem]">
+                    {o.online ? `Compra en línea · ${o.order_code}` : "Venta en mostrador"}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-medium">{clientName}</p>
+                  {o.client?.email ? (
+                    <p className="truncate text-[0.68rem] text-muted-foreground">
+                      {o.client.email}
+                      {o.client.phone ? ` · ${o.client.phone}` : ""}
                     </p>
                   ) : null}
                   <p className="text-[0.65rem] text-muted-foreground">
@@ -306,12 +342,21 @@ export function PendingOrdersPanel() {
               </div>
               <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                 {o.items.map((i, idx) => (
-                  <li key={idx}>
-                    {i.qty}× {i.description}
+                  <li key={idx} className="text-sm text-foreground">
+                    {i.qty} × {i.description}
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-sm">{money(o.total_cents)}</p>
+              <p className="text-xs text-muted-foreground">
+                {o.online || o.payment_method === "tarjeta"
+                  ? "Pagado con tarjeta"
+                  : o.payment_method === "transferencia"
+                    ? "Pagado por transferencia"
+                    : o.payment_method === "efectivo"
+                      ? "Pagado en efectivo"
+                      : "Pago pendiente"}
+              </p>
               {flow.next ? (
                 <button
                   onClick={() =>
@@ -329,7 +374,11 @@ export function PendingOrdersPanel() {
           );
         })}
         {visible.length === 0 ? (
-          <p className="col-span-full text-muted-foreground">Sin pedidos en este filtro.</p>
+          <p className="col-span-full text-muted-foreground">
+            {filter === "activos"
+              ? "No hay merch pendiente de entregar."
+              : "Sin pedidos en este filtro."}
+          </p>
         ) : null}
       </div>
 
@@ -481,7 +530,14 @@ export function POSPanel() {
   const planQty = Object.values(planCart).reduce((a, b) => a + b, 0);
   const itemCount = productQty + planQty;
   const isTransfer = payment === "transferencia";
-  const needsClient = planQty > 0 || isTransfer;
+  // Merch: se pide para quién es y si se lo lleva en este momento.
+  const merchQty = Object.entries(cart).reduce((acc, [id, qty]) => {
+    const p = products?.find((x) => x.id === id);
+    return p?.category === "merch" ? acc + qty : acc;
+  }, 0);
+  const hasMerch = merchQty > 0;
+  const [deliverNow, setDeliverNow] = useState<boolean | null>(null);
+  const needsClient = planQty > 0 || isTransfer || hasMerch;
 
   // Paquetes con reglas (Newcomer = una sola compra y solo clientes nuevos):
   // al elegir al cliente se revisa si todavía puede comprarlos.
@@ -565,7 +621,9 @@ export function POSPanel() {
     setPlanCart({});
     setClientEmail("");
     setMatchedClient(null);
+    setDeliverNow(null);
     void qc.invalidateQueries({ queryKey: ["pos-products"] });
+    void qc.invalidateQueries({ queryKey: ["pending-orders"] });
     void qc.invalidateQueries({ queryKey: ["admin-products"] });
     void qc.invalidateQueries({ queryKey: ["pos-recent-sales"] });
   };
@@ -594,6 +652,7 @@ export function POSPanel() {
           items: group.items.map((it) => ({ productId: it.id, qty: it.qty })),
           plans: group.plans.map((pl) => ({ planId: pl.id, qty: pl.qty })),
           origin: window.location.origin,
+          deliverNow: deliverNow !== false,
         },
       });
       setActivePayment(state);
@@ -703,8 +762,13 @@ export function POSPanel() {
         throw new Error(
           isTransfer
             ? "Para cobrar por transferencia, elige al cliente."
-            : "Para vender paquetes o clases, elige al cliente.",
+            : hasMerch && planQty === 0
+              ? "Para vender merch, elige para quién es."
+              : "Para vender paquetes o clases, elige al cliente.",
         );
+      }
+      if (hasMerch && deliverNow === null) {
+        throw new Error("Indica si el merch se entrega en este momento.");
       }
 
       if (usesTerminal && total > 0) {
@@ -734,6 +798,7 @@ export function POSPanel() {
             _payment_method: method,
             _items: items,
             _brand: group.brand,
+            _deliver_now: deliverNow !== false,
           });
           if (error) throw error;
         }
@@ -843,7 +908,7 @@ export function POSPanel() {
                     <p className="truncate">{p.name}</p>
                     {brand === "goodes" ? (
                       <span className="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
-                        Goddes´s
+                        Goddess
                       </span>
                     ) : null}
                   </div>
@@ -874,9 +939,11 @@ export function POSPanel() {
             Cliente{" "}
             {isTransfer
               ? "(obligatorio para transferencia)"
-              : needsClient
+              : planQty > 0
                 ? "(obligatorio para paquetes)"
-                : "(opcional)"}
+                : hasMerch
+                  ? "(obligatorio: ¿para quién es el merch?)"
+                  : "(opcional)"}
           </span>
           <input
             value={
@@ -931,9 +998,11 @@ export function POSPanel() {
             </span>
           ) : needsClient ? (
             <span className="mt-1 block text-[0.7rem] text-destructive">
-              {isTransfer && planQty === 0
-                ? "Elige al cliente que hizo la transferencia."
-                : "Elige al cliente para acreditarle las clases."}
+              {planQty > 0
+                ? "Elige al cliente para acreditarle las clases."
+                : hasMerch
+                  ? "Elige al cliente que se lleva el merch."
+                  : "Elige al cliente que hizo la transferencia."}
             </span>
           ) : null}
         </label>
@@ -963,6 +1032,42 @@ export function POSPanel() {
             ))}
           </div>
         </div>
+
+        {hasMerch ? (
+          <div className="text-xs">
+            <span className="eyebrow">¿Se entrega el merch en este momento? (obligatorio)</span>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {(
+                [
+                  [true, "Sí, se lo lleva"],
+                  [false, "No, queda pendiente"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={String(value)}
+                  type="button"
+                  onClick={() => setDeliverNow(value)}
+                  className={`border px-3 py-2 text-[0.7rem] uppercase tracking-[0.1em] ${
+                    deliverNow === value
+                      ? "border-foreground bg-foreground text-background"
+                      : deliverNow === null
+                        ? "border-destructive"
+                        : "border-input"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">
+              {deliverNow === false
+                ? "Quedará en Pedidos pendientes con el nombre del cliente hasta que se entregue."
+                : deliverNow
+                  ? "Queda registrado como entregado en Pedidos pendientes."
+                  : "Elige una opción para poder cobrar."}
+            </p>
+          </div>
+        ) : null}
 
         {itemCount > 0 ? (
           <ul className="space-y-1 border-t border-border pt-3 text-xs">
@@ -1016,7 +1121,7 @@ export function POSPanel() {
                 : "border-border bg-muted text-muted-foreground"
             }`}
           >
-            Se enviará a la terminal: {cartBrand === "goodes" ? "Goddes´s" : "Läätu"}
+            Se enviará a la terminal: {cartBrand === "goodes" ? "Goddess" : "Läätu"}
           </p>
         ) : null}
         {isMixedBrand ? (
@@ -1025,7 +1130,7 @@ export function POSPanel() {
             {brandGroups.map((g, i) => (
               <p key={g.brand} className="flex justify-between">
                 <span>
-                  {i + 1}. {g.brand === "goodes" ? "Goddes´s" : "Läätu"}
+                  {i + 1}. {g.brand === "goodes" ? "Goddess" : "Läätu"}
                   {usesTerminal ? " (su terminal)" : ""}
                 </span>
                 <span>{money(g.total)}</span>
@@ -1038,6 +1143,7 @@ export function POSPanel() {
             checkout.isPending ||
             itemCount === 0 ||
             (needsClient && !matchedClient) ||
+            (hasMerch && deliverNow === null) ||
             planBlockMessages.length > 0 ||
             !!activePayment
           }
@@ -1171,7 +1277,7 @@ function TerminalPaymentDialog({
   onRetry: () => void;
   onClose: () => void;
 }) {
-  const label = payment.brand === "goodes" ? "Goddes´s" : "Läätu";
+  const label = payment.brand === "goodes" ? "Goddess" : "Läätu";
   const waiting =
     payment.status === "creating" || payment.status === "pending" || payment.status === "declined";
   return (
@@ -1429,7 +1535,7 @@ function RecentSalesPanel() {
                       {s.description || "—"}
                       {s.brand === "goodes" ? (
                         <span className="ml-2 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
-                          Goddes´s
+                          Goddess
                         </span>
                       ) : null}
                     </td>
@@ -1827,7 +1933,7 @@ export function InventoryPanel() {
             <span className="eyebrow">Marca / terminal</span>
             <select name="brand" defaultValue="laatu" className={input}>
               <option value="laatu">Läätu</option>
-              <option value="goodes">Goddes´s</option>
+              <option value="goodes">Goddess</option>
             </select>
           </label>
           <label className="text-xs">
@@ -2021,7 +2127,7 @@ function InventoryRow({
                 className={input}
               >
                 <option value="laatu">Läätu</option>
-                <option value="goodes">Goddes´s</option>
+                <option value="goodes">Goddess</option>
               </select>
             </label>
             <label className="text-xs">
@@ -2121,7 +2227,7 @@ function InventoryRow({
       <td className="px-4 py-3">
         {brand === "goodes" ? (
           <span className="bg-amber-500/15 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-[0.1em] text-amber-800">
-            Goddes´s
+            Goddess
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">Läätu</span>
@@ -3850,7 +3956,7 @@ export function GoodesPanel() {
       }
     },
     onSuccess: () => {
-      toast.success("Producto de Goddes´s guardado.");
+      toast.success("Producto de Goddess guardado.");
       setEditingId(null);
       setCreating(false);
       void qc.invalidateQueries({ queryKey: ["admin-goodes"] });
@@ -3875,10 +3981,10 @@ export function GoodesPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="eyebrow">Goddes´s</p>
+        <p className="eyebrow">Goddess</p>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Productos de la marca Goddes´s — solo se venden en el mostrador, en la terminal de Clip de
-          Goddes´s. Nunca aparecen en la página web ni en la app.
+          Productos de la marca Goddess — solo se venden en el mostrador, en la terminal de Clip de
+          Goddess. Nunca aparecen en la página web ni en la app.
         </p>
       </div>
 
@@ -3887,20 +3993,13 @@ export function GoodesPanel() {
         onClick={() => setCreating(true)}
         className="border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] hover:bg-muted"
       >
-        + Agregar producto de Goddes´s
+        + Agregar producto de Goddess
       </button>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(data ?? []).map((p) => (
           <div key={p.id} className="border border-border p-4">
-            <div className="flex aspect-square items-center justify-center bg-muted">
-              {p.image_url ? (
-                <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
-              ) : (
-                <p className="px-4 text-center text-xs text-muted-foreground">Sin foto</p>
-              )}
-            </div>
-            <div className="mt-3 flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{money(p.price_cents)}</p>
@@ -3940,7 +4039,7 @@ export function GoodesPanel() {
           </div>
         ))}
         {(data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin productos de Goddes´s todavía.</p>
+          <p className="text-sm text-muted-foreground">Sin productos de Goddess todavía.</p>
         ) : null}
       </div>
 
@@ -3949,6 +4048,8 @@ export function GoodesPanel() {
           <div className="w-full max-w-xl bg-background shadow-2xl">
             <MerchEditCard
               product={editingId ? ((data ?? []).find((p) => p.id === editingId) ?? null) : null}
+              withPhoto={false}
+              activeLabel="Disponible en el punto de venta"
               onCancel={() => {
                 setCreating(false);
                 setEditingId(null);
@@ -4142,8 +4243,12 @@ function MerchEditCard({
   onCancel,
   onSave,
   onDelete,
+  withPhoto = true,
+  activeLabel = "Publicado en /merch",
 }: {
   product: (Tables<"products"> & { description?: string }) | null;
+  withPhoto?: boolean;
+  activeLabel?: string;
   onCancel: () => void;
   onDelete?: () => void;
   onSave: (row: {
@@ -4190,31 +4295,33 @@ function MerchEditCard({
         });
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <span className="eyebrow">Foto</span>
-          <div className="mt-2 flex aspect-square items-center justify-center bg-muted">
-            {imageUrl ? (
-              <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <p className="px-4 text-center text-xs text-muted-foreground">Sin foto todavía</p>
-            )}
+      <div className={cn("grid gap-4", withPhoto && "sm:grid-cols-2")}>
+        {withPhoto ? (
+          <div>
+            <span className="eyebrow">Foto</span>
+            <div className="mt-2 flex aspect-square items-center justify-center bg-muted">
+              {imageUrl ? (
+                <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <p className="px-4 text-center text-xs text-muted-foreground">Sin foto todavía</p>
+              )}
+            </div>
+            <label className="mt-2 block">
+              <span className="sr-only">Subir foto</span>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleFile(file);
+                }}
+                className="w-full text-xs"
+              />
+            </label>
+            {uploading ? <p className="mt-1 text-xs text-muted-foreground">Subiendo…</p> : null}
           </div>
-          <label className="mt-2 block">
-            <span className="sr-only">Subir foto</span>
-            <input
-              type="file"
-              accept="image/*"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFile(file);
-              }}
-              className="w-full text-xs"
-            />
-          </label>
-          {uploading ? <p className="mt-1 text-xs text-muted-foreground">Subiendo…</p> : null}
-        </div>
+        ) : null}
 
         <div className="space-y-3">
           <label className="block text-xs">
@@ -4246,13 +4353,15 @@ function MerchEditCard({
           </label>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" name="active" defaultChecked={product?.active ?? true} />
-            <span className="eyebrow">Publicado en /merch</span>
+            <span className="eyebrow">{activeLabel}</span>
           </label>
         </div>
       </div>
 
       <label className="mt-4 block text-xs">
-        <span className="eyebrow">Descripción (se ve en la tienda pública)</span>
+        <span className="eyebrow">
+          {withPhoto ? "Descripción (se ve en la tienda pública)" : "Descripción (opcional)"}
+        </span>
         <textarea
           name="description"
           rows={3}
@@ -6143,6 +6252,8 @@ export function FinancePanel() {
     null,
   );
   const [tokenCategoryFilter, setTokenCategoryFilter] = useState<string>("todas");
+  const [planFilter, setPlanFilter] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const defaultFrom = useMemo(() => {
     const d = new Date();
@@ -6193,7 +6304,9 @@ export function FinancePanel() {
 
       const { data: transactions } = await supabase
         .from("transactions")
-        .select("amount_cents, status, created_at, user_id, plan:token_plans(category, name)")
+        .select(
+          "amount_cents, status, created_at, user_id, payment_method, external_ref, plan:token_plans(category, name)",
+        )
         .eq("status", "completed")
         .gte("created_at", fetchFromIso)
         .lte("created_at", toIso);
@@ -6242,6 +6355,28 @@ export function FinancePanel() {
 
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, email");
       const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+      // Detalle de cada compra de paquete del rango: quién, qué día y cómo pagó.
+      const purchases = (transactions ?? [])
+        .filter((t) => new Date(t.created_at) >= monthStart)
+        .map((t) => {
+          const prof = t.user_id ? profileById.get(t.user_id) : undefined;
+          return {
+            date: t.created_at,
+            client: prof?.full_name || prof?.email || "Cliente",
+            email: prof?.email ?? "",
+            plan: t.plan?.name ?? "Otro",
+            category: t.plan?.category ?? "clases_pilates",
+            method: PAYMENT_LABELS[t.payment_method] ?? t.payment_method,
+            origin: (t.external_ref ?? "").startsWith("pinpad_")
+              ? "Mostrador · terminal"
+              : (t.external_ref ?? "").startsWith("pos_cash_")
+                ? "Mostrador"
+                : "En línea",
+            amount: t.amount_cents,
+          };
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
 
       let merchRevenue = 0;
       let consumibleRevenue = 0;
@@ -6379,6 +6514,7 @@ export function FinancePanel() {
         clasesRevenue,
         tokensByCategory,
         tokensByPlan: Array.from(tokensByPlan.values()).sort((a, b) => b.revenue - a.revenue),
+        purchases,
         merchRevenue,
         consumibleRevenue,
         topMerch: sortMap(topMerch),
@@ -6446,6 +6582,29 @@ export function FinancePanel() {
           className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em] hover:bg-muted"
         >
           Este mes
+        </button>
+        <button
+          type="button"
+          disabled={downloading}
+          onClick={async () => {
+            setDownloading(true);
+            try {
+              const n = await downloadIncomeReport(monthStart, rangeEnd);
+              toast.success(
+                n > 0
+                  ? `Reporte descargado (${n} movimientos).`
+                  : "Reporte descargado (sin ventas en el periodo).",
+              );
+            } catch (e) {
+              toast.error(describeError(e, "No se pudo generar el reporte."));
+            } finally {
+              setDownloading(false);
+            }
+          }}
+          className="ml-auto inline-flex items-center gap-2 bg-foreground px-4 py-2.5 text-[0.65rem] uppercase tracking-[0.14em] text-background disabled:opacity-50"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          {downloading ? "Generando…" : "Descargar Excel"}
         </button>
       </div>
       <p className="text-sm text-muted-foreground">
@@ -6628,6 +6787,59 @@ export function FinancePanel() {
               {
                 key: "revenue",
                 label: "Ingreso",
+                align: "right",
+                format: (v) => money(v as number),
+              },
+            ]}
+          />
+
+          <p className="mb-2 mt-8 eyebrow">Quién compró y cuándo</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPlanFilter(null)}
+              className={`border px-3 py-1 text-[0.6rem] uppercase ${planFilter === null ? "border-foreground bg-foreground text-background" : "border-input"}`}
+            >
+              Todos los paquetes
+            </button>
+            {(data?.tokensByPlan ?? [])
+              .filter((p) => tokenCategoryFilter === "todas" || p.category === tokenCategoryFilter)
+              .map((p) => (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => setPlanFilter(p.name)}
+                  className={`border px-3 py-1 text-[0.6rem] uppercase ${planFilter === p.name ? "border-foreground bg-foreground text-background" : "border-input"}`}
+                >
+                  {p.name} ({p.count})
+                </button>
+              ))}
+          </div>
+          <SortableTable
+            rows={(data?.purchases ?? []).filter(
+              (p) =>
+                (tokenCategoryFilter === "todas" || p.category === tokenCategoryFilter) &&
+                (planFilter === null || p.plan === planFilter),
+            )}
+            emptyLabel="Sin compras de este paquete en el periodo."
+            columns={[
+              {
+                key: "date",
+                label: "Fecha",
+                format: (v) =>
+                  new Intl.DateTimeFormat("es-MX", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(v as string)),
+              },
+              { key: "client", label: "Cliente" },
+              { key: "email", label: "Correo" },
+              { key: "plan", label: "Paquete" },
+              { key: "method", label: "Pago" },
+              { key: "origin", label: "Dónde" },
+              {
+                key: "amount",
+                label: "Monto",
                 align: "right",
                 format: (v) => money(v as number),
               },
