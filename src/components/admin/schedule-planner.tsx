@@ -113,7 +113,9 @@ const isPublished = (t: Pick<TemplateRow, "coach_id" | "is_rotation" | "is_tbd">
 
 export function SchedulePlannerPanel() {
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStaff, isCoach } = useAuth();
+  // Administración y recepción pueden corregir nombres y cupos de los tipos.
+  const canEditTypes = isAdmin || (isStaff && !isCoach);
   const [moduleKey, setModuleKey] = useState<string>("reformer");
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
@@ -483,16 +485,32 @@ export function SchedulePlannerPanel() {
 
   // Tipos de clase del programa (solo administración los da de alta).
   const saveType = useMutation({
-    mutationFn: async (v: { id?: string; name?: string; default_capacity: number | null }) => {
+    mutationFn: async (v: ClassTypeSave) => {
+      const name = (v.name ?? "").trim().slice(0, 60);
       if (v.id) {
-        const { error } = await supabase
+        if (v.name !== undefined && !name) throw new Error("El nombre no puede ir vacío.");
+        const duplicated = (classTypes ?? []).some(
+          (t) => t.id !== v.id && t.name.trim().toLowerCase() === name.toLowerCase(),
+        );
+        if (name && duplicated) throw new Error("Ya existe otro tipo de clase con ese nombre.");
+        const patch: { name?: string; default_capacity: number | null; active?: boolean } = {
+          default_capacity: v.default_capacity,
+        };
+        if (name) patch.name = name;
+        if (v.active !== undefined) patch.active = v.active;
+        const { data, error } = await supabase
           .from("class_types")
-          .update({ default_capacity: v.default_capacity })
-          .eq("id", v.id);
+          .update(patch)
+          .eq("id", v.id)
+          .select("id");
         if (error) throw error;
+        if (!data || data.length === 0)
+          throw new Error("No tienes permiso para editar tipos de clase.");
       } else {
-        const name = (v.name ?? "").trim();
         if (!name) throw new Error("Escribe el nombre del tipo de clase.");
+        if ((classTypes ?? []).some((t) => t.name.trim().toLowerCase() === name.toLowerCase())) {
+          throw new Error("Ya existe un tipo de clase con ese nombre.");
+        }
         const { error } = await supabase.from("class_types").insert({
           module_key: moduleKey,
           name,
@@ -505,9 +523,10 @@ export function SchedulePlannerPanel() {
       }
     },
     onSuccess: () => {
-      toast.success("Tipo de clase guardado.");
+      toast.success("Tipo de clase guardado. Ya se ve así en la página y la app.");
       void qc.invalidateQueries({ queryKey: ["schedule-class-types", moduleKey] });
       void qc.invalidateQueries({ queryKey: ["class-types"] });
+      void qc.invalidateQueries({ queryKey: ["public-class-types"] });
     },
     onError: (e: Error) => toast.error(describeError(e, "No se pudo guardar el tipo de clase.")),
   });
@@ -985,7 +1004,7 @@ export function SchedulePlannerPanel() {
         onAdd={(time) => addTimeRow.mutate(time)}
       />
 
-      {isAdmin ? (
+      {canEditTypes ? (
         <ClassTypesEditor
           moduleLabel={moduleRoom}
           types={classTypes ?? []}
@@ -1276,6 +1295,13 @@ function CellEditor({
   );
 }
 
+type ClassTypeSave = {
+  id?: string;
+  name?: string;
+  default_capacity: number | null;
+  active?: boolean;
+};
+
 function ClassTypesEditor({
   moduleLabel,
   types,
@@ -1285,40 +1311,29 @@ function ClassTypesEditor({
   moduleLabel: string;
   types: ClassTypeOption[];
   pending: boolean;
-  onSave: (v: { id?: string; name?: string; default_capacity: number | null }) => void;
+  onSave: (v: ClassTypeSave) => void;
 }) {
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("");
-  const toCapacity = (v: string) => {
-    const n = Math.round(Number(v));
-    return v.trim() && n > 0 ? n : null;
-  };
   return (
-    <details className="mt-8 border border-border p-4">
-      <summary className="cursor-pointer eyebrow">Tipos de clase y cupos de {moduleLabel}</summary>
+    <details className="mt-8 border border-border p-4" open>
+      <summary className="cursor-pointer eyebrow">
+        Tipos de clase de {moduleLabel}: nombres y cupos
+      </summary>
       <p className="mt-3 text-xs text-muted-foreground">
-        El cupo de cada tipo se usa al asignar ese tipo a un bloque (puedes cambiarlo bloque por
-        bloque). Déjalo vacío para usar el cupo normal del salón.
+        Corrige aquí cómo se escribe cada clase: el nombre nuevo se ve de inmediato en la página, la
+        app, los horarios y el perfil de los coaches. El cupo se usa al asignar ese tipo a un bloque
+        (déjalo vacío para usar el cupo normal del salón). "Ocultar" lo quita de la lista para
+        asignar, sin borrar las clases que ya lo tienen.
       </p>
       <ul className="mt-3 divide-y divide-border border-y border-border text-sm">
         {types.map((t) => (
-          <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
-            <span className={cn(!t.active && "text-muted-foreground line-through")}>{t.name}</span>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              Cupo
-              <input
-                type="number"
-                min={1}
-                max={60}
-                defaultValue={t.default_capacity ?? ""}
-                onBlur={(e) => {
-                  const next = toCapacity(e.target.value);
-                  if (next !== t.default_capacity) onSave({ id: t.id, default_capacity: next });
-                }}
-                className={`${input} w-20`}
-              />
-            </label>
-          </li>
+          <ClassTypeRow
+            key={`${t.id}:${t.name}:${t.default_capacity}:${t.active}`}
+            type={t}
+            pending={pending}
+            onSave={onSave}
+          />
         ))}
         {types.length === 0 ? (
           <li className="py-3 text-muted-foreground">Sin tipos de clase todavía.</li>
@@ -1339,6 +1354,7 @@ function ClassTypesEditor({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ej. Barre"
+            maxLength={60}
             className={`${input} w-48`}
           />
         </label>
@@ -1361,5 +1377,77 @@ function ClassTypesEditor({
         </button>
       </form>
     </details>
+  );
+}
+
+function toCapacity(v: string) {
+  const n = Math.round(Number(v));
+  return v.trim() && n > 0 ? n : null;
+}
+
+function ClassTypeRow({
+  type,
+  pending,
+  onSave,
+}: {
+  type: ClassTypeOption;
+  pending: boolean;
+  onSave: (v: ClassTypeSave) => void;
+}) {
+  const [name, setName] = useState(type.name);
+  const [capacity, setCapacity] = useState(
+    type.default_capacity ? String(type.default_capacity) : "",
+  );
+  const nextCapacity = toCapacity(capacity);
+  const dirty = name.trim() !== type.name || nextCapacity !== type.default_capacity;
+  return (
+    <li className="py-2.5">
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!dirty) return;
+          onSave({ id: type.id, name, default_capacity: nextCapacity });
+        }}
+      >
+        <label className="min-w-[12rem] flex-1 text-xs">
+          <span className="eyebrow">Nombre</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            required
+            className={cn(input, !type.active && "text-muted-foreground line-through")}
+          />
+        </label>
+        <label className="text-xs">
+          <span className="eyebrow">Cupo</span>
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            className={`${input} w-20`}
+          />
+        </label>
+        <button
+          disabled={pending || !dirty || !name.trim()}
+          className="bg-foreground px-4 py-2.5 text-[0.65rem] uppercase tracking-[0.14em] text-background disabled:opacity-40"
+        >
+          Guardar
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            onSave({ id: type.id, default_capacity: type.default_capacity, active: !type.active })
+          }
+          className="border border-input px-3 py-2.5 text-[0.65rem] uppercase tracking-[0.14em] hover:bg-muted disabled:opacity-40"
+        >
+          {type.active ? "Ocultar" : "Mostrar"}
+        </button>
+      </form>
+    </li>
   );
 }
