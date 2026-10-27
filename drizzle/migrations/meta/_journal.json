@@ -99,6 +99,13 @@
       "when": 1793071159712,
       "tag": "0013_merch_entrega_pendiente",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793120360313,
+      "tag": "0014_public_read_policies_anon",
+      "breakpoints": true
     }
   ]
 }
