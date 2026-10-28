@@ -1,24 +1,15 @@
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
-import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  BadgeCheck,
-  CalendarDays,
-  ListChecks,
-  LogOut,
-  ShoppingBag,
-  Wallet,
-} from "lucide-react";
+import { CalendarDays, ListChecks, LogOut, ShoppingBag, Wallet } from "lucide-react";
 import { Schedule } from "@/components/schedule";
+import { PlanCatalog } from "@/components/plan-catalog";
 import { Wordmark } from "@/components/brand";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
-import { usePlanLocks } from "@/hooks/use-plan-locks";
 import { CouponRedeemBox } from "@/components/coupon-redeem";
 import { createMerchCartClipCheckout } from "@/utils/clip.functions";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,7 +28,10 @@ export const Route = createFileRoute("/app")({
           "Reserva tus clases, revisa tu lista de espera y tus créditos desde la app de Läätu.",
       },
       { property: "og:title", content: "App — Läätu Wellness" },
-      { property: "og:description", content: "Tu cuenta y el panel del estudio en la app de Läätu Wellness." },
+      {
+        property: "og:description",
+        content: "Tu cuenta y el panel del estudio en la app de Läätu Wellness.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -51,12 +45,6 @@ function money(cents: number, currency = "MXN") {
     currency,
     maximumFractionDigits: 0,
   }).format(cents / 100);
-}
-
-function dateTime(iso: string) {
-  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(iso),
-  );
 }
 
 type Tab = "horarios" | "reservas" | "creditos" | "tienda";
@@ -90,7 +78,7 @@ function AppShell() {
       <AppTopBar />
       <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         {tab === "horarios" ? <HorariosTab /> : null}
-        {tab === "reservas" ? <ReservasTab /> : null}
+        {tab === "reservas" ? <ReservasTab onGoToSchedule={() => setTab("horarios")} /> : null}
         {tab === "creditos" ? <CreditosTab /> : null}
         {tab === "tienda" ? <TiendaTab /> : null}
       </main>
@@ -228,23 +216,108 @@ function HorariosTab() {
   );
 }
 
-function ReservasTab() {
-  const { user } = useAuth();
+type AppBooking = {
+  id: string;
+  status: string;
+  seat_number: number | null;
+  tokens_spent: number;
+  classes: {
+    starts_at: string;
+    duration_min: number;
+    room: string;
+    instructor: string;
+    module_key: string | null;
+    class_type_id: string | null;
+    is_tbd: boolean;
+  } | null;
+};
 
-  const { data: bookings } = useQuery({
+const MODULE_NAMES: Record<string, string> = {
+  reformer: "Reformer",
+  "4mat": "4mat",
+  rehabilitacion: "DorisFisio",
+  contraste: "Contrast Therapy",
+};
+
+const mtyTime = (d: Date) =>
+  new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+
+function relativeDay(d: Date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = new Date(d);
+  day.setHours(0, 0, 0, 0);
+  const diff = Math.round((day.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Hoy";
+  if (diff === 1) return "Mañana";
+  return new Intl.DateTimeFormat("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(d);
+}
+
+/** Qué pasa si cancela ahora, según la política del estudio. */
+function cancelPolicy(startsAt: Date, tokensSpent: number) {
+  const hours = (startsAt.getTime() - Date.now()) / 3600000;
+  if (hours >= 12) {
+    return tokensSpent > 0
+      ? "Faltan más de 12 horas: se te regresa tu crédito."
+      : "Faltan más de 12 horas: puedes cancelar sin problema.";
+  }
+  if (hours < 2) {
+    return "Faltan menos de 2 horas: el crédito no se regresa y, si tienes membresía, se aplica un cargo de $150.";
+  }
+  return "Faltan menos de 12 horas: el crédito ya no se regresa.";
+}
+
+function ReservasTab({ onGoToSchedule }: { onGoToSchedule: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [view, setView] = useState<"proximas" | "espera" | "historial">("proximas");
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const { data: bookings, isLoading } = useQuery({
     queryKey: ["app-bookings", user?.id],
     enabled: Boolean(user),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("*, classes(room, instructor, starts_at)")
-        .order("created_at", { ascending: false });
+        .select(
+          "id, status, seat_number, tokens_spent, classes(starts_at, duration_min, room, instructor, module_key, class_type_id, is_tbd)",
+        )
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(200);
       if (error) throw error;
-      return data;
+      return (data ?? []) as unknown as AppBooking[];
     },
   });
 
-  const qc = useQueryClient();
+  const { data: typeNames } = useQuery({
+    queryKey: ["public-class-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("class_types")
+        .select("id, name")
+        .eq("active", true);
+      if (error) throw error;
+      return new Map((data ?? []).map((t) => [t.id, t.name]));
+    },
+  });
+
+  const refresh = () => {
+    for (const key of [
+      "app-bookings",
+      "app-balance",
+      "classes",
+      "my-bookings",
+      "membership-status",
+    ]) {
+      void qc.invalidateQueries({ queryKey: [key] });
+    }
+  };
+
   const cancel = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase.rpc("cancel_booking", { _booking_id: bookingId });
@@ -253,9 +326,10 @@ function ReservasTab() {
     },
     onSuccess: () => {
       toast.success("Reserva cancelada.");
-      void qc.invalidateQueries({ queryKey: ["app-bookings"] });
+      setConfirming(null);
+      refresh();
     },
-    onError: () => toast.error("No pudimos cancelar."),
+    onError: () => toast.error("No pudimos cancelar. Intenta de nuevo o escríbenos."),
   });
 
   const leaveWaitlist = useMutation({
@@ -264,114 +338,230 @@ function ReservasTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Saliste de la lista de espera.");
-      void qc.invalidateQueries({ queryKey: ["app-bookings"] });
+      toast.success("Saliste de la lista de espera. Se te regresó tu crédito.");
+      setConfirming(null);
+      refresh();
     },
     onError: () => toast.error("No se pudo salir de la lista de espera."),
   });
 
   const now = Date.now();
-  const upcoming = (bookings ?? []).filter(
-    (b) => b.status === "reservada" && new Date(b.classes!.starts_at).getTime() > now,
-  );
-  const waitlisted = (bookings ?? []).filter(
-    (b) => b.status === "lista_espera" && new Date(b.classes!.starts_at).getTime() > now,
-  );
-  const past = (bookings ?? []).filter(
-    (b) =>
-      (b.status !== "reservada" && b.status !== "lista_espera") ||
-      new Date(b.classes!.starts_at).getTime() <= now,
-  );
+  const withClass = (bookings ?? []).filter((b) => b.classes);
+  const startOf = (b: AppBooking) => new Date(b.classes!.starts_at);
+  const upcoming = withClass
+    .filter((b) => b.status === "reservada" && startOf(b).getTime() > now)
+    .sort((a, b) => startOf(a).getTime() - startOf(b).getTime());
+  const waitlisted = withClass
+    .filter((b) => b.status === "lista_espera" && startOf(b).getTime() > now)
+    .sort((a, b) => startOf(a).getTime() - startOf(b).getTime());
+  const past = withClass
+    .filter(
+      (b) =>
+        (b.status !== "reservada" && b.status !== "lista_espera") || startOf(b).getTime() <= now,
+    )
+    .sort((a, b) => startOf(b).getTime() - startOf(a).getTime());
+
+  const className = (b: AppBooking) =>
+    (b.classes!.class_type_id ? typeNames?.get(b.classes!.class_type_id) : undefined) ??
+    MODULE_NAMES[b.classes!.module_key ?? ""] ??
+    b.classes!.room;
+  const coachName = (b: AppBooking) =>
+    b.classes!.is_tbd ? "Coach por anunciar" : b.classes!.instructor || "";
+
+  const segments = [
+    ["proximas", "Próximas", upcoming.length],
+    ["espera", "En espera", waitlisted.length],
+    ["historial", "Historial", past.length],
+  ] as const;
+
+  const card = (b: AppBooking, kind: "proxima" | "espera" | "pasada", highlight = false) => {
+    const start = startOf(b);
+    const end = new Date(start.getTime() + b.classes!.duration_min * 60000);
+    const isConfirming = confirming === b.id;
+    const pastLabel =
+      b.status === "cancelada" ? "Cancelada" : b.status === "lista_espera" ? "Sin lugar" : "Tomada";
+    return (
+      <li
+        key={b.id}
+        className={cn(
+          "overflow-hidden rounded-xl border bg-background",
+          highlight ? "border-foreground shadow-md" : "border-border",
+          kind === "pasada" && "opacity-75",
+        )}
+      >
+        <div className="flex gap-4 p-4">
+          <div
+            className={cn(
+              "flex w-14 shrink-0 flex-col items-center justify-center rounded-lg py-2",
+              highlight ? "bg-foreground text-background" : "bg-muted",
+            )}
+          >
+            <span className="text-[0.6rem] uppercase tracking-[0.12em]">
+              {new Intl.DateTimeFormat("es-MX", { weekday: "short" })
+                .format(start)
+                .replace(".", "")}
+            </span>
+            <span className="text-xl leading-tight">{start.getDate()}</span>
+            <span className="text-[0.6rem] uppercase tracking-[0.12em]">
+              {new Intl.DateTimeFormat("es-MX", { month: "short" }).format(start).replace(".", "")}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+              {kind === "pasada" ? relativeDay(start) : relativeDay(start)} · {mtyTime(start)}–
+              {mtyTime(end)}
+            </p>
+            <p className="mt-0.5 truncate text-base font-medium">{className(b)}</p>
+            <p className="truncate text-sm text-muted-foreground">
+              {[coachName(b), b.classes!.room].filter(Boolean).join(" · ")}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {kind === "proxima" && b.seat_number ? (
+                <span className="rounded-full bg-foreground px-2 py-0.5 text-[0.62rem] text-background">
+                  Lugar {b.seat_number}
+                </span>
+              ) : null}
+              {kind === "espera" ? (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[0.62rem] text-amber-800">
+                  En lista de espera
+                </span>
+              ) : null}
+              {kind === "pasada" ? (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[0.62rem]",
+                    b.status === "cancelada"
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-emerald-500/10 text-emerald-700",
+                  )}
+                >
+                  {pastLabel}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {kind !== "pasada" ? (
+          isConfirming ? (
+            <div className="border-t border-border bg-muted/40 p-4">
+              <p className="text-sm">
+                {kind === "espera"
+                  ? "¿Salir de la lista de espera? Se te regresa tu crédito."
+                  : `¿Cancelar tu clase? ${cancelPolicy(start, b.tokens_spent)}`}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirming(null)}
+                  className="border border-input bg-background px-3 py-2.5 text-[0.65rem] uppercase tracking-[0.14em]"
+                >
+                  No, mantener
+                </button>
+                <button
+                  type="button"
+                  disabled={cancel.isPending || leaveWaitlist.isPending}
+                  onClick={() =>
+                    kind === "espera" ? leaveWaitlist.mutate(b.id) : cancel.mutate(b.id)
+                  }
+                  className="bg-foreground px-3 py-2.5 text-[0.65rem] uppercase tracking-[0.14em] text-background disabled:opacity-50"
+                >
+                  {kind === "espera" ? "Sí, salir" : "Sí, cancelar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(b.id)}
+              className="w-full border-t border-border py-3 text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground"
+            >
+              {kind === "espera" ? "Salir de la lista de espera" : "Cancelar reserva"}
+            </button>
+          )
+        ) : null}
+      </li>
+    );
+  };
+
+  const list = view === "proximas" ? upcoming : view === "espera" ? waitlisted : past.slice(0, 40);
 
   return (
-    <div className="space-y-10 px-5 py-6">
-      <div>
-        <p className="eyebrow">Próximas</p>
-        {upcoming.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Aún no tienes reservas.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-border">
-            {upcoming.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 py-3.5">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm">
-                    {dateTime(b.classes!.starts_at)}
-                    {b.seat_number ? (
-                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-[0.55rem] text-background">
-                        {b.seat_number}
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {b.classes!.room} · {b.classes!.instructor}
-                  </p>
-                </div>
-                <button
-                  onClick={() => cancel.mutate(b.id)}
-                  className="shrink-0 border border-input px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.14em]"
-                >
-                  Cancelar
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+    <div className="px-5 py-6">
+      <div className="grid grid-cols-3 gap-1 rounded-full bg-muted p-1">
+        {segments.map(([key, label, count]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => {
+              setView(key);
+              setConfirming(null);
+            }}
+            className={cn(
+              "rounded-full px-2 py-2 text-[0.64rem] uppercase tracking-[0.1em] transition-colors",
+              view === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+            )}
+          >
+            {label}
+            {count > 0 && key !== "historial" ? ` (${count})` : ""}
+          </button>
+        ))}
       </div>
 
-      {waitlisted.length > 0 ? (
-        <div>
-          <p className="eyebrow">Lista de espera</p>
-          <ul className="mt-3 divide-y divide-border">
-            {waitlisted.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 py-3.5">
-                <div className="min-w-0">
-                  <p className="text-sm">{dateTime(b.classes!.starts_at)}</p>
-                  <p className="truncate text-xs text-amber-600">Crédito apartado</p>
-                </div>
-                <button
-                  onClick={() => leaveWaitlist.mutate(b.id)}
-                  className="shrink-0 border border-input px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.14em]"
-                >
-                  Salir
-                </button>
-              </li>
-            ))}
-          </ul>
+      {isLoading ? <p className="mt-8 text-sm text-muted-foreground">Cargando…</p> : null}
+
+      {!isLoading && list.length === 0 ? (
+        <div className="mt-12 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <CalendarDays className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">
+            {view === "proximas"
+              ? "No tienes clases reservadas"
+              : view === "espera"
+                ? "No estás en ninguna lista de espera"
+                : "Aún no tienes historial"}
+          </p>
+          {view !== "historial" ? (
+            <button
+              type="button"
+              onClick={onGoToSchedule}
+              className="mt-2 bg-foreground px-5 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background"
+            >
+              Ver horarios
+            </button>
+          ) : null}
         </div>
       ) : null}
 
-      <div>
-        <p className="eyebrow">Historial</p>
-        {past.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Aún sin historial.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-border">
-            {past.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <span className="text-muted-foreground">{dateTime(b.classes!.starts_at)}</span>
-                <span className="text-xs uppercase tracking-[0.1em] text-muted-foreground">
-                  {b.status}
-                </span>
-              </li>
-            ))}
+      {list.length > 0 ? (
+        <>
+          {view === "proximas" ? (
+            <p className="mb-3 mt-6 eyebrow">Tu próxima clase</p>
+          ) : (
+            <div className="mt-6" />
+          )}
+          <ul className="space-y-3">
+            {list.map((b, i) =>
+              card(
+                b,
+                view === "proximas" ? "proxima" : view === "espera" ? "espera" : "pasada",
+                view === "proximas" && i === 0,
+              ),
+            )}
           </ul>
-        )}
-      </div>
+          {view === "proximas" ? (
+            <p className="mt-6 text-xs text-muted-foreground">
+              Puedes cancelar hasta 12 horas antes para recuperar tu crédito.
+            </p>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  clases_pilates: "Class Packages",
-  membresia: "Membresías",
-  consulta: "Align — DorisFisio",
-  recuperacion: "Contrast",
-};
-const CATEGORY_ORDER = ["clases_pilates", "membresia", "consulta", "recuperacion"];
-
 function CreditosTab() {
   const { user } = useAuth();
-  const qc = useQueryClient();
   const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
   const { data: balance } = useQuery({
@@ -381,22 +571,6 @@ function CreditosTab() {
       const { data, error } = await supabase.rpc("token_balance", { _user_id: user!.id });
       if (error) throw error;
       return (data as number | null) ?? 0;
-    },
-  });
-
-  const { data: plans } = useQuery({
-    queryKey: ["app-plans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("token_plans")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
-          !p.is_staff_only && isPlanInSaleWindow(p) && !p.renews_plan_id,
-      );
     },
   });
 
@@ -414,127 +588,32 @@ function CreditosTab() {
     },
   });
 
-  const planLock = usePlanLocks(user?.id);
-
-  const grouped = useMemo(() => {
-    const groups = new Map<string, NonNullable<typeof plans>>();
-    for (const p of plans ?? []) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
-    return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
-  }, [plans]);
-
-  const activeMembership = useMemo(() => {
-    const tx = (transactions ?? []).find((t) => {
-      const cat = (plans ?? []).find((p) => p.id === t.plan_id)?.category;
-      return cat === "membresia";
-    });
-    return tx;
-  }, [transactions, plans]);
-
   const { data: membership } = useMembershipStatus(user?.id);
-  const [view, setView] = useState<"creditos" | "membresia">("creditos");
-  const creditPlans = grouped.filter(([c]) => c !== "membresia");
-  const membershipPlans = grouped.find(([c]) => c === "membresia")?.[1] ?? [];
 
   return (
     <div className="px-5 py-6">
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setView("membresia")}
-          className={cn(
-            "flex flex-col items-center gap-2 border p-4 text-center",
-            view === "membresia" ? "border-foreground" : "border-border",
-          )}
-        >
-          <BadgeCheck className="h-6 w-6" />
-          <span className="text-[0.65rem] uppercase tracking-[0.1em]">Membresía</span>
-        </button>
-        <button
-          onClick={() => setView("creditos")}
-          className={cn(
-            "flex flex-col items-center gap-2 border p-4 text-center",
-            view === "creditos" ? "border-foreground" : "border-border",
-          )}
-        >
-          <Wallet className="h-6 w-6" />
-          <span className="text-[0.65rem] uppercase tracking-[0.1em]">Créditos</span>
-        </button>
-      </div>
-
-      <div className="mt-8 space-y-3">
+      <p className="eyebrow">Tu saldo</p>
+      <div className="mt-3 space-y-3">
         {membership ? <MembershipStatusCard userId={user?.id} user={user} /> : null}
         {(balance ?? 0) > 0 ? (
           <CreditLotsSummary userId={user?.id} />
         ) : (
-          <div className="border border-border p-6 text-center">
-            <p className="eyebrow">Créditos de paquetes</p>
-            <p className="mt-2 text-4xl">0</p>
+          <div className="flex items-center justify-between rounded-xl border border-border p-5">
+            <div>
+              <p className="eyebrow">Créditos de paquetes</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {membership ? "Tu membresía no usa créditos." : "Compra un paquete para reservar."}
+              </p>
+            </div>
+            <p className="text-3xl">0</p>
           </div>
         )}
       </div>
 
-      {view === "membresia" ? (
-        <div className="mt-8">
-          {membership ? (
-            <MembershipStatusCard userId={user?.id} user={user} />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                <BadgeCheck className="h-7 w-7 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">Sin membresía activa</p>
-              <p className="max-w-[220px] text-xs text-muted-foreground">
-                Las membresías incluyen clases, Align y Contrast en un solo pago mensual.
-              </p>
-            </div>
-          )}
-          <div className="mt-6 space-y-2">
-            {membershipPlans.map((p) => (
-              <div key={p.id} className="border border-border p-4">
-                <p className="text-sm">{p.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{p.subtitle}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {money(p.price_cents, p.currency)}/mes
-                </p>
-                <button
-                  onClick={() => setBuying(p as unknown as CheckoutPlan)}
-                  className="mt-3 w-full bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background"
-                >
-                  Elegir membresía
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-8 space-y-8">
-          {creditPlans.map(([category, items]) => (
-            <div key={category}>
-              <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
-              <div className="mt-3 space-y-2">
-                {items.map((p) => {
-                  const lockLabel = planLock(p as typeof p & { new_clients_only?: boolean });
-                  const alreadyPurchased = Boolean(lockLabel);
-                  return (
-                    <div key={p.id} className="border border-border p-4">
-                      <p className="text-sm">{p.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {money(p.price_cents, p.currency)} · {p.tokens} créditos
-                      </p>
-                      <button
-                        onClick={() => setBuying(p as unknown as CheckoutPlan)}
-                        disabled={alreadyPurchased}
-                        className="mt-3 w-full border border-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
-                      >
-                        {alreadyPurchased ? lockLabel : "Comprar"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-10">
+        <p className="eyebrow mb-4">Comprar paquetes y membresías</p>
+        <PlanCatalog variant="app" onBuy={(p) => setBuying(p as unknown as CheckoutPlan)} />
+      </div>
 
       <CouponRedeemBox className="mt-10" />
 
@@ -546,9 +625,17 @@ function CreditosTab() {
           <ul className="mt-3 divide-y divide-border">
             {(transactions ?? []).map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <span>{t.token_plans?.name ?? "Paquete"}</span>
-                <span className="text-xs text-muted-foreground">
-                  {money(t.amount_cents, t.currency)} · +{t.tokens}
+                <span className="min-w-0">
+                  <span className="block truncate">{t.token_plans?.name ?? "Paquete"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
+                      new Date(t.created_at),
+                    )}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {money(t.amount_cents, t.currency)}
+                  {t.tokens > 0 ? ` · +${t.tokens}` : ""}
                 </span>
               </li>
             ))}
