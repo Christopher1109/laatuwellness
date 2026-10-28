@@ -131,9 +131,9 @@ export type Database = {
       }
       class_types: {
         Row: {
-          default_capacity: number | null
           active: boolean
           created_at: string
+          default_capacity: number | null
           description: string
           id: string
           module_key: string
@@ -141,9 +141,9 @@ export type Database = {
           sort_order: number
         }
         Insert: {
-          default_capacity?: number | null
           active?: boolean
           created_at?: string
+          default_capacity?: number | null
           description?: string
           id?: string
           module_key: string
@@ -151,9 +151,9 @@ export type Database = {
           sort_order?: number
         }
         Update: {
-          default_capacity?: number | null
           active?: boolean
           created_at?: string
+          default_capacity?: number | null
           description?: string
           id?: string
           module_key?: string
@@ -164,8 +164,6 @@ export type Database = {
       }
       classes: {
         Row: {
-          is_tbd: boolean
-          manual_override: boolean
           active: boolean
           capacity: number
           class_type_id: string | null
@@ -174,14 +172,14 @@ export type Database = {
           duration_min: number
           id: string
           instructor: string
+          is_tbd: boolean
+          manual_override: boolean
           module_key: string | null
           room: string
           starts_at: string
           tokens_cost: number
         }
         Insert: {
-          is_tbd?: boolean
-          manual_override?: boolean
           active?: boolean
           capacity?: number
           class_type_id?: string | null
@@ -190,14 +188,14 @@ export type Database = {
           duration_min?: number
           id?: string
           instructor?: string
+          is_tbd?: boolean
+          manual_override?: boolean
           module_key?: string | null
           room?: string
           starts_at: string
           tokens_cost?: number
         }
         Update: {
-          is_tbd?: boolean
-          manual_override?: boolean
           active?: boolean
           capacity?: number
           class_type_id?: string | null
@@ -206,6 +204,8 @@ export type Database = {
           duration_min?: number
           id?: string
           instructor?: string
+          is_tbd?: boolean
+          manual_override?: boolean
           module_key?: string | null
           room?: string
           starts_at?: string
@@ -835,6 +835,7 @@ export type Database = {
           clip_refund_id: string | null
           clip_status: string | null
           created_at: string
+          deliver_now: boolean
           error: string | null
           id: string
           items: Json
@@ -860,6 +861,7 @@ export type Database = {
           clip_refund_id?: string | null
           clip_status?: string | null
           created_at?: string
+          deliver_now?: boolean
           error?: string | null
           id?: string
           items?: Json
@@ -885,6 +887,7 @@ export type Database = {
           clip_refund_id?: string | null
           clip_status?: string | null
           created_at?: string
+          deliver_now?: boolean
           error?: string | null
           id?: string
           items?: Json
@@ -1075,16 +1078,16 @@ export type Database = {
       }
       schedule_templates: {
         Row: {
-          actual_start: string | null
-          class_type_id: string | null
-          is_tbd: boolean
           active: boolean
+          actual_start: string | null
           capacity: number
+          class_type_id: string | null
           coach_id: string | null
           created_at: string
           duration_min: number
           id: string
           is_rotation: boolean
+          is_tbd: boolean
           module_key: string
           month: string
           room: string
@@ -1092,16 +1095,16 @@ export type Database = {
           weekday: number
         }
         Insert: {
-          actual_start?: string | null
-          class_type_id?: string | null
-          is_tbd?: boolean
           active?: boolean
+          actual_start?: string | null
           capacity?: number
+          class_type_id?: string | null
           coach_id?: string | null
           created_at?: string
           duration_min?: number
           id?: string
           is_rotation?: boolean
+          is_tbd?: boolean
           module_key: string
           month?: string
           room?: string
@@ -1109,16 +1112,16 @@ export type Database = {
           weekday: number
         }
         Update: {
-          actual_start?: string | null
-          class_type_id?: string | null
-          is_tbd?: boolean
           active?: boolean
+          actual_start?: string | null
           capacity?: number
+          class_type_id?: string | null
           coach_id?: string | null
           created_at?: string
           duration_min?: number
           id?: string
           is_rotation?: boolean
+          is_tbd?: boolean
           module_key?: string
           month?: string
           room?: string
@@ -1126,6 +1129,13 @@ export type Database = {
           weekday?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "schedule_templates_class_type_id_fkey"
+            columns: ["class_type_id"]
+            isOneToOne: false
+            referencedRelation: "class_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedule_templates_coach_id_fkey"
             columns: ["coach_id"]
@@ -1248,8 +1258,8 @@ export type Database = {
       }
       staff_profiles: {
         Row: {
-          color: string | null
           active: boolean
+          color: string | null
           created_at: string
           email: string
           full_name: string
@@ -1261,8 +1271,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
-          color?: string | null
           active?: boolean
+          color?: string | null
           created_at?: string
           email?: string
           full_name: string
@@ -1274,8 +1284,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
-          color?: string | null
           active?: boolean
+          color?: string | null
           created_at?: string
           email?: string
           full_name?: string
@@ -1699,6 +1709,7 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      booking_window_end: { Args: never; Returns: string }
       cancel_booking: {
         Args: { _booking_id: string }
         Returns: {
@@ -1729,20 +1740,19 @@ export type Database = {
       class_seats_taken: { Args: { _class_id: string }; Returns: number }
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
-      booking_window_end: { Args: never; Returns: string }
+      client_place_order:
+        | { Args: { _items: Json }; Returns: string }
+        | { Args: { _items: Json; _note?: string }; Returns: string }
       coach_class_roster: {
         Args: { _class_id: string }
         Returns: {
           booking_id: string
-          full_name: string
-          status: string
-          seat_number: number | null
           checked_in: boolean
+          full_name: string
+          seat_number: number
+          status: string
         }[]
       }
-      client_place_order:
-        | { Args: { _items: Json }; Returns: string }
-        | { Args: { _items: Json; _note?: string }; Returns: string }
       coach_public_schedule: {
         Args: { _coach_name: string; _days?: number }
         Returns: {
