@@ -348,6 +348,22 @@ export function Schedule({
 
   const [pickingSeatFor, setPickingSeatFor] = useState<ClassRow | null>(null);
 
+  // La web y la app comparten este componente: se refrescan también los
+  // saldos y reservas que muestran las otras pestañas de la app.
+  const refreshAfterBooking = () => {
+    for (const key of [
+      "classes",
+      "my-bookings",
+      "balance",
+      "app-balance",
+      "app-bookings",
+      "app-my-booked-ids",
+      "membership-status",
+    ]) {
+      void qc.invalidateQueries({ queryKey: [key] });
+    }
+  };
+
   const book = useMutation({
     mutationFn: async ({
       classId,
@@ -368,9 +384,7 @@ export function Schedule({
     onSuccess: () => {
       toast.success("Clase reservada. Nos vemos en el estudio.");
       setPickingSeatFor(null);
-      void qc.invalidateQueries({ queryKey: ["classes"] });
-      void qc.invalidateQueries({ queryKey: ["my-bookings"] });
-      void qc.invalidateQueries({ queryKey: ["balance"] });
+      refreshAfterBooking();
     },
     onError: (error: Error) => {
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
@@ -389,9 +403,7 @@ export function Schedule({
     },
     onSuccess: () => {
       toast.success("Estás en la lista de espera. Te avisamos si se libera un lugar.");
-      void qc.invalidateQueries({ queryKey: ["classes"] });
-      void qc.invalidateQueries({ queryKey: ["my-bookings"] });
-      void qc.invalidateQueries({ queryKey: ["balance"] });
+      refreshAfterBooking();
     },
     onError: (error: Error) => {
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
