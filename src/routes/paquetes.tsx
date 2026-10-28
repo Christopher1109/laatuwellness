@@ -1,14 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHeader } from "@/components/site-chrome";
 import { Constellation } from "@/components/brand";
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { PlanCheckoutModal } from "@/components/payments/plan-checkout-modal";
-import { usePlanLocks } from "@/hooks/use-plan-locks";
-import { isPlanInSaleWindow, spotsLeft } from "@/lib/plan-availability";
+import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { PlanCatalog, type CatalogPlan } from "@/components/plan-catalog";
 
 export const Route = createFileRoute("/paquetes")({
   head: () => ({
@@ -33,103 +29,17 @@ export const Route = createFileRoute("/paquetes")({
   component: Paquetes,
 });
 
-const CATEGORY_LABELS: Record<string, string> = {
-  clases_pilates: "Class Packages",
-  membresia: "Membresías",
-  consulta: "Align — DorisFisio",
-  recuperacion: "Contrast",
-};
-
-const CATEGORY_HINTS: Record<string, string> = {
-  clases_pilates:
-    "Compras créditos sueltos, sin compromiso mensual. Válidos por un tiempo limitado.",
-  membresia: "Cargo mensual recurrente con Align y Contrast incluidos según el plan.",
-  consulta: "Sesión individual de recuperación con Doris, se paga por sesión.",
-  recuperacion: "Sesión de sauna infrarrojo y cold plunge, se paga por sesión.",
-};
-
-const CATEGORY_ORDER = ["clases_pilates", "membresia", "consulta", "recuperacion"];
-
-function money(cents: number, currency = "MXN") {
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
 function Paquetes() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [buying, setBuying] = useState<{
-    id: string;
-    name: string;
-    price_cents: number;
-    tokens: number;
-    currency?: string;
-    recurring?: boolean;
-    stripe_price_id?: string | null;
-  } | null>(null);
+  const [buying, setBuying] = useState<CheckoutPlan | null>(null);
 
-  const { data: plans, isLoading } = useQuery({
-    queryKey: ["public-plans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("token_plans")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order");
-      if (error) throw error;
-      // Filtro en memoria (no en la query): así no truena si la columna
-      // is_staff_only todavía no existe en la base real. Si no existe,
-      // p.is_staff_only es undefined y el plan se muestra (correcto).
-      return (data ?? []).filter(
-        (p: Tables<"token_plans"> & { is_staff_only?: boolean }) =>
-          !p.is_staff_only && isPlanInSaleWindow(p) && !p.renews_plan_id,
-      );
-    },
-  });
-
-  // Lugares vendidos de membresías con cupo (ej. Founders Access).
-  const limitedIds = (plans ?? []).filter((p) => p.max_sales != null).map((p) => p.id);
-  const { data: soldCounts } = useQuery({
-    queryKey: ["plan-sales-count", limitedIds.join(",")],
-    enabled: limitedIds.length > 0,
-    refetchInterval: 60_000,
-    queryFn: async () => {
-      const out: Record<string, number> = {};
-      for (const id of limitedIds) {
-        const { data, error } = await supabase.rpc("plan_sales_count", { _plan_id: id });
-        if (error) throw error;
-        out[id] = Number(data ?? 0);
-      }
-      return out;
-    },
-  });
-
-  const planLock = usePlanLocks(user?.id);
-
-  const grouped = useMemo(() => {
-    const groups = new Map<string, NonNullable<typeof plans>>();
-    for (const p of plans ?? []) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
-    return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => [c, groups.get(c)!] as const);
-  }, [plans]);
-
-  const handleBuyClick = (p: NonNullable<typeof plans>[number]) => {
+  const handleBuyClick = (p: CatalogPlan) => {
     if (!user) {
       navigate({ to: "/auth" });
       return;
     }
-    setBuying({
-      id: p.id,
-      name: p.name,
-      price_cents: p.price_cents,
-      tokens: p.tokens,
-      currency: p.currency ?? "MXN",
-      recurring: p.recurring ?? false,
-      stripe_price_id:
-        (p as unknown as { stripe_price_id?: string | null }).stripe_price_id ?? null,
-    });
+    setBuying(p as unknown as CheckoutPlan);
   };
 
   return (
@@ -142,138 +52,7 @@ function Paquetes() {
 
       <section>
         <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
-          {isLoading ? (
-            <p className="text-muted-foreground">Cargando paquetes…</p>
-          ) : (
-            <div className="space-y-20">
-              {grouped.map(([category, items]) => (
-                <div key={category}>
-                  <div className="border-b border-foreground pb-4">
-                    <p className="eyebrow">{CATEGORY_LABELS[category] ?? category}</p>
-                    {CATEGORY_HINTS[category] ? (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {CATEGORY_HINTS[category]}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((p) =>
-                      (() => {
-                        const left = spotsLeft(p.max_sales, soldCounts?.[p.id] ?? 0);
-                        const soldOut = left === 0;
-                        const lockLabel = soldOut
-                          ? "Agotado"
-                          : planLock(p as typeof p & { new_clients_only?: boolean });
-                        const alreadyPurchased = Boolean(lockLabel);
-                        return (
-                          <article
-                            key={p.id}
-                            className={
-                              p.is_promo
-                                ? "flex flex-col border-2 border-foreground bg-background p-8 shadow-lg sm:col-span-2 lg:col-span-1"
-                                : "flex flex-col border border-border bg-background p-8 shadow-sm"
-                            }
-                          >
-                            {p.is_promo ? (
-                              <p className="mb-3 self-start bg-foreground px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-background">
-                                Promoción
-                              </p>
-                            ) : null}
-                            <h3 className="text-xl">{p.name}</h3>
-                            {p.subtitle ? (
-                              <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                                {p.subtitle}
-                              </p>
-                            ) : null}
-                            <p className="mt-3 text-sm text-muted-foreground">{p.description}</p>
-
-                            <p className="mt-6 text-2xl">
-                              {p.compare_at_price_cents ? (
-                                <span className="mr-2 text-base text-muted-foreground line-through">
-                                  {money(p.compare_at_price_cents, p.currency)}
-                                </span>
-                              ) : null}
-                              {money(p.price_cents, p.currency)}
-                            </p>
-                            {p.is_promo ? (
-                              <p className="mt-2 text-xs uppercase tracking-[0.14em] text-foreground">
-                                {p.max_sales ? `Solo ${p.max_sales} lugares · ` : ""}hasta el 26 de
-                                octubre
-                              </p>
-                            ) : null}
-                            {p.max_sales && left !== null && soldCounts ? (
-                              <SpotsBar total={p.max_sales} left={left} />
-                            ) : null}
-                            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                              {p.daily_class_limit
-                                ? `${p.daily_class_limit === 1 ? "1 clase" : `${p.daily_class_limit} clases`} por día · ${p.validity_days ?? 30} días`
-                                : `${p.tokens} ${p.tokens === 1 ? "crédito" : "créditos"}`}
-                              {p.recurring ? " · recurrente" : ""}
-                            </p>
-
-                            <button
-                              onClick={() => handleBuyClick(p)}
-                              disabled={alreadyPurchased}
-                              className="mt-6 w-full border border-foreground px-5 py-3 text-[0.7rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                            >
-                              {alreadyPurchased
-                                ? lockLabel
-                                : user
-                                  ? "Comprar"
-                                  : "Inicia sesión para comprar"}
-                            </button>
-
-                            <div className="mt-6 flex-1 space-y-4 border-t border-border pt-5">
-                              {p.includes ? (
-                                <div>
-                                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-foreground">
-                                    Incluye
-                                  </p>
-                                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                                    {p.includes
-                                      .split("\n")
-                                      .filter(Boolean)
-                                      .map((line, i) => (
-                                        <li key={i}>· {line}</li>
-                                      ))}
-                                  </ul>
-                                </div>
-                              ) : null}
-                              {(p as unknown as { excludes?: string }).excludes ? (
-                                <div>
-                                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                                    No incluye
-                                  </p>
-                                  <p className="mt-2 text-xs text-muted-foreground">
-                                    {(p as unknown as { excludes?: string }).excludes}
-                                  </p>
-                                </div>
-                              ) : null}
-                              {p.terms ? (
-                                <div>
-                                  <p className="text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
-                                    Restricciones
-                                  </p>
-                                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                                    {p.terms}
-                                  </p>
-                                </div>
-                              ) : null}
-                            </div>
-                          </article>
-                        );
-                      })(),
-                    )}
-                  </div>
-                </div>
-              ))}
-              {grouped.length === 0 ? (
-                <p className="text-muted-foreground">
-                  Aún no hay paquetes publicados. Escríbenos por WhatsApp y te ayudamos directo.
-                </p>
-              ) : null}
-            </div>
-          )}
+          <PlanCatalog variant="page" onBuy={handleBuyClick} />
         </div>
       </section>
 
@@ -291,37 +70,5 @@ function Paquetes() {
         <PlanCheckoutModal plan={buying} user={user} onClose={() => setBuying(null)} />
       ) : null}
     </SiteLayout>
-  );
-}
-
-// Barra de cupo de una membresía limitada: se va llenando conforme se venden
-// lugares y dice cuántos quedan.
-function SpotsBar({ total, left }: { total: number; left: number }) {
-  const sold = Math.min(total, Math.max(0, total - left));
-  const pct = total > 0 ? Math.round((sold / total) * 100) : 0;
-  return (
-    <div className="mt-3">
-      <div
-        className="h-2 w-full overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={sold}
-        aria-label={`${sold} de ${total} lugares vendidos`}
-      >
-        <div
-          className="h-full rounded-full bg-foreground transition-[width] duration-700 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <p className="mt-1.5 flex justify-between text-[0.68rem] uppercase tracking-[0.14em]">
-        <span className="text-muted-foreground">
-          {sold} de {total} vendidos
-        </span>
-        <span className="font-medium text-foreground">
-          {left === 0 ? "Agotado" : left === 1 ? "Queda 1 lugar" : `Quedan ${left} lugares`}
-        </span>
-      </p>
-    </div>
   );
 }

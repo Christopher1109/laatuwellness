@@ -15,7 +15,8 @@ const ERRORS: Record<string, string> = {
   CLASS_FULL: "Esta clase ya está llena.",
   ALREADY_BOOKED: "Ya tienes esta clase reservada.",
   CLASS_PAST: "Esta clase ya pasó.",
-  DAILY_LIMIT_REACHED: "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
+  DAILY_LIMIT_REACHED:
+    "Tu membresía no permite más reservas ese día (Everyday y Founders Access: 1 por día; Two a Day: 2 por día).",
   AUTH_REQUIRED: "Inicia sesión para reservar.",
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
   NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
@@ -274,7 +275,10 @@ export function Schedule({
   const { data: classTypes } = useQuery({
     queryKey: ["public-class-types"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("class_types").select("id, name").eq("active", true);
+      const { data, error } = await supabase
+        .from("class_types")
+        .select("id, name")
+        .eq("active", true);
       if (error) throw error;
       return new Map((data ?? []).map((t) => [t.id, t.name]));
     },
@@ -454,7 +458,8 @@ export function Schedule({
     const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
     return activos.map((key) => {
       let items = all.filter((c) => (c.module_key ?? "otros") === key);
-      if (dia) items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
+      if (dia)
+        items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
       if (limit) items = items.slice(0, limit);
       const porDia = new Map<string, ClassRow[]>();
       for (const c of items) {
@@ -464,8 +469,6 @@ export function Schedule({
       return { key, total: items.length, dias: [...porDia.entries()] };
     });
   }, [all, presentes, filtro, limit, dia]);
-
-  
 
   return (
     <div>
@@ -661,7 +664,9 @@ export function Schedule({
           classItem={pickingSeatFor}
           onClose={() => setPickingSeatFor(null)}
           pending={book.isPending}
-          onConfirm={(seat, useCredits) => book.mutate({ classId: pickingSeatFor.id, seat, useCredits })}
+          onConfirm={(seat, useCredits) =>
+            book.mutate({ classId: pickingSeatFor.id, seat, useCredits })
+          }
         />
       ) : null}
     </div>
