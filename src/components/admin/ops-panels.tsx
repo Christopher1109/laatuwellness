@@ -12,6 +12,12 @@ import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
 import { mixedSplitError, parsePesos, type MixedMethod } from "@/lib/pos-money";
+import {
+  CREDIT_KIND_LABELS,
+  CREDIT_KIND_SHORT,
+  creditKindOf,
+  type CreditKind,
+} from "@/lib/credit-kinds";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -3099,8 +3105,72 @@ export function DashboardPanel({ onGoTo }: { onGoTo: (key: string, moduleKey?: s
   );
 }
 
+// Ajuste manual de créditos por tipo (solo administración): estudio, o
+// DorisFisio Upper o Lower / Full Body.
+function CreditKindAdjuster({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+  const [kind, setKind] = useState<CreditKind>("doris_ul");
+  const adjust = useMutation({
+    mutationFn: async (delta: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parámetro nuevo, aún no está en los tipos generados
+      const { error } = await (supabase.rpc as any)("admin_adjust_tokens", {
+        _user_id: userId,
+        _delta: delta,
+        _reason: `Ajuste manual · ${CREDIT_KIND_LABELS[kind]}`,
+        _credit_kind: kind,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Créditos actualizados.");
+      void qc.invalidateQueries({ queryKey: ["credit-lots", userId] });
+      void qc.invalidateQueries({ queryKey: ["admin-clients"] });
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo ajustar.")),
+  });
+  if (!isAdmin) return null;
+  return (
+    <div className="border border-border p-5">
+      <p className="eyebrow">Ajustar créditos por tipo</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as CreditKind)}
+          className={`${input} w-auto flex-1`}
+        >
+          {(Object.keys(CREDIT_KIND_LABELS) as CreditKind[]).map((k) => (
+            <option key={k} value={k}>
+              {CREDIT_KIND_LABELS[k]}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={adjust.isPending}
+          onClick={() => adjust.mutate(-1)}
+          className="border border-input px-4 py-2"
+          aria-label="Quitar un crédito"
+        >
+          −1
+        </button>
+        <button
+          type="button"
+          disabled={adjust.isPending}
+          onClick={() => adjust.mutate(1)}
+          className="border border-input px-4 py-2"
+          aria-label="Dar un crédito"
+        >
+          +1
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ClientsPanel() {
   const qc = useQueryClient();
+  const { isRecovery } = useAuth();
 
   const { data } = useQuery({
     queryKey: ["admin-clients"],
@@ -3118,7 +3188,9 @@ export function ClientsPanel() {
       const staffUserIds = new Set((staffProfiles ?? []).map((s) => s.user_id).filter(Boolean));
       const clientProfiles = (profiles ?? []).filter((p) => !staffUserIds.has(p.id));
 
-      const { data: ledger } = await supabase.from("token_ledger").select("user_id, delta, reason");
+      const { data: ledger } = await supabase
+        .from("token_ledger")
+        .select("user_id, delta, reason, credit_kind");
       const { data: waivers } = await supabase.from("waiver_signatures").select("user_id");
       const { data: bookings } = await supabase.from("bookings").select("id, user_id, status");
       const { data: transactions, error: transactionsError } = await supabase
@@ -3131,9 +3203,18 @@ export function ClientsPanel() {
       const { data: checkIns } = await supabase.from("check_ins").select("booking_id, status");
 
       const balances = new Map<string, number>();
+      // Créditos de DorisFisio, separados: solo sirven para su tipo de sesión.
+      const dorisBalances = new Map<string, { ul: number; fb: number }>();
       const refunds = new Map<string, number>();
       for (const row of ledger ?? []) {
-        balances.set(row.user_id, (balances.get(row.user_id) ?? 0) + row.delta);
+        if (row.credit_kind === "doris_ul" || row.credit_kind === "doris_fb") {
+          const acc = dorisBalances.get(row.user_id) ?? { ul: 0, fb: 0 };
+          if (row.credit_kind === "doris_ul") acc.ul += row.delta;
+          else acc.fb += row.delta;
+          dorisBalances.set(row.user_id, acc);
+        } else {
+          balances.set(row.user_id, (balances.get(row.user_id) ?? 0) + row.delta);
+        }
         if (row.reason?.toLowerCase().includes("reembolso")) {
           refunds.set(row.user_id, (refunds.get(row.user_id) ?? 0) + 1);
         }
@@ -3194,6 +3275,7 @@ export function ClientsPanel() {
       return clientProfiles.map((p) => ({
         ...p,
         balance: balances.get(p.id) ?? 0,
+        doris: dorisBalances.get(p.id) ?? { ul: 0, fb: 0 },
         waiver: signed.has(p.id),
         revenue_cents: revenue.get(p.id) ?? 0,
         membership: memberships.get(p.id) ?? null,
@@ -3350,8 +3432,13 @@ export function ClientsPanel() {
                 {c.bookings.cancelled} canceladas
                 {c.refund_events > 0 ? ` · ${c.refund_events} reembolsos` : ""}
               </p>
+              {c.doris.ul > 0 || c.doris.fb > 0 ? (
+                <p className="mt-1 inline-block bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] text-emerald-800">
+                  DorisFisio: {c.doris.ul} Upper o Lower · {c.doris.fb} Full Body
+                </p>
+              ) : null}
             </button>
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 ${isRecovery ? "hidden" : ""}`}>
               <button
                 onClick={() => adjust.mutate({ userId: c.id, delta: -1 })}
                 className="border border-input px-3 py-1.5"
@@ -4173,6 +4260,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
           <MembershipStatusCard userId={clientId} staffView />
           <CreditLotsSummary userId={clientId} />
+          <CreditKindAdjuster userId={clientId} />
 
           <div className="border border-border p-5">
             <div className="flex items-center justify-between">
@@ -4737,12 +4825,18 @@ function MerchEditCard({
   );
 }
 
-export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
-  const qc = useQueryClient();
+export function PackagesPanel({
+  readOnly = false,
+  recoveryOnly = false,
+}: {
+  readOnly?: boolean;
+  /** Recovery (DorisFisio): solo ve y edita sus paquetes (precio, textos, visibilidad). */
+  recoveryOnly?: boolean;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data } = useQuery({
+  const { data: allPlans } = useQuery({
     queryKey: ["admin-packages"],
     queryFn: async () => {
       const { data, error } = await supabase.from("token_plans").select("*").order("sort_order");
@@ -4750,6 +4844,13 @@ export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
       return data;
     },
   });
+  const data = useMemo(
+    () =>
+      recoveryOnly
+        ? (allPlans ?? []).filter((p) => creditKindOf(p.credit_kind) !== "general")
+        : allPlans,
+    [allPlans, recoveryOnly],
+  );
 
   const grouped = useMemo(() => {
     const groups = new Map<string, NonNullable<typeof data>>();
@@ -4760,6 +4861,46 @@ export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
   }, [data]);
 
   const openPlan = data?.find((p) => p.id === openId);
+
+  if (recoveryOnly) {
+    return (
+      <div className="space-y-6">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Tus paquetes de DorisFisio. Cada uno da créditos de su tipo: un crédito de Upper o Lower
+          solo sirve para sesiones Upper o Lower, y uno de Full Body solo para Full Body. Aquí
+          puedes cambiar precio, textos y si se muestra a la venta.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(data ?? []).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setOpenId(p.id)}
+              className={`border p-4 text-left hover:border-foreground/40 ${p.active ? "border-border" : "border-border opacity-45"}`}
+            >
+              <span className="bg-emerald-500/10 px-1.5 py-0.5 text-[0.58rem] uppercase tracking-[0.1em] text-emerald-800">
+                Crédito {CREDIT_KIND_SHORT[creditKindOf(p.credit_kind)]}
+              </span>
+              <p className="mt-2 text-sm font-medium">{p.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {money(p.price_cents)} · {p.tokens} {p.tokens === 1 ? "sesión" : "sesiones"}
+                {p.validity_days ? ` · vigencia ${p.validity_days} días` : ""}
+              </p>
+              {!p.active ? (
+                <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
+              ) : null}
+            </button>
+          ))}
+          {(data ?? []).length === 0 ? (
+            <p className="text-muted-foreground">Sin paquetes de DorisFisio.</p>
+          ) : null}
+        </div>
+        {openPlan ? (
+          <RecoveryPackageEditPopout plan={openPlan} onClose={() => setOpenId(null)} />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -4806,6 +4947,11 @@ export function PackagesPanel({ readOnly = false }: { readOnly?: boolean }) {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {money(p.price_cents)} · {p.tokens} créditos
                   </p>
+                  {creditKindOf(p.credit_kind) !== "general" ? (
+                    <p className="mt-1 text-[0.6rem] uppercase tracking-[0.1em] text-emerald-800">
+                      Crédito solo {CREDIT_KIND_SHORT[creditKindOf(p.credit_kind)]}
+                    </p>
+                  ) : null}
                   {!p.active ? (
                     <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
                   ) : null}
@@ -5262,6 +5408,122 @@ function mtyDate(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Monterrey" }).format(new Date(iso));
 }
 
+// Editor reducido para recovery: precio, textos, vigencia y visibilidad.
+// El tipo de crédito y los créditos por paquete los cambia administración.
+function RecoveryPackageEditPopout({
+  plan,
+  onClose,
+}: {
+  plan: Tables<"token_plans">;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const save = useMutation({
+    mutationFn: async (patch: TablesUpdate<"token_plans">) => {
+      const { data, error } = await supabase
+        .from("token_plans")
+        .update(patch)
+        .eq("id", plan.id)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("FORBIDDEN");
+    },
+    onSuccess: () => {
+      toast.success("Paquete actualizado.");
+      void qc.invalidateQueries({ queryKey: ["admin-packages"] });
+      void qc.invalidateQueries({ queryKey: ["pos-plans"] });
+      onClose();
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo guardar el paquete.")),
+  });
+  return (
+    <Popout onClose={onClose}>
+      <p className="eyebrow">Editar paquete</p>
+      <h3 className="statement mt-1 text-2xl">{plan.name}</h3>
+      <p className="mt-1 text-xs text-emerald-800">
+        Da {plan.tokens} crédito{plan.tokens === 1 ? "" : "s"} de{" "}
+        {CREDIT_KIND_LABELS[creditKindOf(plan.credit_kind)]}
+      </p>
+      <form
+        className="mt-5 space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const price = Math.round(Number(f.get("price") || 0) * 100);
+          if (!Number.isFinite(price) || price < 0) {
+            toast.error("Precio inválido.");
+            return;
+          }
+          save.mutate({
+            price_cents: price,
+            subtitle: String(f.get("subtitle") || ""),
+            description: String(f.get("description") || ""),
+            terms: String(f.get("terms") || ""),
+            validity_days: f.get("validity_days") ? Number(f.get("validity_days")) : null,
+            active: f.get("active") === "on",
+          });
+        }}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <label className="text-xs">
+            <span className="eyebrow">Precio (MXN)</span>
+            <input
+              name="price"
+              type="number"
+              step="0.01"
+              min={0}
+              defaultValue={plan.price_cents / 100}
+              required
+              className={`${input} text-lg`}
+            />
+          </label>
+          <label className="text-xs">
+            <span className="eyebrow">Vigencia (días)</span>
+            <input
+              name="validity_days"
+              type="number"
+              min={1}
+              defaultValue={plan.validity_days ?? ""}
+              className={input}
+            />
+          </label>
+        </div>
+        <label className="block text-xs">
+          <span className="eyebrow">Subtítulo</span>
+          <input name="subtitle" defaultValue={plan.subtitle} className={input} />
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Descripción</span>
+          <textarea name="description" defaultValue={plan.description} rows={2} className={input} />
+        </label>
+        <label className="block text-xs">
+          <span className="eyebrow">Términos</span>
+          <textarea name="terms" defaultValue={plan.terms} rows={2} className={input} />
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="active" defaultChecked={plan.active} />
+          Visible a la venta (web, app y punto de venta)
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border border-input px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em]"
+          >
+            Cancelar
+          </button>
+          <button
+            disabled={save.isPending}
+            className="flex-1 bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+          >
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Popout>
+  );
+}
+
 function PackageEditPopout({
   plan,
   onClose,
@@ -5333,6 +5595,7 @@ function PackageEditPopout({
             subtitle: String(f.get("subtitle") || ""),
             description: String(f.get("description") || ""),
             category: String(f.get("category") || "clases_pilates"),
+            credit_kind: creditKindOf(String(f.get("credit_kind") || "general")),
             price_cents: Math.round(Number(f.get("price") || 0) * 100),
             tokens: Math.max(0, Number(f.get("tokens") || 0)),
             daily_class_limit: f.get("daily_class_limit")
@@ -5398,6 +5661,24 @@ function PackageEditPopout({
               defaultValue={plan?.validity_days ?? ""}
               className={input}
             />
+          </label>
+          <label className="col-span-2 text-xs">
+            <span className="eyebrow">Tipo de crédito que da</span>
+            <select
+              name="credit_kind"
+              defaultValue={creditKindOf(plan?.credit_kind)}
+              className={input}
+            >
+              {(Object.keys(CREDIT_KIND_LABELS) as CreditKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {CREDIT_KIND_LABELS[k]}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-[0.65rem] text-muted-foreground">
+              Los créditos de DorisFisio solo sirven para su tipo de sesión; los del estudio no
+              sirven en el consultorio.
+            </span>
           </label>
           <label className="text-xs">
             <span className="eyebrow">Precio (MXN)</span>

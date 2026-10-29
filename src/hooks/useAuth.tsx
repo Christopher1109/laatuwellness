@@ -14,6 +14,8 @@ type AuthValue = {
   staffProfile: StaffProfile | null;
   isStaff: boolean;
   isCoach: boolean;
+  /** DorisFisio: atiende el consultorio de recuperación (no es coach). */
+  isRecovery: boolean;
   refreshStaffProfile: () => void;
 };
 
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthValue>({
   staffProfile: null,
   isStaff: false,
   isCoach: false,
+  isRecovery: false,
   refreshStaffProfile: () => {},
 });
 
@@ -92,13 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         loading,
-        rolesLoading: loading || Boolean(session?.user.id &&
-          (resolvedRoles?.userId !== session.user.id || resolvedRoles?.tick !== refreshTick)),
+        rolesLoading:
+          loading ||
+          Boolean(
+            session?.user.id &&
+            (resolvedRoles?.userId !== session.user.id || resolvedRoles?.tick !== refreshTick),
+          ),
         // "admin" en user_roles o role=admin en staff_profiles cuentan como admin
         isAdmin: isAdmin || staffRole === "admin",
         staffProfile,
         isStaff: staffProfile !== null,
         isCoach: staffRole === "coach",
+        isRecovery: staffRole === "recovery",
         refreshStaffProfile: () => setRefreshTick((t) => t + 1),
       }}
     >

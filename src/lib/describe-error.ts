@@ -1,7 +1,10 @@
+import { CREDIT_ERRORS } from "@/lib/credit-kinds";
+
 // Convierte errores de Supabase/Postgres (que NO son instancias de Error, por
 // eso antes se mostraba siempre el mensaje genérico) en un texto claro.
 
 const KNOWN: Record<string, string> = {
+  ...CREDIT_ERRORS,
   FORBIDDEN: "Tu usuario no tiene permiso para hacer esto.",
   PLAN_NOT_FOUND: "Ese paquete ya no está disponible.",
   PLAN_NOT_AVAILABLE: "Ese paquete ya no está disponible.",

@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { describeError } from "@/lib/describe-error";
 import { validateTeamMember, type TeamMemberInput } from "@/lib/team-member";
 
-const TEAM_ROLES = ["admin", "staff", "coach"] as const;
+const TEAM_ROLES = ["admin", "staff", "coach", "recovery"] as const;
 
 /**
  * Alta / edición de staff y coaches desde el panel, incluyendo su acceso:

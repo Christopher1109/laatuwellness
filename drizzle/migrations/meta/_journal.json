@@ -127,6 +127,20 @@
       "when": 1793286662069,
       "tag": "0017_pos_pago_mixto_monto_libre",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793287744053,
+      "tag": "0018_rol_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793287896729,
+      "tag": "0019_recovery_creditos_por_tipo",
+      "breakpoints": true
     }
   ]
 }

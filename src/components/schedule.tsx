@@ -8,8 +8,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { BirdBadge } from "@/components/brand";
 import { cn } from "@/lib/utils";
 import { bookingWindowEnd } from "@/lib/booking-window";
+import { CREDIT_ERRORS } from "@/lib/credit-kinds";
 
 const ERRORS: Record<string, string> = {
+  // Van primero: son más específicos que INSUFFICIENT_TOKENS.
+  ...CREDIT_ERRORS,
   WAIVER_REQUIRED: "Necesitas firmar el waiver antes de reservar.",
   INSUFFICIENT_TOKENS: "No tienes tokens suficientes. Compra un paquete para continuar.",
   CLASS_FULL: "Esta clase ya está llena.",
@@ -133,6 +136,8 @@ export type SeatPickerClass = {
   id: string;
   starts_at: string;
   capacity: number;
+  /** El consultorio de DorisFisio se paga siempre con su crédito (no con membresía). */
+  module_key?: string | null;
 };
 
 /** Ventanita para elegir lugar antes de confirmar la reserva. */
@@ -207,11 +212,17 @@ export function SeatPickerModal({
         <p className="mt-3 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
           Verde = libre · oscuro = ocupado
         </p>
-        <BookingPaymentChoice
-          startsAt={classItem.starts_at}
-          useCredits={useCredits}
-          onChange={setUseCredits}
-        />
+        {classItem.module_key === "rehabilitacion" ? (
+          <p className="mt-5 text-xs text-muted-foreground">
+            Se usa un crédito de DorisFisio del tipo de la sesión (Upper o Lower, o Full Body).
+          </p>
+        ) : (
+          <BookingPaymentChoice
+            startsAt={classItem.starts_at}
+            useCredits={useCredits}
+            onChange={setUseCredits}
+          />
+        )}
         <div className="mt-6 flex gap-2">
           <button
             onClick={onClose}
@@ -393,7 +404,7 @@ export function Schedule({
     onError: (error: Error) => {
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
       toast.error(key ? ERRORS[key] : "No pudimos completar la reserva.");
-      if (key === "WAIVER_REQUIRED" || key === "INSUFFICIENT_TOKENS") {
+      if (key === "WAIVER_REQUIRED" || key?.startsWith("INSUFFICIENT_TOKENS")) {
         setPickingSeatFor(null);
         navigate({ to: "/cuenta" });
       }
@@ -412,7 +423,8 @@ export function Schedule({
     onError: (error: Error) => {
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
       toast.error(key ? ERRORS[key] : "No pudimos anotarte en la lista de espera.");
-      if (key === "WAIVER_REQUIRED" || key === "INSUFFICIENT_TOKENS") navigate({ to: "/cuenta" });
+      if (key === "WAIVER_REQUIRED" || key?.startsWith("INSUFFICIENT_TOKENS"))
+        navigate({ to: "/cuenta" });
     },
   });
 

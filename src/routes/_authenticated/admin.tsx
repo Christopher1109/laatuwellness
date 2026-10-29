@@ -17,7 +17,6 @@ import {
   PackageOpen,
   ScrollText,
   Ticket,
-  
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,7 +41,13 @@ import {
   input,
 } from "@/components/admin/ops-panels";
 import { SchedulePlannerPanel } from "@/components/admin/schedule-planner";
-import { CoachesPanel, CoachProfilePanel, StaffDirectoryPanel } from "@/components/admin/team-panels";
+import {
+  CoachesPanel,
+  CoachProfilePanel,
+  StaffDirectoryPanel,
+} from "@/components/admin/team-panels";
+import { RecoverySessionsPanel } from "@/components/admin/recovery-panels";
+import { TEAM_ROLE_LABELS } from "@/lib/credit-kinds";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -62,6 +67,8 @@ export const Route = createFileRoute("/_authenticated/admin")({
 // horarios de consultorio (fisioterapia, psicología, nutrición) para que no
 // se mezclen en la misma lista.
 const CONSULTORIO_MODULES = ["nutricion", "psicologia", "rehabilitacion"] as const;
+// Recovery (DorisFisio) solo trabaja con su consultorio.
+const RECOVERY_MODULES = ["rehabilitacion"] as const;
 
 // Bloques de entrada en "Horarios de clases": se elige un programa y solo se
 // muestran sus clases.
@@ -96,7 +103,7 @@ function ClassModulePicker({ onPick }: { onPick: (key: string) => void }) {
 }
 
 function Admin() {
-  const { isAdmin, isStaff, isCoach, loading, rolesLoading, staffProfile } = useAuth();
+  const { isAdmin, isStaff, isCoach, isRecovery, loading, rolesLoading, staffProfile } = useAuth();
 
   const groups: AdminNavGroup[] = isAdmin
     ? [
@@ -135,47 +142,71 @@ function Admin() {
           ],
         },
       ]
-    : isCoach
+    : isRecovery
       ? [
+          // DorisFisio (recovery): su consultorio, sus clientes, sus paquetes
+          // y sus consultas. No es coach.
           {
-            items: [{ key: "mi-perfil", label: "Mi perfil", icon: Users }],
+            items: [{ key: "mis-consultas", label: "Mis consultas", icon: LineChart }],
+          },
+          {
+            label: "Consultorio",
+            items: [
+              { key: "horarios-consultorio", label: "Agenda del consultorio", icon: Stethoscope },
+              { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
+              { key: "programacion", label: "Programación de clases", icon: CalendarDays },
+            ],
+          },
+          {
+            label: "Personas",
+            items: [{ key: "clientes", label: "Clientes", icon: Contact }],
+          },
+          {
+            label: "Negocio",
+            items: [{ key: "paquetes", label: "Mis paquetes", icon: Tag }],
           },
         ]
-      : isStaff
+      : isCoach
         ? [
             {
-              items: [{ key: "inicio", label: "Inicio", icon: Home }],
-            },
-            {
-              label: "Operación",
-              items: [
-                 { key: "programacion", label: "Programación de clases", icon: CalendarDays },
-                { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
-                {
-                  key: "horarios-consultorio",
-                  label: "Horarios de consultorio",
-                  icon: Stethoscope,
-                },
-                { key: "pos", label: "Punto de venta", icon: ShoppingCart },
-                { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
-                { key: "inventario", label: "Productos e inventario", icon: Package },
-              ],
-            },
-            {
-               label: "Personas",
-               items: [{ key: "clientes", label: "Clientes", icon: Contact }],
-             },
-             {
-               label: "Negocio",
-               items: [
-                { key: "paquetes", label: "Paquetes", icon: Tag },
-                 { key: "merch", label: "Merch", icon: PackageOpen },
-                 { key: "goodes", label: "Goddess", icon: Tag },
-                { key: "cupones", label: "Cupones", icon: Ticket },
-              ],
+              items: [{ key: "mi-perfil", label: "Mi perfil", icon: Users }],
             },
           ]
-        : [];
+        : isStaff
+          ? [
+              {
+                items: [{ key: "inicio", label: "Inicio", icon: Home }],
+              },
+              {
+                label: "Operación",
+                items: [
+                  { key: "programacion", label: "Programación de clases", icon: CalendarDays },
+                  { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
+                  {
+                    key: "horarios-consultorio",
+                    label: "Horarios de consultorio",
+                    icon: Stethoscope,
+                  },
+                  { key: "pos", label: "Punto de venta", icon: ShoppingCart },
+                  { key: "pedidos", label: "Pedidos pendientes", icon: PackageOpen },
+                  { key: "inventario", label: "Productos e inventario", icon: Package },
+                ],
+              },
+              {
+                label: "Personas",
+                items: [{ key: "clientes", label: "Clientes", icon: Contact }],
+              },
+              {
+                label: "Negocio",
+                items: [
+                  { key: "paquetes", label: "Paquetes", icon: Tag },
+                  { key: "merch", label: "Merch", icon: PackageOpen },
+                  { key: "goodes", label: "Goddess", icon: Tag },
+                  { key: "cupones", label: "Cupones", icon: Ticket },
+                ],
+              },
+            ]
+          : [];
 
   const firstKey = groups[0]?.items[0]?.key ?? "";
   const [active, setActive] = useState(firstKey);
@@ -183,13 +214,12 @@ function Admin() {
   const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
-    ((isAdmin || (isStaff && !isCoach)) &&
+    ((isAdmin || (isStaff && !isCoach && !isRecovery)) &&
       (active === "panel-staff" || (active === "check-in" && canStaffAccessPanel(active)))) ||
     (groups.flatMap((g) => g.items).some((i) => i.key === active) &&
-      (isAdmin || isCoach || canStaffAccessPanel(active)))
+      (isAdmin || isCoach || isRecovery || canStaffAccessPanel(active)))
       ? active
       : firstKey;
-
 
   if (loading || rolesLoading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando…</div>;
@@ -216,7 +246,9 @@ function Admin() {
       }}
 
       title="Panel del estudio"
-      subtitle={staffProfile?.role}
+      subtitle={
+        staffProfile?.role ? (TEAM_ROLE_LABELS[staffProfile.role] ?? staffProfile.role) : undefined
+      }
     >
       {activeKey === "inicio" ? (
         isAdmin ? (
@@ -244,50 +276,60 @@ function Admin() {
         />
       ) : null}
 
-      {activeKey === "programacion" ? <SchedulePlannerPanel /> : null}
-      {activeKey === "check-in" ? <CheckInPanel /> : null}
-      {activeKey === "horarios-clases" ? (
-        (() => {
-          const current = focusModule ?? classModule;
-          if (!current) {
-            return (
-              <ClassModulePicker
-                onPick={(k) => setClassModule(k)}
-              />
-            );
-          }
-          const label =
-            CLASS_MODULE_BLOCKS.find((b) => b.key === current)?.label ?? "Horarios de clases";
-          return (
-            <div>
-              <button
-                type="button"
-                onClick={() => {
-                  setFocusModule(null);
-                  setClassModule(null);
-                }}
-                className="mb-4 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
-              >
-                ← Todos los programas
-              </button>
-              <AdminSchedulePanel modules={[current]} title={label} />
-            </div>
-          );
-        })()
+      {activeKey === "programacion" ? (
+        <SchedulePlannerPanel modules={isRecovery ? RECOVERY_MODULES : undefined} />
       ) : null}
+      {activeKey === "mis-consultas" ? <RecoverySessionsPanel /> : null}
+      {activeKey === "check-in" ? <CheckInPanel /> : null}
+      {activeKey === "horarios-clases"
+        ? (() => {
+            const current = isRecovery ? "rehabilitacion" : (focusModule ?? classModule);
+            if (!current) {
+              return <ClassModulePicker onPick={(k) => setClassModule(k)} />;
+            }
+            const label =
+              CLASS_MODULE_BLOCKS.find((b) => b.key === current)?.label ?? "Horarios de clases";
+            return (
+              <div>
+                {isRecovery ? null : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocusModule(null);
+                      setClassModule(null);
+                    }}
+                    className="mb-4 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
+                  >
+                    ← Todos los programas
+                  </button>
+                )}
+                <AdminSchedulePanel modules={[current]} title={label} />
+              </div>
+            );
+          })()
+        : null}
 
       {activeKey === "horarios-consultorio" ? (
-        <AdminSchedulePanel modules={[...CONSULTORIO_MODULES]} title="Horarios de consultorio" />
+        <AdminSchedulePanel
+          modules={isRecovery ? [...RECOVERY_MODULES] : [...CONSULTORIO_MODULES]}
+          title={isRecovery ? "Agenda del consultorio" : "Horarios de consultorio"}
+        />
       ) : null}
       {activeKey === "pos" ? <POSPanel /> : null}
-      
+
       {activeKey === "pedidos" ? <PendingOrdersPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
       {activeKey === "clientes" ? <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
-      {activeKey === "paquetes" ? <PackagesPanel readOnly={!isAdmin} /> : null}
+      {activeKey === "paquetes" ? (
+        isRecovery ? (
+          <PackagesPanel recoveryOnly />
+        ) : (
+          <PackagesPanel readOnly={!isAdmin} />
+        )
+      ) : null}
       {activeKey === "merch" ? <MerchPanel /> : null}
       {activeKey === "goodes" ? <GoodesPanel /> : null}
       {activeKey === "cupones" ? <CouponsPanel readOnly={!isAdmin} /> : null}

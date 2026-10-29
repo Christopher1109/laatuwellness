@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CREDIT_ERRORS } from "@/lib/credit-kinds";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -23,7 +24,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { coachSwatch, normalizeHex } from "@/lib/coach-colors";
 import { AddClassForm } from "@/components/admin/add-class-form";
-
 
 type ClassRow = Tables<"classes">;
 type BookingRow = Tables<"bookings">;
@@ -133,19 +133,27 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
   // Coaches "de verdad" (staff_profiles, role coach) para ligar coach_id a
   // la clase — distinto de la tabla "coaches" (bios/fotos públicas).
-  const { data: staffCoaches } = useQuery({
+  const { data: allStaffCoaches } = useQuery({
     queryKey: ["admin-schedule-staff-coaches"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_profiles")
-        .select("id, full_name, color")
-        .eq("role", "coach")
+        .select("id, full_name, color, role")
+        .in("role", ["coach", "recovery"])
         .eq("active", true)
         .order("full_name");
       if (error) throw error;
       return data;
     },
   });
+  // En el consultorio de DorisFisio el responsable es recovery; en los salones, coaches.
+  const staffCoaches = useMemo(
+    () =>
+      (allStaffCoaches ?? []).filter((c) =>
+        modules.includes("rehabilitacion") ? true : c.role !== "recovery",
+      ),
+    [allStaffCoaches, modules],
+  );
 
   const { data: classTypes } = useQuery({
     queryKey: ["class-types", modules.join(",")],
@@ -659,7 +667,12 @@ function ClassDetailDrawer({
       setMemberQuery("");
       invalidate();
     },
-    onError: (e: Error) =>
+    onError: (e: Error) => {
+      const creditError = Object.entries(CREDIT_ERRORS).find(([k]) => e.message.includes(k));
+      if (creditError) {
+        toast.error(creditError[1]);
+        return;
+      }
       toast.error(
         e.message.includes("CLASS_FULL")
           ? "La clase ya está llena."
@@ -669,8 +682,11 @@ function ClassDetailDrawer({
               ? "No tiene créditos suficientes."
               : e.message.includes("DAILY_LIMIT_REACHED")
                 ? "Su membresía ya alcanzó el límite de clases de ese día."
-                : "No se pudo registrar.",
-      ),
+                : e.message.includes("FORBIDDEN")
+                  ? "Tu usuario no puede apartar en esta clase."
+                  : "No se pudo registrar.",
+      );
+    },
   });
 
   // Los cambios de una clase puntual (quién la cubre, tipo, cupo) se marcan
