@@ -141,6 +141,13 @@
       "when": 1793287896729,
       "tag": "0019_recovery_creditos_por_tipo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793289040666,
+      "tag": "0020_recovery_clientes",
+      "breakpoints": true
     }
   ]
 }
