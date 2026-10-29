@@ -148,6 +148,13 @@
       "when": 1793289040666,
       "tag": "0020_recovery_clientes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793296851161,
+      "tag": "0021_recovery_clientes_actividad",
+      "breakpoints": true
     }
   ]
 }

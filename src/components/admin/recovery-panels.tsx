@@ -414,7 +414,23 @@ type RecoveryClient = {
   doris_fb: number;
   last_session: string | null;
   next_session: string | null;
+  /** Última compra/alta de créditos, reserva o sesión con DorisFisio. */
+  last_activity: string | null;
 };
+
+// "hace 5 min", "hace 3 h", "hace 2 días"...
+function ago(iso: string) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "justo ahora";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `hace ${days} día${days === 1 ? "" : "s"}`;
+  return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: TZ }).format(
+    new Date(iso),
+  );
+}
 
 const shortDate = (iso: string) =>
   new Intl.DateTimeFormat("es-MX", {
@@ -457,8 +473,9 @@ export function RecoveryClientsPanel() {
         <p className="eyebrow">DorisFisio</p>
         <h2 className="statement mt-1 text-3xl">Clientes</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Todas las personas con cuenta en Läätu. Aquí solo ves y agregas créditos de DorisFisio
-          (Upper o Lower y Full Body).
+          Todas las personas con cuenta en Läätu. Arriba aparecen quienes tuvieron actividad
+          reciente contigo (compraron o recibieron créditos de DorisFisio, reservaron o tuvieron
+          sesión). Aquí solo ves y agregas créditos de DorisFisio (Upper o Lower y Full Body).
         </p>
       </div>
 
@@ -518,6 +535,11 @@ export function RecoveryClientsPanel() {
                     {c.email}
                     {c.phone ? ` · ${c.phone}` : ""}
                   </span>
+                  {c.last_activity ? (
+                    <span className="mt-0.5 block text-[0.68rem] uppercase tracking-[0.1em] text-secondary">
+                      Actividad {ago(c.last_activity)}
+                    </span>
+                  ) : null}
                   {c.next_session || c.last_session ? (
                     <span className="mt-0.5 block text-[0.68rem] text-muted-foreground">
                       {c.next_session
