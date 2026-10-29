@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -22,8 +22,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { coachSwatch, normalizeHex } from "@/lib/coach-colors";
+import { AddClassForm } from "@/components/admin/add-class-form";
 
-const input = "mt-1 w-full border border-input bg-background px-3 py-2 text-sm";
 
 type ClassRow = Tables<"classes">;
 type BookingRow = Tables<"bookings">;
@@ -65,25 +65,6 @@ function rangeForView(date: Date | null, view: ViewMode) {
 
 export function AdminSchedulePanel({ modules, title }: { modules: string[]; title: string }) {
   const qc = useQueryClient();
-  const instructorRef = useRef<HTMLInputElement>(null);
-  const [newClassDate, setNewClassDate] = useState("");
-
-  const newClassDow = newClassDate ? new Date(newClassDate).getDay() : null;
-  const isWeekendPick = newClassDow === 0 || newClassDow === 6;
-
-  const weekendCoach = useQuery({
-    queryKey: ["weekend-coach", newClassDate.slice(0, 10)],
-    queryFn: async () => {
-      const dateOnly = newClassDate.slice(0, 10);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "get_weekend_coach" no está en los tipos generados
-      const { data, error } = await (supabase.rpc as any)("get_weekend_coach", {
-        _date: dateOnly,
-      });
-      if (error) throw error;
-      return (data?.[0] as { coach_id: string; coach_name: string } | undefined) ?? null;
-    },
-    enabled: isWeekendPick,
-  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<ViewMode>("day");
   const [monthCursor, setMonthCursor] = useState<Date | null>(null);
@@ -99,7 +80,6 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
-
 
   const { start, end } = useMemo(() => rangeForView(selectedDate, view), [selectedDate, view]);
 
@@ -190,31 +170,6 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
     coaches?.find((c) => c.name.trim().toLowerCase() === instructor.trim().toLowerCase())
       ?.image_url ?? null;
 
-  const create = useMutation({
-    mutationFn: async (payload: {
-      module_key: string;
-      room: string;
-      instructor: string;
-      coach_id: string | null;
-      class_type_id: string | null;
-      is_tbd: boolean;
-      starts_at: string;
-      capacity: number;
-      duration_min: number;
-    }) => {
-      const { error } = await supabase
-        .from("classes")
-        .insert({ ...payload, manual_override: true });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Agregado.");
-      void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
-      void qc.invalidateQueries({ queryKey: ["classes"] });
-    },
-    onError: () => toast.error("No se pudo crear."),
-  });
-
   const byDay = useMemo(() => {
     const groups = new Map<string, ClassRow[]>();
     for (const c of classes ?? []) {
@@ -230,14 +185,12 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
         k,
         [...items].sort(
           (a, b) =>
-            done(a) - done(b) ||
-            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+            done(a) - done(b) || new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
         ),
       );
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [classes, now]);
-
 
   const monthGrid = useMemo(() => {
     if (!monthCursor) return [];
@@ -258,153 +211,12 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
   return (
     <div>
-      <details className="mb-6 border border-border p-6">
-        <summary className="cursor-pointer eyebrow">Agregar a {title.toLowerCase()}</summary>
-        <form
-          className="mt-4 grid gap-4 sm:grid-cols-3 lg:grid-cols-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            const local = String(f.get("starts_at"));
-            if (!local) return;
-            const coachValue = String(f.get("coach_id") || "");
-            const tbd = coachValue === "__tbd";
-            create.mutate({
-              module_key: String(f.get("module_key") || modules[0]),
-              room: String(f.get("room") || ""),
-              instructor: tbd
-                ? "Coach por anunciar"
-                : String(f.get("instructor") || ""),
-              coach_id: tbd ? null : coachValue || null,
-              class_type_id: String(f.get("class_type_id") || "") || null,
-              is_tbd: tbd,
-              starts_at: new Date(local).toISOString(),
-              capacity: Number(f.get("capacity") || 10),
-              duration_min: Number(f.get("duration_min") || 50),
-            });
-            e.currentTarget.reset();
-            setNewClassDate("");
-          }}
-        >
-          <label className="text-xs">
-            <span className="eyebrow">Programa</span>
-            <select name="module_key" defaultValue={modules[0]} className={input}>
-              {modules.map((m) => (
-                <option key={m} value={m}>
-                  {MODULE_LABELS[m] ?? m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Salón / consultorio</span>
-            <input name="room" placeholder="Reformer / Consultorio 1" className={input} />
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Coach (para nómina)</span>
-            <select
-              name="coach_id"
-              className={input}
-              onChange={(e) => {
-                const name = e.target.selectedOptions[0]?.dataset["name"] ?? "";
-                if (instructorRef.current && name) instructorRef.current.value = name;
-              }}
-            >
-              <option value="">— sin asignar —</option>
-              <option value="__tbd" data-name="Coach por anunciar">
-                Por definir (coach por anunciar)
-              </option>
-              {(staffCoaches ?? []).map((c) => (
-                <option key={c.id} value={c.id} data-name={c.full_name}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Instructora / especialista</span>
-            <input name="instructor" ref={instructorRef} className={input} />
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Tipo de clase</span>
-            <select name="class_type_id" defaultValue="" className={input}>
-              <option value="">Sin tipo</option>
-              {(classTypes ?? []).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Fecha y hora</span>
-            <input
-              name="starts_at"
-              type="datetime-local"
-              required
-              className={input}
-              value={newClassDate}
-              onChange={(e) => setNewClassDate(e.target.value)}
-            />
-          </label>
-          {isWeekendPick ? (
-            <div className="sm:col-span-3 lg:col-span-6 -mt-2 flex items-center gap-3 border border-dashed border-border bg-muted/40 px-3 py-2 text-xs">
-              {weekendCoach.isLoading ? (
-                <span className="text-muted-foreground">Buscando coach en rotación…</span>
-              ) : weekendCoach.data ? (
-                <>
-                  <span>
-                    Coach en rotación para este {newClassDow === 6 ? "sábado" : "domingo"}:{" "}
-                    <strong>{weekendCoach.data.coach_name}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (instructorRef.current && weekendCoach.data) {
-                        instructorRef.current.value = weekendCoach.data.coach_name;
-                      }
-                    }}
-                    className="border border-foreground px-2 py-1 text-[0.65rem] uppercase tracking-wide hover:bg-foreground hover:text-background"
-                  >
-                    Usar este nombre
-                  </button>
-                </>
-              ) : (
-                <span className="text-muted-foreground">
-                  No hay rotación configurada para este día.
-                </span>
-              )}
-            </div>
-          ) : null}
-          <label className="text-xs">
-            <span className="eyebrow">Duración (min)</span>
-            <input
-              name="duration_min"
-              type="number"
-              min={10}
-              max={180}
-              defaultValue={50}
-              className={input}
-            />
-          </label>
-          <label className="text-xs">
-            <span className="eyebrow">Cupo</span>
-            <input
-              name="capacity"
-              type="number"
-              min={1}
-              max={40}
-              defaultValue={10}
-              className={input}
-            />
-          </label>
-          <div className="sm:col-span-3 lg:col-span-6">
-            <button className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
-              Agregar
-            </button>
-          </div>
-        </form>
-      </details>
+      <AddClassForm
+        modules={modules}
+        title={title}
+        coaches={(staffCoaches ?? []).map((c) => ({ id: c.id, full_name: c.full_name }))}
+        classTypes={classTypes ?? []}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* mini calendario + filtros */}
@@ -575,7 +387,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-2 py-0.5",
-                            c.is_tbd && "border border-dashed border-amber-500 bg-amber-50 text-amber-900",
+                            c.is_tbd &&
+                              "border border-dashed border-amber-500 bg-amber-50 text-amber-900",
                           )}
                           style={!c.is_tbd ? coachSwatch(color) : undefined}
                         >
@@ -633,7 +446,11 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
           }}
           coachAvatar={coachAvatar}
           coaches={staffCoaches ?? []}
-          classTypes={(classTypes ?? []).map((t) => ({ id: t.id, name: t.name, module_key: t.module_key }))}
+          classTypes={(classTypes ?? []).map((t) => ({
+            id: t.id,
+            name: t.name,
+            module_key: t.module_key,
+          }))}
         />
       ) : null}
     </div>
@@ -993,8 +810,7 @@ function ClassDetailDrawer({
                     MODULE_LABELS[cls.module_key ?? ""] ??
                     cls.module_key)
                   : ""}{" "}
-                ·{" "}
-                {cls ? format(new Date(cls.starts_at), "HH:mm") : ""}
+                · {cls ? format(new Date(cls.starts_at), "HH:mm") : ""}
               </p>
               <p className="text-xs text-muted-foreground">
                 {cls?.instructor} · {cls?.room} · {reserved.length}/{capacity} ocupado
