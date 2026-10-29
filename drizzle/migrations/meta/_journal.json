@@ -120,6 +120,13 @@
       "when": 1793249484026,
       "tag": "0016_publish_keeps_manual_classes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793286662069,
+      "tag": "0017_pos_pago_mixto_monto_libre",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   type IncomeRow,
   type Segment,
 } from "@/lib/finance-workbook";
+import { splitByPayment } from "@/lib/pos-money";
 
 // ============================================================================
 // Reporte de ingresos en Excel: resumen con logo, segmentos, métodos de pago,
@@ -30,7 +31,7 @@ export async function fetchIncomeRows(from: Date, to: Date): Promise<IncomeRow[]
   const { data: tx, error: txError } = await supabase
     .from("transactions")
     .select(
-      "created_at, amount_cents, payment_method, external_ref, user_id, plan:token_plans(name, category)",
+      "created_at, amount_cents, payment_method, payment_split, external_ref, user_id, plan:token_plans(name, category)",
     )
     .eq("status", "completed")
     .gte("created_at", fromIso)
@@ -41,7 +42,7 @@ export async function fetchIncomeRows(from: Date, to: Date): Promise<IncomeRow[]
   const { data: items, error: itemsError } = await supabase
     .from("pos_sale_items")
     .select(
-      "qty, unit_price_cents, description, product_id, sale:pos_sales!inner(created_at, user_id, status, payment_method, order_code, external_ref, brand)",
+      "qty, unit_price_cents, description, product_id, sale:pos_sales!inner(created_at, user_id, status, payment_method, payment_split, order_code, external_ref, brand)",
     )
     .neq("sale.status", "reembolsado")
     .gte("sale.created_at", fromIso)
@@ -80,51 +81,86 @@ export async function fetchIncomeRows(from: Date, to: Date): Promise<IncomeRow[]
   };
 
   const rows: IncomeRow[] = [];
+  // Pago mixto: un renglón por método (tarjeta / efectivo / transferencia)
+  // para que el resumen por método de pago cuadre. Las unidades se cuentan
+  // solo en el primero.
+  const pushSplit = (row: IncomeRow, method: string, split: unknown) => {
+    const parts = method === "mixto" ? splitByPayment(row.amountCents, split) : null;
+    if (!parts) {
+      rows.push({ ...row, method: PAYMENT_LABELS[method] ?? method });
+      return;
+    }
+    parts.forEach((p, i) => {
+      rows.push({
+        ...row,
+        concept: `${row.concept} (pago mixto)`,
+        method: PAYMENT_LABELS[p.method] ?? p.method,
+        qty: i === 0 ? row.qty : 0,
+        amountCents: p.cents,
+      });
+    });
+  };
   for (const t of tx ?? []) {
     const category = t.plan?.category ?? "clases_pilates";
-    rows.push({
-      date: new Date(t.created_at),
-      segment: "Paquetes y membresías",
-      concept: t.plan?.name ?? "Paquete",
-      category: PLAN_CATEGORY_LABELS[category] ?? category,
-      ...who(t.user_id),
-      method: PAYMENT_LABELS[t.payment_method] ?? t.payment_method,
-      origin: originFromRef(t.external_ref),
-      qty: 1,
-      unitCents: t.amount_cents,
-      amountCents: t.amount_cents,
-    });
+    pushSplit(
+      {
+        date: new Date(t.created_at),
+        segment: "Paquetes y membresías",
+        concept: t.plan?.name ?? "Paquete",
+        category: PLAN_CATEGORY_LABELS[category] ?? category,
+        ...who(t.user_id),
+        method: "",
+        origin: originFromRef(t.external_ref),
+        qty: 1,
+        unitCents: t.amount_cents,
+        amountCents: t.amount_cents,
+      },
+      t.payment_method,
+      t.payment_split,
+    );
   }
   for (const it of items ?? []) {
     if (!it.sale) continue;
     const product = it.product_id ? productById.get(it.product_id) : undefined;
     const brand = product?.brand ?? it.sale.brand ?? "laatu";
     const category = product?.category ?? "otro";
+    // Sin producto = cobro de monto libre desde el punto de venta.
+    const isFree = !it.product_id;
     const segment: Segment =
       brand === "goodes" || category === "goodes"
         ? "Goddess"
-        : category === "merch"
-          ? "Merch"
-          : "Consumibles";
-    rows.push({
-      date: new Date(it.sale.created_at),
-      segment,
-      concept: product?.name ?? it.description ?? "Producto",
-      category:
-        segment === "Goddess"
-          ? "Goddess"
+        : isFree
+          ? "Otros cobros"
           : category === "merch"
             ? "Merch"
-            : category === "suplemento"
-              ? "Suplementos"
-              : "Consumibles",
-      ...who(it.sale.user_id),
-      method: PAYMENT_LABELS[it.sale.payment_method] ?? it.sale.payment_method,
-      origin: originFromRef(it.sale.external_ref, it.sale.order_code),
-      qty: it.qty,
-      unitCents: it.unit_price_cents,
-      amountCents: it.qty * it.unit_price_cents,
-    });
+            : "Consumibles";
+    pushSplit(
+      {
+        date: new Date(it.sale.created_at),
+        segment,
+        concept: product?.name ?? it.description ?? (isFree ? "Cobro libre" : "Producto"),
+        category:
+          segment === "Goddess"
+            ? isFree
+              ? "Goddess · cobro libre"
+              : "Goddess"
+            : isFree
+              ? "Cobro libre"
+              : category === "merch"
+                ? "Merch"
+                : category === "suplemento"
+                  ? "Suplementos"
+                  : "Consumibles",
+        ...who(it.sale.user_id),
+        method: "",
+        origin: originFromRef(it.sale.external_ref, it.sale.order_code),
+        qty: it.qty,
+        unitCents: it.unit_price_cents,
+        amountCents: it.qty * it.unit_price_cents,
+      },
+      it.sale.payment_method,
+      it.sale.payment_split,
+    );
   }
   rows.sort((a, b) => a.date.getTime() - b.date.getTime());
   return rows;

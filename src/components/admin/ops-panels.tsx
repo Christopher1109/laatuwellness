@@ -11,6 +11,7 @@ import {
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { MembershipStatusCard } from "@/components/membership-status";
 import { isPlanInSaleWindow } from "@/lib/plan-availability";
+import { mixedSplitError, parsePesos, type MixedMethod } from "@/lib/pos-money";
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -356,11 +357,13 @@ export function PendingOrdersPanel() {
               <p className="text-xs text-muted-foreground">
                 {o.online || o.payment_method === "tarjeta"
                   ? "Pagado con tarjeta"
-                  : o.payment_method === "transferencia"
-                    ? "Pagado por transferencia"
-                    : o.payment_method === "efectivo"
-                      ? "Pagado en efectivo"
-                      : "Pago pendiente"}
+                  : o.payment_method === "mixto"
+                    ? "Pagado (mixto: tarjeta + otro)"
+                    : o.payment_method === "transferencia"
+                      ? "Pagado por transferencia"
+                      : o.payment_method === "efectivo"
+                        ? "Pagado en efectivo"
+                        : "Pago pendiente"}
               </p>
               {flow.next ? (
                 <button
@@ -448,8 +451,12 @@ type BrandGroup = {
   brand: PosBrandKey;
   items: { id: string; qty: number }[];
   plans: { id: string; qty: number }[];
+  /** Cobros de monto libre (sin producto). */
+  custom: CustomLine[];
   total: number;
 };
+type CustomLine = { key: string; brand: PosBrandKey; description: string; cents: number };
+const BRAND_NAME: Record<PosBrandKey, string> = { laatu: "Läätu", goodes: "Goddess" };
 
 export function POSPanel() {
   const qc = useQueryClient();
@@ -515,8 +522,16 @@ export function POSPanel() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Formas de pago: tarjeta en terminal Clip, efectivo o transferencia. La
   // transferencia siempre pide cliente y se registra al confirmar que llegó.
-  const [payment, setPayment] = useState<"terminal" | "efectivo" | "transferencia">("terminal");
+  // "mixto" = una parte en la terminal y el resto en efectivo o transferencia.
+  const [payment, setPayment] = useState<"terminal" | "mixto" | "efectivo" | "transferencia">(
+    "terminal",
+  );
   const [confirmTransfer, setConfirmTransfer] = useState(false);
+  const [mixedCardText, setMixedCardText] = useState("");
+  const [mixedOther, setMixedOther] = useState<MixedMethod>("efectivo");
+  // Cobros de monto libre: el staff teclea el precio y elige la cuenta.
+  const [customLines, setCustomLines] = useState<CustomLine[]>([]);
+  const [customOpen, setCustomOpen] = useState(false);
 
   const { data: suggestions } = useQuery({
     queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
@@ -533,8 +548,10 @@ export function POSPanel() {
 
   const productQty = Object.values(cart).reduce((a, b) => a + b, 0);
   const planQty = Object.values(planCart).reduce((a, b) => a + b, 0);
-  const itemCount = productQty + planQty;
+  const itemCount = productQty + planQty + customLines.length;
   const isTransfer = payment === "transferencia";
+  const isMixed = payment === "mixto";
+  const mixedCardCents = isMixed ? parsePesos(mixedCardText) : null;
   // Merch: se pide para quién es y si se lo lleva en este momento.
   const merchQty = Object.entries(cart).reduce((acc, [id, qty]) => {
     const p = products?.find((x) => x.id === id);
@@ -542,7 +559,8 @@ export function POSPanel() {
   }, 0);
   const hasMerch = merchQty > 0;
   const [deliverNow, setDeliverNow] = useState<boolean | null>(null);
-  const needsClient = planQty > 0 || isTransfer || hasMerch;
+  const needsClient =
+    planQty > 0 || isTransfer || hasMerch || (isMixed && mixedOther === "transferencia");
 
   // Paquetes con reglas (Newcomer = una sola compra y solo clientes nuevos):
   // al elegir al cliente se revisa si todavía puede comprarlos.
@@ -593,7 +611,7 @@ export function POSPanel() {
   const brandGroups = useMemo<BrandGroup[]>(() => {
     const groups = new Map<PosBrandKey, BrandGroup>();
     const group = (brand: PosBrandKey) => {
-      const g = groups.get(brand) ?? { brand, items: [], plans: [], total: 0 };
+      const g = groups.get(brand) ?? { brand, items: [], plans: [], custom: [], total: 0 };
       groups.set(brand, g);
       return g;
     };
@@ -614,16 +632,28 @@ export function POSPanel() {
       g.plans.push({ id, qty });
       g.total += p.price_cents * qty;
     }
+    for (const line of customLines) {
+      const g = group(line.brand);
+      g.custom.push(line);
+      g.total += line.cents;
+    }
     return (["laatu", "goodes"] as const).filter((b) => groups.has(b)).map((b) => groups.get(b)!);
-  }, [cart, planCart, products, plans]);
+  }, [cart, planCart, products, plans, customLines]);
   const total = brandGroups.reduce((s, g) => s + g.total, 0);
   const isMixedBrand = brandGroups.length > 1;
   const cartBrand = brandGroups[0]?.brand ?? "laatu";
-  const usesTerminal = payment === "terminal";
+  const usesTerminal = payment === "terminal" || isMixed;
+  const mixedError = isMixed
+    ? isMixedBrand
+      ? "El pago mixto se hace por marca: cobra primero Läätu y luego Goddess por separado."
+      : mixedSplitError(mixedCardCents, total)
+    : null;
 
   const resetSale = () => {
     setCart({});
     setPlanCart({});
+    setCustomLines([]);
+    setMixedCardText("");
     setClientEmail("");
     setMatchedClient(null);
     setDeliverNow(null);
@@ -658,6 +688,11 @@ export function POSPanel() {
           plans: group.plans.map((pl) => ({ planId: pl.id, qty: pl.qty })),
           origin: window.location.origin,
           deliverNow: deliverNow !== false,
+          customItems: group.custom.map((c) => ({
+            description: c.description,
+            amountCents: c.cents,
+          })),
+          ...(isMixed ? { cardCents: mixedCardCents, otherMethod: mixedOther } : {}),
         },
       });
       setActivePayment(state);
@@ -753,6 +788,7 @@ export function POSPanel() {
         for (const g of paid) for (const pl of g.plans) delete next[pl.id];
         return next;
       });
+      setCustomLines((lines) => lines.filter((l) => !completedBrands.includes(l.brand)));
       toast.message("Se registró solo la parte ya pagada. El resto sigue en el carrito.");
       void qc.invalidateQueries({ queryKey: ["pos-products"] });
     }
@@ -775,6 +811,7 @@ export function POSPanel() {
       if (hasMerch && deliverNow === null) {
         throw new Error("Indica si el merch se entrega en este momento.");
       }
+      if (mixedError) throw new Error(mixedError);
 
       if (usesTerminal && total > 0) {
         setCompletedBrands([]);
@@ -787,16 +824,24 @@ export function POSPanel() {
       // acreditados al cliente.
       const method = isTransfer ? "transferencia" : "efectivo";
       for (const group of brandGroups) {
-        if (group.items.length > 0) {
-          const items = group.items.map(({ id, qty }) => {
-            const p = products?.find((p) => p.id === id);
-            return {
-              product_id: id,
-              description: p?.name ?? "",
-              qty,
-              unit_price_cents: p?.price_cents ?? 0,
-            };
-          });
+        if (group.items.length > 0 || group.custom.length > 0) {
+          const items = [
+            ...group.items.map(({ id, qty }) => {
+              const p = products?.find((p) => p.id === id);
+              return {
+                product_id: id,
+                description: p?.name ?? "",
+                qty,
+                unit_price_cents: p?.price_cents ?? 0,
+              };
+            }),
+            ...group.custom.map((c) => ({
+              product_id: null,
+              description: c.description,
+              qty: 1,
+              unit_price_cents: c.cents,
+            })),
+          ];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
           const { error } = await (supabase.rpc as any)("pos_checkout", {
             _user_id: matchedClient?.id ?? null,
@@ -859,6 +904,20 @@ export function POSPanel() {
             autoFocus
           />
         </div>
+
+        <button
+          type="button"
+          onClick={() => setCustomOpen(true)}
+          className="mb-6 flex w-full items-center justify-between gap-3 border border-dashed border-foreground/40 p-4 text-left transition-colors hover:border-foreground hover:bg-muted/50"
+        >
+          <span className="min-w-0">
+            <span className="block">Cobro libre · otro monto</span>
+            <span className="block text-xs text-muted-foreground">
+              Teclea el precio y elige la cuenta (Läätu o Goddess).
+            </span>
+          </span>
+          <span className="shrink-0 text-2xl leading-none">+</span>
+        </button>
 
         {filteredPlans.length > 0 ? (
           <div className="mb-6">
@@ -1014,10 +1073,11 @@ export function POSPanel() {
 
         <div className="text-xs">
           <span className="eyebrow">Método de pago</span>
-          <div className="mt-1 grid grid-cols-3 gap-2">
+          <div className="mt-1 grid grid-cols-2 gap-2">
             {(
               [
                 ["terminal", "Tarjeta (terminal Clip)"],
+                ["mixto", "Mixto (tarjeta + otro)"],
                 ["efectivo", "Efectivo"],
                 ["transferencia", "Transferencia"],
               ] as const
@@ -1037,6 +1097,69 @@ export function POSPanel() {
             ))}
           </div>
         </div>
+
+        {isMixed ? (
+          <div className="space-y-3 border border-border bg-muted/40 p-3 text-xs">
+            <label className="block">
+              <span className="eyebrow">Monto a cobrar en la terminal</span>
+              <div className="relative mt-1">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-2xl text-muted-foreground">
+                  $
+                </span>
+                <input
+                  value={mixedCardText}
+                  onChange={(e) => setMixedCardText(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className={`${input} h-14 pl-8 text-2xl`}
+                />
+              </div>
+            </label>
+            <div>
+              <span className="eyebrow">El resto se paga en</span>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["efectivo", "Efectivo"],
+                    ["transferencia", "Transferencia"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMixedOther(value)}
+                    className={`border px-3 py-2 text-[0.7rem] uppercase tracking-[0.1em] ${
+                      mixedOther === value
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-input bg-background"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {total > 0 && mixedCardCents != null && mixedCardCents < total ? (
+              <div className="space-y-1 border-t border-border pt-2">
+                <p className="flex justify-between">
+                  <span>Terminal {BRAND_NAME[cartBrand]} (tarjeta)</span>
+                  <span>{money(mixedCardCents)}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span>{mixedOther === "efectivo" ? "Efectivo" : "Transferencia"}</span>
+                  <span>{money(total - mixedCardCents)}</span>
+                </p>
+              </div>
+            ) : null}
+            {mixedError && itemCount > 0 ? (
+              <p className="text-destructive">{mixedError}</p>
+            ) : (
+              <p className="text-muted-foreground">
+                La venta queda registrada completa, con cuánto se pagó de cada forma.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {hasMerch ? (
           <div className="text-xs">
@@ -1099,6 +1222,25 @@ export function POSPanel() {
                   </li>
                 );
               }),
+              ...g.custom.map((c) => (
+                <li key={c.key} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    {c.description}{" "}
+                    <span className="text-muted-foreground">· {BRAND_NAME[c.brand]}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {money(c.cents)}
+                    <button
+                      type="button"
+                      onClick={() => setCustomLines((l) => l.filter((x) => x.key !== c.key))}
+                      className="px-1 text-muted-foreground hover:text-destructive"
+                      aria-label="Quitar cobro"
+                    >
+                      ×
+                    </button>
+                  </span>
+                </li>
+              )),
             ])}
           </ul>
         ) : null}
@@ -1150,6 +1292,7 @@ export function POSPanel() {
             (needsClient && !matchedClient) ||
             (hasMerch && deliverNow === null) ||
             planBlockMessages.length > 0 ||
+            !!mixedError ||
             !!activePayment
           }
           onClick={() => {
@@ -1163,11 +1306,15 @@ export function POSPanel() {
         >
           {total === 0 && planQty > 0
             ? "Registrar convenio (sin cobro)"
-            : usesTerminal
-              ? "Cobrar en terminal"
-              : isTransfer
-                ? "Cobrar por transferencia"
-                : "Cobrar en efectivo"}
+            : isMixed
+              ? mixedCardCents != null && !mixedError
+                ? `Cobrar ${money(mixedCardCents)} en terminal`
+                : "Cobrar pago mixto"
+              : usesTerminal
+                ? "Cobrar en terminal"
+                : isTransfer
+                  ? "Cobrar por transferencia"
+                  : "Cobrar en efectivo"}
         </button>
         {itemCount > 0 ? (
           <button
@@ -1212,6 +1359,14 @@ export function POSPanel() {
                   </li>
                 );
               }),
+              ...g.custom.map((c) => (
+                <li key={`tc-${c.key}`} className="flex justify-between gap-2">
+                  <span>
+                    {c.description} · {BRAND_NAME[c.brand]}
+                  </span>
+                  <span>{money(c.cents)}</span>
+                </li>
+              )),
             ])}
           </ul>
           <p className="mt-4 border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
@@ -1242,7 +1397,18 @@ export function POSPanel() {
       {activePayment ? (
         <TerminalPaymentDialog
           payment={activePayment}
-          amountCents={brandGroups.find((g) => g.brand === activePayment.brand)?.total ?? 0}
+          amountCents={
+            isMixed && mixedCardCents != null
+              ? mixedCardCents
+              : (brandGroups.find((g) => g.brand === activePayment.brand)?.total ?? 0)
+          }
+          note={
+            isMixed && mixedCardCents != null && total > mixedCardCents
+              ? `Pago mixto: además recibe ${money(total - mixedCardCents)} en ${
+                  mixedOther === "efectivo" ? "efectivo" : "transferencia"
+                }. Total de la venta ${money(total)}.`
+              : null
+          }
           step={isMixedBrand ? completedBrands.length + 1 : null}
           totalSteps={brandGroups.length}
           message={terminalMessage}
@@ -1255,11 +1421,136 @@ export function POSPanel() {
         />
       ) : null}
 
+      {customOpen ? (
+        <CustomAmountDialog
+          onClose={() => setCustomOpen(false)}
+          onAdd={(line) => {
+            setCustomLines((l) => [...l, line]);
+            setCustomOpen(false);
+          }}
+        />
+      ) : null}
+
       <div className="lg:col-span-2">
         <RecentSalesPanel />
         <TerminalsConfig />
       </div>
     </div>
+  );
+}
+
+// Cobro de monto libre: lo primero que se ve es el precio, en grande.
+function CustomAmountDialog({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (line: CustomLine) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [concept, setConcept] = useState("");
+  const [brand, setBrand] = useState<PosBrandKey | null>(null);
+  const cents = parsePesos(amount);
+  const tried = amount.trim().length > 0;
+  const add = () => {
+    if (cents == null || !brand) return;
+    onAdd({
+      key: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      brand,
+      description: concept.trim().slice(0, 120) || "Cobro libre",
+      cents,
+    });
+  };
+  return (
+    <Popout onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+        className="space-y-5"
+      >
+        <p className="eyebrow">Cobro libre</p>
+        <label className="block">
+          <span className="text-sm">¿Cuánto se va a cobrar?</span>
+          <div className="relative mt-2">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-4xl text-muted-foreground">
+              $
+            </span>
+            <input
+              autoFocus
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+              className={`w-full border bg-background py-4 pl-12 pr-4 text-4xl outline-none focus:border-foreground ${
+                tried && cents == null ? "border-destructive" : "border-input"
+              }`}
+            />
+          </div>
+          {tried && cents == null ? (
+            <span className="mt-1 block text-xs text-destructive">
+              Escribe un monto válido (máximo $200,000).
+            </span>
+          ) : null}
+        </label>
+
+        <div>
+          <span className="text-sm">¿A qué cuenta va?</span>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(["laatu", "goodes"] as const).map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => setBrand(b)}
+                className={`border px-3 py-4 text-sm uppercase tracking-[0.12em] ${
+                  brand === b
+                    ? b === "goodes"
+                      ? "border-amber-700 bg-amber-600 text-white"
+                      : "border-foreground bg-foreground text-background"
+                    : "border-input"
+                }`}
+              >
+                {BRAND_NAME[b]}
+              </button>
+            ))}
+          </div>
+          {!brand ? (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Elige la cuenta: se cobra en la terminal de esa marca.
+            </span>
+          ) : null}
+        </div>
+
+        <label className="block text-xs">
+          <span className="eyebrow">Concepto (opcional)</span>
+          <input
+            value={concept}
+            onChange={(e) => setConcept(e.target.value)}
+            maxLength={120}
+            className={input}
+            placeholder="Ej. diferencia de paquete, clase privada…"
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border border-input px-4 py-3 text-[0.7rem] uppercase tracking-[0.16em]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={cents == null || !brand}
+            className="flex-1 bg-foreground px-4 py-3 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+          >
+            Agregar {cents != null ? money(cents) : ""}
+          </button>
+        </div>
+      </form>
+    </Popout>
   );
 }
 
@@ -1269,12 +1560,14 @@ function TerminalPaymentDialog({
   step,
   totalSteps,
   message,
+  note,
   onCancel,
   onRetry,
   onClose,
 }: {
   payment: TerminalPaymentState;
   amountCents: number;
+  note?: string | null;
   step: number | null;
   totalSteps: number;
   message: string | null;
@@ -1293,6 +1586,11 @@ function TerminalPaymentDialog({
           {step ? ` · paso ${Math.min(step, totalSteps)} de ${totalSteps}` : ""}
         </p>
         <p className="text-3xl">{money(amountCents)}</p>
+        {note ? (
+          <p className="border border-amber-600/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
+            {note}
+          </p>
+        ) : null}
 
         {payment.status === "creating" ? (
           <p className="text-sm text-muted-foreground">Enviando el cobro a la terminal…</p>
@@ -1371,6 +1669,9 @@ type RecentSale = {
   method: string;
   brand: string;
   amount_cents: number;
+  card_cents?: number | null;
+  other_cents?: number | null;
+  other_method?: string | null;
   card_last4: string | null;
   refunded: boolean;
   refund_amount_cents: number | null;
@@ -1383,6 +1684,9 @@ type RefundPreview = {
   method: string;
   total_cents: number;
   refund_cents: number;
+  card_refund_cents?: number;
+  other_refund_cents?: number;
+  other_method?: string | null;
   products: { name: string; qty: number }[];
   plans: { name: string; tokens: number; price_cents: number }[];
   tokens_granted: number;
@@ -1463,7 +1767,14 @@ function RecentSalesPanel() {
         const res = await refundTerminalPayment({
           data: { paymentId: target.id, reason: reason.trim() },
         });
-        return res.refundedCents;
+        if (res.otherRefundCents > 0) {
+          toast.message(
+            `Además entrega ${money(res.otherRefundCents)} en ${
+              target.other_method === "transferencia" ? "transferencia" : "efectivo"
+            } (la parte que no fue con tarjeta).`,
+          );
+        }
+        return res.cardRefundCents;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.rpc as any)("pos_apply_refund", {
@@ -1548,11 +1859,15 @@ function RecentSalesPanel() {
                     <td className="whitespace-nowrap px-4 py-2 text-xs">
                       {s.method === "tarjeta"
                         ? `Tarjeta${s.card_last4 ? ` ••${s.card_last4}` : ""}`
-                        : s.method === "convenio"
-                          ? "Convenio"
-                          : s.method === "transferencia"
-                            ? "Transferencia"
-                            : "Efectivo"}
+                        : s.method === "mixto"
+                          ? `Mixto: tarjeta ${money(s.card_cents ?? 0)} + ${
+                              s.other_method === "transferencia" ? "transf." : "efectivo"
+                            } ${money(s.other_cents ?? 0)}`
+                          : s.method === "convenio"
+                            ? "Convenio"
+                            : s.method === "transferencia"
+                              ? "Transferencia"
+                              : "Efectivo"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right">
                       {money(s.amount_cents)}
@@ -1636,13 +1951,31 @@ function RecentSalesPanel() {
                   </p>
                 ) : null}
 
+                {preview.method === "mixto" ? (
+                  <div className="space-y-1 border-t border-border pt-3 text-sm">
+                    <p className="flex justify-between">
+                      <span>Se devuelve a la tarjeta</span>
+                      <span>{money(preview.card_refund_cents ?? 0)}</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>
+                        {preview.other_method === "transferencia"
+                          ? "Devolver por transferencia"
+                          : "Entregar en efectivo"}
+                      </span>
+                      <span>{money(preview.other_refund_cents ?? 0)}</span>
+                    </p>
+                  </div>
+                ) : null}
                 <div className="flex items-baseline justify-between border-t border-border pt-3">
                   <span className="text-sm">
-                    {preview.method === "tarjeta"
-                      ? "Se devuelve a la tarjeta"
-                      : preview.method === "transferencia"
-                        ? "Devolver por transferencia"
-                        : "Entregar en efectivo"}
+                    {preview.method === "mixto"
+                      ? "Total a devolver"
+                      : preview.method === "tarjeta"
+                        ? "Se devuelve a la tarjeta"
+                        : preview.method === "transferencia"
+                          ? "Devolver por transferencia"
+                          : "Entregar en efectivo"}
                   </span>
                   <span className="text-2xl">{money(preview.refund_cents)}</span>
                 </div>
@@ -6342,7 +6675,7 @@ export function FinancePanel() {
       const { data: saleItems } = await supabase
         .from("pos_sale_items")
         .select(
-          "qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id, status)",
+          "qty, unit_price_cents, product_id, sale:pos_sales!inner(created_at, user_id, status, brand)",
         )
         .neq("sale.status", "reembolsado")
         .gte("sale.created_at", fetchFromIso)
@@ -6385,6 +6718,8 @@ export function FinancePanel() {
 
       let merchRevenue = 0;
       let consumibleRevenue = 0;
+      // Cobros de monto libre (sin producto) de Läätu.
+      let otherRevenue = 0;
       const topMerch = new Map<string, { name: string; units: number; revenue: number }>();
       const topConsumibles = new Map<string, { name: string; units: number; revenue: number }>();
       const clientsMerch = new Map<string, { name: string; revenue: number }>();
@@ -6404,7 +6739,9 @@ export function FinancePanel() {
         const clientName = clientId
           ? profileById.get(clientId)?.full_name || profileById.get(clientId)?.email || "Cliente"
           : "Sin cliente";
-        if (cat === "merch") {
+        if (!item.product_id && (item.sale?.brand ?? "laatu") !== "goodes") {
+          if (createdAt && createdAt >= monthStart) otherRevenue += amount;
+        } else if (cat === "merch") {
           if (createdAt && createdAt >= monthStart) merchRevenue += amount;
           if (product) {
             const acc = topMerch.get(product.id) ?? { name: product.name, units: 0, revenue: 0 };
@@ -6514,7 +6851,7 @@ export function FinancePanel() {
         })),
       ];
 
-      const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue;
+      const totalRevenue = clasesRevenue + merchRevenue + consumibleRevenue + otherRevenue;
       return {
         clasesRevenue,
         tokensByCategory,
@@ -6522,6 +6859,7 @@ export function FinancePanel() {
         purchases,
         merchRevenue,
         consumibleRevenue,
+        otherRevenue,
         topMerch: sortMap(topMerch),
         topConsumibles: sortMap(topConsumibles),
         clientsMerch: sortClients(clientsMerch),
@@ -6730,6 +7068,12 @@ export function FinancePanel() {
           <p className="mt-1 text-xl">{money(data?.consumibleRevenue ?? 0)}</p>
         </button>
       </div>
+      {(data?.otherRevenue ?? 0) > 0 ? (
+        <p className="border border-border px-5 py-3 text-sm">
+          <span className="eyebrow mr-2">Otros cobros (monto libre)</span>
+          {money(data?.otherRevenue ?? 0)}
+        </p>
+      ) : null}
 
       <button
         type="button"
