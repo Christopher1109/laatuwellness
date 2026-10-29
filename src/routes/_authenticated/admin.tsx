@@ -46,7 +46,7 @@ import {
   CoachProfilePanel,
   StaffDirectoryPanel,
 } from "@/components/admin/team-panels";
-import { RecoverySessionsPanel } from "@/components/admin/recovery-panels";
+import { RecoveryClientsPanel, RecoverySessionsPanel } from "@/components/admin/recovery-panels";
 import { TEAM_ROLE_LABELS } from "@/lib/credit-kinds";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -153,7 +153,6 @@ function Admin() {
             label: "Consultorio",
             items: [
               { key: "horarios-consultorio", label: "Agenda del consultorio", icon: Stethoscope },
-              { key: "horarios-clases", label: "Horarios de clases", icon: CalendarDays },
               { key: "programacion", label: "Programación de clases", icon: CalendarDays },
             ],
           },
@@ -319,7 +318,7 @@ function Admin() {
 
       {activeKey === "pedidos" ? <PendingOrdersPanel /> : null}
       {activeKey === "inventario" ? <InventoryPanel /> : null}
-      {activeKey === "clientes" ? <ClientsPanel /> : null}
+      {activeKey === "clientes" ? isRecovery ? <RecoveryClientsPanel /> : <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "coaches" ? <CoachesPanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
