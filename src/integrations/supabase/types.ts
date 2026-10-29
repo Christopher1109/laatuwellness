@@ -791,6 +791,7 @@ export type Database = {
           id: string
           order_code: string | null
           payment_method: string
+          payment_split: Json | null
           refunded_at: string | null
           sold_by: string | null
           status: string
@@ -804,6 +805,7 @@ export type Database = {
           id?: string
           order_code?: string | null
           payment_method?: string
+          payment_split?: Json | null
           refunded_at?: string | null
           sold_by?: string | null
           status?: string
@@ -817,6 +819,7 @@ export type Database = {
           id?: string
           order_code?: string | null
           payment_method?: string
+          payment_split?: Json | null
           refunded_at?: string | null
           sold_by?: string | null
           status?: string
@@ -1491,6 +1494,7 @@ export type Database = {
           external_ref: string | null
           id: string
           payment_method: string
+          payment_split: Json | null
           plan_id: string | null
           refund_amount_cents: number | null
           refunded_at: string | null
@@ -1507,6 +1511,7 @@ export type Database = {
           external_ref?: string | null
           id?: string
           payment_method?: string
+          payment_split?: Json | null
           plan_id?: string | null
           refund_amount_cents?: number | null
           refunded_at?: string | null
@@ -1523,6 +1528,7 @@ export type Database = {
           external_ref?: string | null
           id?: string
           payment_method?: string
+          payment_split?: Json | null
           plan_id?: string | null
           refund_amount_cents?: number | null
           refunded_at?: string | null

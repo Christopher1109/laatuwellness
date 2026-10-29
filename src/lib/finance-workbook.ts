@@ -26,10 +26,17 @@ export const PAYMENT_LABELS: Record<string, string> = {
   saldo: "Saldo / ajuste",
   pendiente: "Pendiente",
   en_estudio: "Pago en estudio",
+  mixto: "Mixto",
 };
 
-export type Segment = "Paquetes y membresías" | "Merch" | "Consumibles" | "Goddess";
-export const LAATU_SEGMENTS: Segment[] = ["Paquetes y membresías", "Merch", "Consumibles"];
+export type Segment =
+  "Paquetes y membresías" | "Merch" | "Consumibles" | "Otros cobros" | "Goddess";
+export const LAATU_SEGMENTS: Segment[] = [
+  "Paquetes y membresías",
+  "Merch",
+  "Consumibles",
+  "Otros cobros",
+];
 
 export type IncomeRow = {
   date: Date;

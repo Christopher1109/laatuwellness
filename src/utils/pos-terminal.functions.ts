@@ -7,6 +7,7 @@ import {
   createPinpadPayment,
   type PosBrand,
 } from "@/lib/clip-pinpad.server";
+import { MAX_POS_CENTS } from "@/lib/pos-money";
 import {
   isFinalStatus,
   syncTerminalPayment,
@@ -68,6 +69,14 @@ type StartInput = {
   origin: string;
   /** Merch: false = el cliente no se lo lleva ahora; queda en Pedidos pendientes. */
   deliverNow?: boolean;
+  /** Cobros de monto libre (sin producto): concepto y monto en centavos. */
+  customItems?: { description: string; amountCents: number }[];
+  /**
+   * Pago mixto: lo que se cobra en la terminal. El resto del total se recibe
+   * aparte en `otherMethod` (efectivo o transferencia).
+   */
+  cardCents?: number | null;
+  otherMethod?: "efectivo" | "transferencia" | null;
 };
 
 export const startTerminalPayment = createServerFn({ method: "POST" })
@@ -75,11 +84,37 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
   .inputValidator((data: StartInput) => {
     if (data.brand !== "laatu" && data.brand !== "goodes") throw new Error("Marca inválida");
     const plans = Array.isArray(data.plans) ? data.plans : [];
+    const customItems = (Array.isArray(data.customItems) ? data.customItems : []).map((c) => ({
+      description:
+        String(c?.description ?? "")
+          .trim()
+          .slice(0, 120) || "Cobro libre",
+      amountCents: Number(c?.amountCents),
+    }));
+    if (customItems.length > 20) throw new Error("Demasiados cobros libres");
+    for (const c of customItems) {
+      if (!Number.isInteger(c.amountCents) || c.amountCents < 1 || c.amountCents > MAX_POS_CENTS) {
+        throw new Error("Monto libre inválido");
+      }
+    }
+    const cardCents = data.cardCents == null ? null : Number(data.cardCents);
+    if (cardCents != null && (!Number.isInteger(cardCents) || cardCents < 1)) {
+      throw new Error("Monto en terminal inválido");
+    }
+    const otherMethod = cardCents == null ? null : data.otherMethod;
+    if (cardCents != null && otherMethod !== "efectivo" && otherMethod !== "transferencia") {
+      throw new Error("Indica cómo se paga el resto (efectivo o transferencia).");
+    }
+    if (otherMethod === "transferencia" && !data.clientId) {
+      throw new Error("Para recibir parte por transferencia, elige al cliente.");
+    }
     if (data.clientId !== null && !UUID.test(data.clientId)) throw new Error("Cliente inválido");
     if (!Array.isArray(data.items) || data.items.length > 50 || plans.length > 20) {
       throw new Error("Carrito inválido");
     }
-    if (data.items.length === 0 && plans.length === 0) throw new Error("Carrito vacío");
+    if (data.items.length === 0 && plans.length === 0 && customItems.length === 0) {
+      throw new Error("Carrito vacío");
+    }
     for (const it of data.items) {
       if (!UUID.test(it.productId)) throw new Error("Producto inválido");
       if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > 100)
@@ -101,7 +136,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     if (!deliverNow && !data.clientId) {
       throw new Error("Para dejar un pedido pendiente de entrega hay que elegir al cliente.");
     }
-    return { ...data, plans, deliverNow };
+    return { ...data, plans, deliverNow, customItems, cardCents, otherMethod };
   })
   .handler(async ({ data, context }): Promise<TerminalPaymentState> => {
     const { supabase, userId } = context;
@@ -126,7 +161,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     // Precios y marca se toman de la base de datos, nunca del navegador.
     let amountCents = 0;
     let items: {
-      product_id: string;
+      product_id: string | null;
       description: string;
       qty: number;
       unit_price_cents: number;
@@ -158,6 +193,16 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
           qty: it.qty,
           unit_price_cents: p.price_cents,
         };
+      });
+    }
+
+    for (const c of data.customItems) {
+      amountCents += c.amountCents;
+      items.push({
+        product_id: null,
+        description: c.description,
+        qty: 1,
+        unit_price_cents: c.amountCents,
       });
     }
 
@@ -205,6 +250,19 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     }
     if (amountCents <= 0) throw new Error("El total debe ser mayor a cero.");
 
+    // Pago mixto: a la terminal solo va la parte con tarjeta.
+    let chargeCents = amountCents;
+    let otherCents = 0;
+    if (data.cardCents != null) {
+      if (data.cardCents >= amountCents) {
+        throw new Error(
+          "Lo de la terminal debe ser menor al total; si es todo, cobra con tarjeta.",
+        );
+      }
+      chargeCents = data.cardCents;
+      otherCents = amountCents - data.cardCents;
+    }
+
     const { data: row, error: insertError } = await admin
       .from("pos_terminal_payments")
       .insert({
@@ -214,7 +272,9 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
         user_id: data.clientId,
         items,
         plans,
-        amount_cents: amountCents,
+        amount_cents: chargeCents,
+        other_cents: otherCents,
+        other_method: otherCents > 0 ? data.otherMethod : null,
         status: "creating",
         deliver_now: data.deliverNow,
       })
@@ -225,7 +285,7 @@ export const startTerminalPayment = createServerFn({ method: "POST" })
     try {
       const { pinpadRequestId } = await createPinpadPayment({
         brand: data.brand,
-        amountCents,
+        amountCents: chargeCents,
         reference: row.id,
         serialNumber: terminal.serial_number,
         webhookUrl,
