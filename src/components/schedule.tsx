@@ -1,5 +1,5 @@
 import { BookingPaymentChoice } from "@/components/booking-payment-choice";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -261,6 +261,8 @@ export function Schedule({
   limit?: number;
 }) {
   const [rango, setRango] = useState<Rango>(defaultRange);
+  // Si hoy ya no quedan clases, se pasa solo a "Próximos 7 días" (una vez).
+  const [autoSemana, setAutoSemana] = useState(false);
   const [filtro, setFiltro] = useState<string | null>(null);
   // Día seleccionado dentro del rango (null = todos los días del rango).
   const [dia, setDia] = useState<string | null>(null);
@@ -312,7 +314,9 @@ export function Schedule({
         .lt("starts_at", to.toISOString())
         .order("starts_at");
       if (moduleKey) q = q.eq("module_key", moduleKey);
-      const { data, error } = await q.limit(120);
+      // Antes el tope era 120 y con todos los programas juntos los 7 días no
+      // cabían (se cortaba en el martes). 1000 es el máximo por consulta.
+      const { data, error } = await q.limit(1000);
       if (error) throw error;
       if (data.length === 0) return [];
 
@@ -439,6 +443,15 @@ export function Schedule({
     [classes, enabledKeys],
   );
 
+  useEffect(() => {
+    if (rango !== "hoy" || autoSemana || isLoading || !classes || !modules) return;
+    if (all.length === 0) {
+      setAutoSemana(true);
+      setRango("semana");
+      setDia(null);
+    }
+  }, [rango, autoSemana, isLoading, classes, modules, all.length]);
+
   /**
    * Programas visibles. Se listan todos los programas reservables del
    * catálogo (aunque hoy no tengan sesiones), para que el visitante vea que
@@ -472,7 +485,9 @@ export function Schedule({
       let items = all.filter((c) => (c.module_key ?? "otros") === key);
       if (dia)
         items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
-      if (limit) items = items.slice(0, limit);
+      // Se muestran todas las sesiones del rango (antes la portada cortaba a
+      // 6 por programa y DorisFisio llegaba solo hasta el martes); cada
+      // programa tiene su propia lista con scroll, separada por días.
       const porDia = new Map<string, ClassRow[]>();
       for (const c of items) {
         const d = dayLabel(c.starts_at);
@@ -526,7 +541,7 @@ export function Schedule({
         ) : null}
       </div>
 
-      {!limit && dias.length > 1 ? (
+      {dias.length > 1 ? (
         <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
           <button
             onClick={() => setDia(null)}
@@ -554,6 +569,12 @@ export function Schedule({
             </button>
           ))}
         </div>
+      ) : null}
+
+      {autoSemana && rango === "semana" ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Hoy ya no quedan clases; te mostramos los próximos 7 días.
+        </p>
       ) : null}
 
       {isLoading ? (
