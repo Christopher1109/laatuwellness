@@ -29,6 +29,7 @@ const ROLE_LABELS: Record<TeamRole, string> = {
   admin: "Administración",
   staff: "Staff / recepción",
   coach: "Coach",
+  recovery: "Recovery (DorisFisio)",
 };
 
 const MODULE_LABELS: Record<string, string> = {
@@ -134,8 +135,8 @@ export function StaffDirectoryPanel() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-xl text-xs text-muted-foreground">
-          Staff y administración. Para darle acceso a alguien solo pon su correo y una contraseña en
-          "Editar": entra de inmediato con esos datos, sin correos de confirmación.
+          Staff, recovery y administración. Para darle acceso a alguien solo pon su correo y una
+          contraseña en "Editar": entra de inmediato con esos datos, sin correos de confirmación.
         </p>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -288,7 +289,9 @@ function TeamMemberEditPopout({
           ? `Editar a ${person.full_name}`
           : role === "coach"
             ? "Nuevo coach"
-            : "Nuevo miembro"}
+            : role === "recovery"
+              ? "Nueva persona de recovery"
+              : "Nuevo miembro"}
       </h3>
       <form
         className="mt-6 grid gap-4"
@@ -308,7 +311,7 @@ function TeamMemberEditPopout({
             role,
             hourlyRateCents: Math.round(Number(f.get("rate") || 0) * 100),
             active: f.get("active") === "on",
-            color: role === "coach" && useColor ? color : null,
+            color: (role === "coach" || role === "recovery") && useColor ? color : null,
             password: password || null,
           });
         }}
@@ -332,6 +335,7 @@ function TeamMemberEditPopout({
             >
               <option value="staff">Staff / recepción</option>
               <option value="coach">Coach</option>
+              <option value="recovery">Recovery / consultorio (no es coach)</option>
               <option value="admin">Administración</option>
             </select>
           </label>
@@ -354,7 +358,14 @@ function TeamMemberEditPopout({
             <span className="eyebrow">Foto (URL)</span>
             <input name="photo_url" defaultValue={person?.photo_url ?? ""} className={input} />
           </label>
-          {role === "coach" ? (
+          {role === "recovery" ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Recovery atiende el consultorio de DorisFisio: programa y ve su consultorio, ve a los
+              clientes, les aparta sesiones cobrando su crédito, edita sus paquetes y revisa sus
+              consultas. No aparece como coach.
+            </p>
+          ) : null}
+          {role === "coach" || role === "recovery" ? (
             <div className="text-xs sm:col-span-2">
               <span className="eyebrow">Color en los horarios</span>
               <div className="mt-1 flex items-center gap-3">

@@ -1,6 +1,6 @@
 import { normalizeHex } from "@/lib/coach-colors";
 
-export type TeamRole = "admin" | "staff" | "coach";
+export type TeamRole = "admin" | "staff" | "coach" | "recovery";
 
 /** Alta o edición de una persona del equipo con su acceso al sistema. */
 export type TeamMemberInput = {
@@ -19,7 +19,7 @@ export type TeamMemberInput = {
 
 const UUID = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ROLES: readonly TeamRole[] = ["admin", "staff", "coach"];
+const ROLES: readonly TeamRole[] = ["admin", "staff", "coach", "recovery"];
 
 export function validateTeamMember(
   raw: Partial<TeamMemberInput> | null | undefined,

@@ -65,7 +65,7 @@ type TemplatePatch = Partial<
   >
 >;
 
-type CoachOption = { id: string; full_name: string; color: string | null };
+type CoachOption = { id: string; full_name: string; color: string | null; role?: string };
 type ClassTypeOption = {
   id: string;
   name: string;
@@ -111,12 +111,19 @@ function moduleDefaults(moduleKey: string) {
 const isPublished = (t: Pick<TemplateRow, "coach_id" | "is_rotation" | "is_tbd">) =>
   Boolean(t.coach_id) || t.is_rotation || t.is_tbd;
 
-export function SchedulePlannerPanel() {
+export function SchedulePlannerPanel({
+  modules,
+}: { modules?: readonly string[] | undefined } = {}) {
   const qc = useQueryClient();
   const { isAdmin, isStaff, isCoach } = useAuth();
-  // Administración y recepción pueden corregir nombres y cupos de los tipos.
+  // Administración, recepción y recovery (en su consultorio) pueden corregir
+  // nombres y cupos de los tipos.
   const canEditTypes = isAdmin || (isStaff && !isCoach);
-  const [moduleKey, setModuleKey] = useState<string>("reformer");
+  // Recovery (DorisFisio) solo ve su consultorio.
+  const visibleModules = modules
+    ? SCHEDULE_MODULES.filter((m) => modules.includes(m.key))
+    : SCHEDULE_MODULES;
+  const [moduleKey, setModuleKey] = useState<string>(visibleModules[0]?.key ?? "reformer");
   const [editingCell, setEditingCell] = useState<{ weekday: number; time: string } | null>(null);
   const [extraTimes, setExtraTimes] = useState<string[]>([]);
   const [brush, setBrush] = useState<Brush | null>(null);
@@ -179,19 +186,27 @@ export function SchedulePlannerPanel() {
     },
   });
 
-  const { data: coaches } = useQuery({
+  const { data: allCoaches } = useQuery({
     queryKey: ["schedule-planner-coaches"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_profiles")
-        .select("id, full_name, color")
-        .eq("role", "coach")
+        .select("id, full_name, color, role")
+        .in("role", ["coach", "recovery"])
         .eq("active", true)
         .order("full_name");
       if (error) throw error;
       return data as CoachOption[];
     },
   });
+  // En el consultorio solo aparece recovery (DorisFisio); en los salones, los coaches.
+  const coaches = useMemo(
+    () =>
+      (allCoaches ?? []).filter((c) =>
+        moduleKey === "rehabilitacion" ? c.role === "recovery" : c.role !== "recovery",
+      ),
+    [allCoaches, moduleKey],
+  );
 
   const { data: classTypes } = useQuery({
     queryKey: ["schedule-class-types", moduleKey],
@@ -672,7 +687,7 @@ export function SchedulePlannerPanel() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {SCHEDULE_MODULES.map((m) => (
+        {visibleModules.map((m) => (
           <button
             key={m.key}
             type="button"

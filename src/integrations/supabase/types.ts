@@ -58,6 +58,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          credit_kind: string
           class_id: string
           created_at: string
           id: string
@@ -68,6 +69,7 @@ export type Database = {
           waitlisted_at: string | null
         }
         Insert: {
+          credit_kind?: string
           class_id: string
           created_at?: string
           id?: string
@@ -78,6 +80,7 @@ export type Database = {
           waitlisted_at?: string | null
         }
         Update: {
+          credit_kind?: string
           class_id?: string
           created_at?: string
           id?: string
@@ -131,6 +134,7 @@ export type Database = {
       }
       class_types: {
         Row: {
+          credit_kind: string | null
           active: boolean
           created_at: string
           default_capacity: number | null
@@ -141,6 +145,7 @@ export type Database = {
           sort_order: number
         }
         Insert: {
+          credit_kind?: string | null
           active?: boolean
           created_at?: string
           default_capacity?: number | null
@@ -151,6 +156,7 @@ export type Database = {
           sort_order?: number
         }
         Update: {
+          credit_kind?: string | null
           active?: boolean
           created_at?: string
           default_capacity?: number | null
@@ -435,6 +441,7 @@ export type Database = {
       }
       credit_lots: {
         Row: {
+          credit_kind: string
           created_at: string
           expires_at: string | null
           granted: number
@@ -446,6 +453,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          credit_kind?: string
           created_at?: string
           expires_at?: string | null
           granted: number
@@ -457,6 +465,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          credit_kind?: string
           created_at?: string
           expires_at?: string | null
           granted?: number
@@ -1344,6 +1353,7 @@ export type Database = {
       }
       token_ledger: {
         Row: {
+          credit_kind: string
           created_at: string
           created_by: string | null
           delta: number
@@ -1353,6 +1363,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          credit_kind?: string
           created_at?: string
           created_by?: string | null
           delta: number
@@ -1362,6 +1373,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          credit_kind?: string
           created_at?: string
           created_by?: string | null
           delta?: number
@@ -1382,6 +1394,7 @@ export type Database = {
       }
       token_plans: {
         Row: {
+          credit_kind: string
           active: boolean
           available_from: string | null
           available_until: string | null
@@ -1413,6 +1426,7 @@ export type Database = {
           validity_days: number | null
         }
         Insert: {
+          credit_kind?: string
           active?: boolean
           available_from?: string | null
           available_until?: string | null
@@ -1444,6 +1458,7 @@ export type Database = {
           validity_days?: number | null
         }
         Update: {
+          credit_kind?: string
           active?: boolean
           available_from?: string | null
           available_until?: string | null
@@ -1972,7 +1987,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user" | "staff" | "coach"
+      app_role: "admin" | "user" | "staff" | "coach" | "recovery"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2100,7 +2115,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "staff", "coach"],
+      app_role: ["admin", "user", "staff", "coach", "recovery"],
     },
   },
 } as const
