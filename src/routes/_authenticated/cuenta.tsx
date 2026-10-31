@@ -15,6 +15,16 @@ import { usePlanLocks } from "@/hooks/use-plan-locks";
 import { CouponRedeemBox } from "@/components/coupon-redeem";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
+// Tipo de clase primero; la coach solo si ya está definida (no "por anunciar").
+function classLine(c: {
+  room: string;
+  instructor: string;
+  is_tbd?: boolean | null;
+  class_types?: { name: string } | null;
+}) {
+  return [c.class_types?.name, c.room, c.is_tbd ? null : c.instructor].filter(Boolean).join(" · ");
+}
+
 export const Route = createFileRoute("/_authenticated/cuenta")({
   head: () => ({
     meta: [
@@ -136,7 +146,7 @@ function Cuenta() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("*, classes(room, instructor, starts_at)")
+        .select("*, classes(room, instructor, starts_at, is_tbd, class_types(name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -340,9 +350,7 @@ function Cuenta() {
                         </span>
                       ) : null}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {b.classes!.room} · {b.classes!.instructor}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{classLine(b.classes!)}</p>
                   </div>
                   <button
                     onClick={() => cancel.mutate(b.id)}
@@ -363,9 +371,7 @@ function Cuenta() {
                   <li key={b.id} className="flex flex-wrap items-center justify-between gap-4 py-5">
                     <div>
                       <p>{dateTime(b.classes!.starts_at)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {b.classes!.room} · {b.classes!.instructor}
-                      </p>
+                      <p className="text-sm text-muted-foreground">{classLine(b.classes!)}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.14em] text-amber-600">
                         Tu crédito está apartado — se devuelve si no hay lugar
                       </p>

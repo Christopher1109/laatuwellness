@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CREDIT_ERRORS } from "@/lib/credit-kinds";
+import { describeError } from "@/lib/describe-error";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -557,6 +558,107 @@ function ClassDetailDrawer({
     onSuccess: invalidate,
   });
 
+  // Clases a las que se puede mover a alguien: mismo programa, próximas 2 semanas.
+  const { data: moveTargets } = useQuery({
+    queryKey: ["admin-move-targets", cls?.module_key, classId],
+    enabled: Boolean(cls?.module_key),
+    queryFn: async () => {
+      const now = new Date();
+      const until = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, starts_at, capacity, instructor, is_tbd, class_type_id")
+        .eq("module_key", cls!.module_key!)
+        .eq("active", true)
+        .gt("starts_at", now.toISOString())
+        .lt("starts_at", until.toISOString())
+        .neq("id", classId)
+        .order("starts_at");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función fuera de los tipos generados
+      const { data: occ } = await (supabase.rpc as any)("class_occupancy_batch", {
+        _class_ids: (data ?? []).map((c) => c.id),
+      });
+      const taken = new Map(
+        ((occ ?? []) as { class_id: string; taken: number }[]).map((o) => [o.class_id, o.taken]),
+      );
+      return (data ?? []).map((c) => ({ ...c, taken: taken.get(c.id) ?? 0 }));
+    },
+  });
+
+  const moveBooking = useMutation({
+    mutationFn: async ({ bookingId, targetId }: { bookingId: string; targetId: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { error } = await (supabase.rpc as any)("move_booking", {
+        _booking_id: bookingId,
+        _target_class_id: targetId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reservación movida. Conserva su crédito o su clase de membresía.");
+      setMovingFor(null);
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ["admin-move-targets"] });
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-bookings"] });
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+    },
+    onError: (e: Error) =>
+      toast.error(
+        e.message.includes("CLASS_FULL")
+          ? "Esa clase ya está llena."
+          : e.message.includes("ALREADY_BOOKED")
+            ? "Esa persona ya está en esa clase."
+            : e.message.includes("MOVE_WRONG_CREDIT_KIND")
+              ? "Su crédito no sirve para esa clase (es de otro tipo)."
+              : e.message.includes("DAILY_LIMIT_REACHED")
+                ? "Su membresía ya tiene su clase de ese día."
+                : e.message.includes("CLASS_PAST")
+                  ? "Esa clase ya pasó."
+                  : describeError(e, "No se pudo mover."),
+      ),
+  });
+
+  // Quitar la clase del horario: cancela a quienes queden (se les regresa su
+  // crédito o su derecho a reservar ese día) y la oculta. Queda bloqueada para
+  // que "Actualizar clases" no la vuelva a publicar.
+  const cancelClass = useMutation({
+    mutationFn: async () => {
+      if (!cls?.module_key) throw new Error("Clase sin programa.");
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Monterrey",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date(cls.starts_at));
+      const part = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
+      const { data, error } = await supabase.rpc("set_schedule_slot_block", {
+        _module_key: cls.module_key,
+        _day: `${part("year")}-${part("month")}-${part("day")}`,
+        _start_time: `${part("hour")}:${part("minute")}`,
+        _blocked: true,
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: (cancelled) => {
+      toast.success(
+        cancelled > 0
+          ? `Clase quitada del horario. Se canceló a ${cancelled} persona(s) y se les regresó su crédito o su clase del día.`
+          : "Clase quitada del horario.",
+      );
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-counts"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+      onClose();
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo quitar la clase.")),
+  });
+
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error: refundError } = await supabase.rpc("refund_booking_credit", {
@@ -804,6 +906,8 @@ function ClassDetailDrawer({
   );
   const takenBy = (seat: number) => reserved.find((r) => r.seat_number === seat);
   const [assigningFor, setAssigningFor] = useState<{ id: string; name: string } | null>(null);
+  // Mover una reservación a otra clase (por cambio de horario).
+  const [movingFor, setMovingFor] = useState<{ id: string; name: string } | null>(null);
 
   const avatar = cls ? coachAvatar(cls.instructor) : null;
 
@@ -862,7 +966,9 @@ function ClassDetailDrawer({
                 {!cls.coach_id && !cls.is_tbd ? (
                   <option value="">{cls.instructor || "Sin asignar"}</option>
                 ) : null}
-                <option value="__tbd">Por definir (coach por anunciar)</option>
+                <option value="__tbd">
+                  Por definir (en la página solo se ve la clase, sin coach)
+                </option>
                 {coaches.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.full_name}
@@ -909,6 +1015,23 @@ function ClassDetailDrawer({
               </button>
               <button
                 onClick={() => {
+                  const n = reserved.length;
+                  if (
+                    confirm(
+                      n > 0
+                        ? `¿Quitar esta clase del horario? Hay ${n} reservación(es): se cancelarán y se les regresará su crédito o su clase del día. Si quieres pasarlas a otra clase, usa primero "Mover" en cada persona.`
+                        : "¿Quitar esta clase del horario? Ya no se mostrará ni se podrá reservar.",
+                    )
+                  )
+                    cancelClass.mutate();
+                }}
+                disabled={cancelClass.isPending}
+                className={cn(actionBtn, "border-destructive/40 text-destructive")}
+              >
+                Quitar del horario
+              </button>
+              <button
+                onClick={() => {
                   if (confirm("¿Borrar esta clase? No se puede deshacer.")) deleteClass.mutate();
                 }}
                 className={cn(actionBtn, "border-destructive/40 text-destructive")}
@@ -945,6 +1068,71 @@ function ClassDetailDrawer({
             </div>
           </div>
         </div>
+
+        {movingFor ? (
+          <div className="mb-6 border border-foreground p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="eyebrow">Mover a otra clase</p>
+                <p className="mt-1 text-sm">{movingFor.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Conserva lo que ya pagó: no se le cobra otro crédito y, si reservó con membresía,
+                  sigue contando como su clase del día.
+                </p>
+              </div>
+              <button
+                onClick={() => setMovingFor(null)}
+                className="text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground"
+              >
+                Cerrar
+              </button>
+            </div>
+            <ul className="mt-3 max-h-72 divide-y divide-border overflow-y-auto border-y border-border">
+              {(moveTargets ?? []).map((t) => {
+                const libres = Math.max(t.capacity - t.taken, 0);
+                const label = new Intl.DateTimeFormat("es-MX", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZone: "America/Monterrey",
+                }).format(new Date(t.starts_at));
+                const tipo = t.class_type_id
+                  ? classTypes.find((x) => x.id === t.class_type_id)?.name
+                  : null;
+                return (
+                  <li key={t.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                    <span className="min-w-0">
+                      <span className="block capitalize">{label}</span>
+                      <span className="block truncate text-muted-foreground">
+                        {[tipo, t.is_tbd ? "Coach por definir" : t.instructor]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        {" · "}
+                        {libres} lugar{libres === 1 ? "" : "es"}
+                      </span>
+                    </span>
+                    <button
+                      disabled={libres === 0 || moveBooking.isPending}
+                      onClick={() =>
+                        moveBooking.mutate({ bookingId: movingFor.id, targetId: t.id })
+                      }
+                      className="shrink-0 border border-input px-3 py-1.5 text-[0.6rem] uppercase tracking-[0.12em] hover:bg-foreground hover:text-background disabled:opacity-40"
+                    >
+                      {libres === 0 ? "Llena" : "Mover aquí"}
+                    </button>
+                  </li>
+                );
+              })}
+              {(moveTargets ?? []).length === 0 ? (
+                <li className="py-3 text-xs text-muted-foreground">
+                  No hay otras clases publicadas de este programa en las próximas 2 semanas.
+                </li>
+              ) : null}
+            </ul>
+          </div>
+        ) : null}
 
         {showBookMember ? (
           <div className="relative mb-6 border border-border p-4">
@@ -1081,6 +1269,28 @@ function ClassDetailDrawer({
                           className="border border-input px-2 py-1 text-[0.6rem] uppercase"
                         >
                           Quitar lugar
+                        </button>
+                      ) : null}
+                      {!r.checkin ? (
+                        <button
+                          onClick={() =>
+                            setMovingFor(
+                              movingFor?.id === r.id
+                                ? null
+                                : {
+                                    id: r.id,
+                                    name: r.profile?.full_name || r.profile?.email || "",
+                                  },
+                            )
+                          }
+                          className={cn(
+                            "border px-2 py-1 text-[0.6rem] uppercase",
+                            movingFor?.id === r.id
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-input",
+                          )}
+                        >
+                          Mover
                         </button>
                       ) : null}
                       {!r.checkin ? (
