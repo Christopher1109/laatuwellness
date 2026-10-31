@@ -155,6 +155,13 @@
       "when": 1793296851161,
       "tag": "0021_recovery_clientes_actividad",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793409435525,
+      "tag": "0022_mover_reservacion",
+      "breakpoints": true
     }
   ]
 }

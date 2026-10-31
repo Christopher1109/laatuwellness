@@ -626,13 +626,22 @@ export function Schedule({
                                 <span className="text-base tabular-nums">
                                   {timeLabel(c.starts_at)}
                                 </span>
-                                <span className="truncate text-sm text-muted-foreground">
-                                  {[
-                                    c.class_type_id ? classTypes?.get(c.class_type_id) : null,
-                                    c.instructor || c.room,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" · ")}
+                                <span className="min-w-0 truncate text-sm">
+                                  {/* El tipo de clase va primero y resaltado; la coach
+                                      solo se muestra si ya está definida. */}
+                                  {c.class_type_id && classTypes?.get(c.class_type_id) ? (
+                                    <span className="text-foreground">
+                                      {classTypes.get(c.class_type_id)}
+                                    </span>
+                                  ) : null}
+                                  {!c.is_tbd && (c.instructor || c.room) ? (
+                                    <span className="text-muted-foreground">
+                                      {c.class_type_id && classTypes?.get(c.class_type_id)
+                                        ? " · "
+                                        : ""}
+                                      {c.instructor || c.room}
+                                    </span>
+                                  ) : null}
                                 </span>
                               </div>
                               <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">

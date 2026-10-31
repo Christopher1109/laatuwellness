@@ -247,7 +247,9 @@ export function AddClassForm({
           <Field label="Coach">
             <select value={coach} onChange={(e) => setCoach(e.target.value)} className={control}>
               <option value="">Sin asignar</option>
-              <option value="__tbd">Por definir (coach por anunciar)</option>
+              <option value="__tbd">
+                Por definir (en la página solo se ve la clase, sin coach)
+              </option>
               {coaches.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.full_name}

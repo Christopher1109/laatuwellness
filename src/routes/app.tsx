@@ -365,8 +365,7 @@ function ReservasTab({ onGoToSchedule }: { onGoToSchedule: () => void }) {
     (b.classes!.class_type_id ? typeNames?.get(b.classes!.class_type_id) : undefined) ??
     MODULE_NAMES[b.classes!.module_key ?? ""] ??
     b.classes!.room;
-  const coachName = (b: AppBooking) =>
-    b.classes!.is_tbd ? "Coach por anunciar" : b.classes!.instructor || "";
+  const coachName = (b: AppBooking) => (b.classes!.is_tbd ? "" : b.classes!.instructor || "");
 
   const segments = [
     ["proximas", "Próximas", upcoming.length],

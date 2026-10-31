@@ -1191,7 +1191,7 @@ function CellEditor({
           <span className="eyebrow">Coach</span>
           <select value={coach} onChange={(e) => setCoach(e.target.value)} className={input}>
             <option value="__pending">Pendiente (no se publica)</option>
-            <option value="__tbd">Por definir (se publica como "Coach por anunciar")</option>
+            <option value="__tbd">Por definir (en la página solo se ve la clase, sin coach)</option>
             <option value="__rot">Rotación de fin de semana</option>
             {coaches.map((c) => (
               <option key={c.id} value={c.id}>
