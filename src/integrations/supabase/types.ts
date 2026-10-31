@@ -65,7 +65,9 @@ export type Database = {
           seat_number: number | null
           status: string
           tokens_spent: number
-          user_id: string
+          user_id: string | null
+          guest_name: string | null
+          guest_phone: string | null
           waitlisted_at: string | null
         }
         Insert: {
@@ -76,7 +78,9 @@ export type Database = {
           seat_number?: number | null
           status?: string
           tokens_spent?: number
-          user_id: string
+          user_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           waitlisted_at?: string | null
         }
         Update: {
@@ -87,7 +91,9 @@ export type Database = {
           seat_number?: number | null
           status?: string
           tokens_spent?: number
-          user_id?: string
+          user_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           waitlisted_at?: string | null
         }
         Relationships: [
