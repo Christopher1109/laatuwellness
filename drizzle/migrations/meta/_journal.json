@@ -162,6 +162,13 @@
       "when": 1793409435525,
       "tag": "0022_mover_reservacion",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793414814537,
+      "tag": "0023_lugares_invitados",
+      "breakpoints": true
     }
   ]
 }

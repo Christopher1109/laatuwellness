@@ -477,6 +477,17 @@ const actionBtn =
 const actionBtnPrimary =
   "flex min-h-[3.25rem] items-center justify-center bg-foreground px-3 py-2 text-center text-[0.65rem] uppercase leading-tight tracking-[0.1em] text-background";
 
+// Nombre a mostrar: cliente con cuenta o invitado sin cuenta.
+function personName(r: {
+  user_id?: string | null;
+  guest_name?: string | null;
+  guest_phone?: string | null;
+  profile?: { full_name?: string | null; email?: string | null } | undefined;
+}) {
+  if (!r.user_id && r.guest_name) return r.guest_name;
+  return r.profile?.full_name || r.profile?.email || "";
+}
+
 function ClassDetailDrawer({
   classId,
   onClose,
@@ -510,7 +521,8 @@ function ClassDetailDrawer({
         .eq("class_id", classId)
         .order("created_at");
       if (error) throw error;
-      const ids = (bookings ?? []).map((b) => b.user_id);
+      // Los invitados sin cuenta no tienen user_id.
+      const ids = (bookings ?? []).map((b) => b.user_id).filter((id): id is string => Boolean(id));
       const { data: profiles } = ids.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", ids)
         : { data: [] as { id: string; full_name: string; email: string }[] };
@@ -755,6 +767,35 @@ function ClassDetailDrawer({
     },
   });
 
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const addGuest = useMutation({
+    mutationFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { error } = await (supabase.rpc as any)("admin_add_guest", {
+        _class_id: classId,
+        _guest_name: guestName.trim(),
+        _guest_phone: guestPhone.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(`Lugar apartado para ${guestName.trim()} (invitado).`);
+      setGuestName("");
+      setGuestPhone("");
+      setShowBookMember(false);
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ["admin-schedule-classes"] });
+      void qc.invalidateQueries({ queryKey: ["classes"] });
+    },
+    onError: (e: Error) =>
+      toast.error(
+        e.message.includes("CLASS_FULL")
+          ? "La clase ya está llena."
+          : describeError(e, "No se pudo apartar el lugar."),
+      ),
+  });
+
   const bookMember = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase.rpc("admin_book_class", {
@@ -876,8 +917,8 @@ function ClassDetailDrawer({
     const rowsCsv = [
       ["Nombre", "Correo", "Lugar", "Estatus"],
       ...reserved.map((r) => [
-        r.profile?.full_name ?? "",
-        r.profile?.email ?? "",
+        personName(r) + (!r.user_id ? " (invitado)" : ""),
+        r.profile?.email ?? r.guest_phone ?? "",
         String(r.seat_number ?? ""),
         statusLabel(r, r.checkin).label,
       ]),
@@ -1005,7 +1046,7 @@ function ClassDetailDrawer({
             <p className="eyebrow mb-2">Acciones de la clase</p>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => setShowBookMember((v) => !v)} className={actionBtnPrimary}>
-                + Registrar miembro
+                + Registrar miembro o invitado
               </button>
               <button onClick={() => setShowEdit((v) => !v)} className={actionBtn}>
                 Editar clase
@@ -1162,6 +1203,44 @@ function ClassDetailDrawer({
                 ))}
               </ul>
             ) : null}
+
+            {/* Invitado sin cuenta: aparta el lugar con su nombre para que nadie más lo tome. */}
+            <form
+              className="mt-4 border-t border-border pt-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addGuest.mutate();
+              }}
+            >
+              <p className="eyebrow">¿No tiene cuenta? Apartar lugar a invitado</p>
+              <p className="mt-1 text-[0.7rem] text-muted-foreground">
+                Para quien quiere probar la clase. Ocupa un lugar del cupo y no cobra créditos.
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_10rem_auto]">
+                <input
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Nombre (ej. Lore)"
+                  maxLength={80}
+                  className="w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
+                />
+                <input
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  placeholder="Teléfono (opcional)"
+                  inputMode="tel"
+                  maxLength={30}
+                  className="w-full border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
+                />
+                <button
+                  type="submit"
+                  disabled={!guestName.trim() || addGuest.isPending}
+                  className="bg-foreground px-4 py-2 text-[0.62rem] uppercase tracking-[0.14em] text-background disabled:opacity-40"
+                >
+                  Apartar lugar
+                </button>
+              </div>
+            </form>
           </div>
         ) : null}
 
@@ -1220,7 +1299,12 @@ function ClassDetailDrawer({
                             {r.seat_number}
                           </span>
                         ) : null}
-                        <span className="truncate">{r.profile?.full_name || r.profile?.email}</span>
+                        <span className="truncate">{personName(r)}</span>
+                        {!r.user_id ? (
+                          <span className="shrink-0 bg-muted px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-muted-foreground">
+                            Invitado
+                          </span>
+                        ) : null}
                       </span>
                       <span
                         className={cn(
@@ -1246,7 +1330,7 @@ function ClassDetailDrawer({
                               ? null
                               : {
                                   id: r.id,
-                                  name: r.profile?.full_name || r.profile?.email || "",
+                                  name: personName(r),
                                 },
                           )
                         }
@@ -1279,7 +1363,7 @@ function ClassDetailDrawer({
                                 ? null
                                 : {
                                     id: r.id,
-                                    name: r.profile?.full_name || r.profile?.email || "",
+                                    name: personName(r),
                                   },
                             )
                           }
@@ -1330,7 +1414,7 @@ function ClassDetailDrawer({
             <div className="space-y-1.5">
               {waitlist.map((r) => (
                 <div key={r.id} className="border border-border p-2 text-xs">
-                  <p className="truncate">{r.profile?.full_name || r.profile?.email}</p>
+                  <p className="truncate">{personName(r)}</p>
                   <div className="mt-1.5 flex gap-1.5">
                     <button
                       disabled={reserved.length >= capacity}
@@ -1359,7 +1443,7 @@ function ClassDetailDrawer({
             <div className="space-y-1.5">
               {cancelled.map((r) => (
                 <div key={r.id} className="border border-border p-2 text-xs text-muted-foreground">
-                  {r.profile?.full_name || r.profile?.email}
+                  {personName(r)}
                   <span className="ml-1 text-[0.6rem]">· crédito devuelto</span>
                 </div>
               ))}

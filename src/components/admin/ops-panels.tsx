@@ -2691,7 +2691,8 @@ export function CheckInPanel() {
         .eq("class_id", classId)
         .eq("status", "reservada");
       if (error) throw error;
-      const ids = (bookings ?? []).map((b) => b.user_id);
+      // Los invitados sin cuenta no tienen user_id.
+      const ids = (bookings ?? []).map((b) => b.user_id).filter((id): id is string => Boolean(id));
       const { data: profiles } = ids.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", ids)
         : { data: [] as { id: string; full_name: string; email: string }[] };
@@ -2741,7 +2742,7 @@ export function CheckInPanel() {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
-      (r.profile?.full_name ?? "").toLowerCase().includes(q) ||
+      (r.profile?.full_name ?? r.guest_name ?? "").toLowerCase().includes(q) ||
       (r.profile?.email ?? "").toLowerCase().includes(q)
     );
   });
@@ -2791,8 +2792,15 @@ export function CheckInPanel() {
             className="grid min-w-0 gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
           >
             <div className="min-w-0 break-words">
-              <p>{r.profile?.full_name || "Sin nombre"}</p>
-              <p className="text-muted-foreground">{r.profile?.email}</p>
+              <p>
+                {r.profile?.full_name || r.guest_name || "Sin nombre"}
+                {!r.user_id && r.guest_name ? (
+                  <span className="ml-2 bg-muted px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-muted-foreground">
+                    Invitado
+                  </span>
+                ) : null}
+              </p>
+              <p className="text-muted-foreground">{r.profile?.email ?? r.guest_phone ?? ""}</p>
             </div>
             <div className="grid shrink-0 grid-cols-3 gap-2">
               <Button
@@ -3258,6 +3266,7 @@ export function ClientsPanel() {
       >();
       const checkInByBooking = new Map((checkIns ?? []).map((c) => [c.booking_id, c.status]));
       for (const b of bookings ?? []) {
+        if (!b.user_id) continue; // invitado sin cuenta
         const acc = bookingsByUser.get(b.user_id) ?? {
           total: 0,
           attended: 0,
