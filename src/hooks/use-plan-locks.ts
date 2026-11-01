@@ -17,11 +17,14 @@ export function usePlanLocks(userId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("plan_id")
+        .select("plan_id, token_plans(welcome_gift)")
         .eq("user_id", userId ?? "")
         .eq("status", "completed");
       if (error) throw error;
-      return new Set((data ?? []).map((t) => t.plan_id).filter(Boolean) as string[]);
+      // El regalo de bienvenida (Meet LAATU) no cuenta como compra: quien lo
+      // recibió sigue siendo cliente nueva para Newcomer.
+      const paid = (data ?? []).filter((t) => !t.token_plans?.welcome_gift);
+      return new Set(paid.map((t) => t.plan_id).filter(Boolean) as string[]);
     },
   });
 

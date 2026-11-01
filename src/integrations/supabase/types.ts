@@ -1430,6 +1430,7 @@ export type Database = {
           terms: string
           tokens: number
           validity_days: number | null
+          welcome_gift: boolean
         }
         Insert: {
           credit_kind?: string
@@ -1462,6 +1463,7 @@ export type Database = {
           terms?: string
           tokens: number
           validity_days?: number | null
+          welcome_gift?: boolean
         }
         Update: {
           credit_kind?: string
@@ -1494,6 +1496,7 @@ export type Database = {
           terms?: string
           tokens?: number
           validity_days?: number | null
+          welcome_gift?: boolean
         }
         Relationships: [
           {

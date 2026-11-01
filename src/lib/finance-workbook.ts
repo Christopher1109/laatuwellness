@@ -23,6 +23,7 @@ export const PAYMENT_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
   transferencia: "Transferencia",
   convenio: "Convenio (sin cobro)",
+  cortesia: "Cortesía (sin cobro)",
   saldo: "Saldo / ajuste",
   pendiente: "Pendiente",
   en_estudio: "Pago en estudio",
