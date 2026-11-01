@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { BrandLink, Wordmark, Coordinates } from "@/components/brand";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { InstallPrompt } from "@/components/install-prompt";
+import { MeetLaatuPopup } from "@/components/meet-laatu-popup";
 
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -290,13 +291,18 @@ export function SiteFooter() {
 }
 
 export function SiteLayout({ children }: { children: React.ReactNode }) {
+  // La invitación a instalar la app espera a que Meet LAATU se cierre (o no
+  // aplique) para no encimarse.
+  const [meetSettled, setMeetSettled] = useState(false);
+  const onMeetSettled = useCallback(() => setMeetSettled(true), []);
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
       <WhatsAppButton />
-      <InstallPrompt />
+      <MeetLaatuPopup onSettled={onMeetSettled} />
+      {meetSettled ? <InstallPrompt /> : null}
     </div>
   );
 }

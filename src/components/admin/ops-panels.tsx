@@ -487,13 +487,15 @@ export function POSPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla/función nueva, aún no está en los tipos generados
       const { data, error } = await (supabase.from as any)("token_plans")
         .select(
-          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only, max_sales, available_from, available_until, renews_plan_id",
+          "id, name, subtitle, tokens, price_cents, category, purchasable_once, new_clients_only, max_sales, available_from, available_until, renews_plan_id, welcome_gift",
         )
         .eq("active", true)
         .order("sort_order")
         .order("price_cents");
       if (error) throw error;
-      return ((data ?? []) as PosPlan[]).filter((p) => isPlanInSaleWindow(p));
+      return ((data ?? []) as (PosPlan & { welcome_gift?: boolean })[]).filter(
+        (p) => !p.welcome_gift && isPlanInSaleWindow(p),
+      );
     },
   });
 
@@ -3865,7 +3867,8 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
         .eq("active", true)
         .order("sort_order");
       if (error) throw error;
-      return data;
+      // Meet LAATU se asigna solo al crear la cuenta; no se vende.
+      return (data ?? []).filter((p) => !p.welcome_gift);
     },
   });
 
@@ -4961,8 +4964,15 @@ export function PackagesPanel({
                       Crédito solo {CREDIT_KIND_SHORT[creditKindOf(p.credit_kind)]}
                     </p>
                   ) : null}
+                  {p.welcome_gift ? (
+                    <p className="mt-1 text-[0.6rem] uppercase tracking-[0.1em] text-emerald-800">
+                      Regalo al registrarse
+                    </p>
+                  ) : null}
                   {!p.active ? (
-                    <p className="mt-1 text-[0.6rem] text-muted-foreground">Oculto</p>
+                    <p className="mt-1 text-[0.6rem] text-muted-foreground">
+                      {p.welcome_gift ? "Pausado" : "Oculto"}
+                    </p>
                   ) : null}
                 </button>
               ),
@@ -5594,6 +5604,12 @@ function PackageEditPopout({
   return (
     <Popout onClose={onClose}>
       <p className="mb-4 eyebrow">{isNew ? "Nuevo paquete" : "Editar paquete"}</p>
+      {plan?.welcome_gift ? (
+        <p className="mb-4 border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          Regalo de bienvenida: se asigna solo, una vez, a cada cuenta nueva al registrarse. No se
+          vende en la web, la app ni el punto de venta. Mientras esté oculto, nadie nuevo lo recibe.
+        </p>
+      ) : null}
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -5790,7 +5806,13 @@ function PackageEditPopout({
                   onClick={() => toggleActive.mutate()}
                   className="border border-input px-3 py-2 text-[0.65rem] uppercase tracking-[0.12em]"
                 >
-                  {plan?.active ? "Ocultar" : "Publicar"}
+                  {plan?.welcome_gift
+                    ? plan.active
+                      ? "Pausar regalo"
+                      : "Activar regalo"
+                    : plan?.active
+                      ? "Ocultar"
+                      : "Publicar"}
                 </button>
                 <button
                   type="button"

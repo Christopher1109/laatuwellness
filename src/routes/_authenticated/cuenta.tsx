@@ -159,7 +159,7 @@ function Cuenta() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("*, token_plans(name)")
+        .select("*, token_plans(name, welcome_gift)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -226,8 +226,34 @@ function Cuenta() {
       new Date(b.classes!.starts_at).getTime() <= now,
   );
 
+  // Meet LAATU: la clase de regalo se asigna al registrarse. Mientras no haya
+  // reservado nada, se le recuerda cómo usarla.
+  const hasWelcomeGift = (transactions.data ?? []).some(
+    (t) => t.status === "completed" && t.token_plans?.welcome_gift,
+  );
+  const showWelcome = hasWelcomeGift && bookings.isSuccess && (bookings.data ?? []).length === 0;
+
   return (
     <SiteLayout>
+      {showWelcome ? (
+        <section className="border-b border-border bg-muted/40">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+            <div>
+              <p className="eyebrow">Meet LAATU</p>
+              <p className="mt-2 text-sm">
+                Bienvenida: tu primera clase va por nuestra cuenta, ya está en tus créditos.{" "}
+                {waiver.data ? "Reserva cuando quieras." : "Firma tu waiver aquí abajo y reserva."}
+              </p>
+            </div>
+            <Link
+              to="/horarios"
+              className="self-start bg-foreground px-6 py-3 text-[0.68rem] uppercase tracking-[0.18em] text-background sm:self-auto"
+            >
+              Ver horarios
+            </Link>
+          </div>
+        </section>
+      ) : null}
       <section className="border-b border-border">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
           <p className="eyebrow">Mi cuenta</p>

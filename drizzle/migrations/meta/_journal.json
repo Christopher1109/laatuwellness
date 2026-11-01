@@ -169,6 +169,13 @@
       "when": 1793414814537,
       "tag": "0023_lugares_invitados",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793575352615,
+      "tag": "0024_meet_laatu",
+      "breakpoints": true
     }
   ]
 }

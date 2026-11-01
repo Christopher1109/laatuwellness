@@ -23,6 +23,8 @@ export const Route = createFileRoute("/auth")({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { mode?: "up" } =>
+    search["mode"] === "up" ? { mode: "up" } : {},
   component: Auth,
 });
 
@@ -59,7 +61,8 @@ async function resolveLandingRoute(
 }
 
 function Auth() {
-  const [mode, setMode] = useState<Mode>("in");
+  const search = Route.useSearch();
+  const [mode, setMode] = useState<Mode>(search.mode === "up" ? "up" : "in");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
@@ -177,6 +180,12 @@ function Auth() {
                 ? "Recupera tu acceso"
                 : "Bienvenida de vuelta"}
           </h2>
+          {mode === "up" ? (
+            <p className="mt-4 border border-border bg-muted/40 px-4 py-3 text-sm">
+              <span className="eyebrow mr-2">Meet LAATU</span>
+              Al crear tu cuenta te regalamos tu primera clase.
+            </p>
+          ) : null}
 
           <form onSubmit={handle} className="mt-8 space-y-5">
             {mode === "up" ? (
