@@ -2,7 +2,17 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Clock, KeyRound, MapPin, Users } from "lucide-react";
+import {
+  Cake,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  HeartPulse,
+  KeyRound,
+  MapPin,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -673,6 +683,8 @@ function CoachClassesView({ coachId }: { coachId: string }) {
         ))}
       </div>
 
+      <CoachInsightsSection coachId={coachId} month={month} />
+
       <div className="mb-4 flex flex-wrap gap-1.5">
         {(
           [
@@ -865,19 +877,52 @@ function ClassRosterPopout({
               ) : (
                 <ul className="divide-y divide-border border-y border-border text-sm">
                   {people.map((p) => (
-                    <li key={p.booking_id} className="flex items-center justify-between gap-3 py-2">
-                      <span className="flex min-w-0 items-center gap-2">
-                        {p.seat_number ? (
-                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
-                            {p.seat_number}
-                          </span>
-                        ) : null}
-                        <span className="truncate">{p.full_name || "Sin nombre"}</span>
-                      </span>
-                      {status === "reservada" && p.checked_in ? (
-                        <span className="shrink-0 bg-emerald-500/10 px-1.5 py-0.5 text-[0.6rem] text-emerald-700">
-                          Llegó
+                    <li key={p.booking_id} className="py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex min-w-0 items-center gap-2">
+                          {p.seat_number ? (
+                            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[0.6rem] text-background">
+                              {p.seat_number}
+                            </span>
+                          ) : null}
+                          <span className="truncate">{p.full_name || "Sin nombre"}</span>
+                          {p.birthday_soon ? (
+                            <Cake
+                              className="h-3.5 w-3.5 shrink-0 text-pink-600"
+                              aria-label="Cumpleaños esta semana"
+                            />
+                          ) : null}
                         </span>
+                        {status === "reservada" ? <ArrivalBadge status={p.checkin_status} /> : null}
+                      </div>
+                      {status !== "cancelada" ? (
+                        <div className="mt-1 flex flex-wrap gap-1.5 pl-7 text-[0.62rem]">
+                          {p.first_visit ? (
+                            <span className="inline-flex items-center gap-1 bg-sky-500/10 px-1.5 py-0.5 text-sky-800">
+                              <Sparkles className="h-3 w-3" /> Primera vez
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {p.visits} {p.visits === 1 ? "clase" : "clases"} antes
+                            </span>
+                          )}
+                          {p.is_guest ? (
+                            <span className="bg-muted px-1.5 py-0.5 text-muted-foreground">
+                              Invitada
+                            </span>
+                          ) : null}
+                          {p.birthday_soon ? (
+                            <span className="bg-pink-500/10 px-1.5 py-0.5 text-pink-700">
+                              Cumpleaños esta semana
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {p.health_notes && status !== "cancelada" ? (
+                        <p className="mt-1.5 ml-7 flex gap-1.5 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900">
+                          <HeartPulse className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span className="whitespace-pre-line">{p.health_notes}</span>
+                        </p>
                       ) : null}
                     </li>
                   ))}
@@ -888,6 +933,123 @@ function ClassRosterPopout({
         })}
       </div>
     </Popout>
+  );
+}
+
+function ArrivalBadge({ status }: { status: string | null }) {
+  if (!status) {
+    return <span className="shrink-0 text-[0.6rem] text-muted-foreground">Por llegar</span>;
+  }
+  const map: Record<string, [string, string]> = {
+    a_tiempo: ["Llegó", "bg-emerald-500/10 text-emerald-700"],
+    tarde: ["Llegó tarde", "bg-amber-500/10 text-amber-700"],
+    no_show: ["No llegó", "bg-destructive/10 text-destructive"],
+  };
+  const [label, cls] = map[status] ?? [status, "bg-muted text-muted-foreground"];
+  return <span className={cn("shrink-0 px-1.5 py-0.5 text-[0.6rem]", cls)}>{label}</span>;
+}
+
+type CoachInsights = {
+  classes_given: number;
+  attended: number;
+  late: number;
+  no_shows: number;
+  avg_attendance: number | null;
+  unique_students: number;
+  top_students: { name: string; visits: number }[];
+  birthdays: { name: string; date: string }[];
+};
+
+function CoachInsightsSection({
+  coachId,
+  month,
+}: {
+  coachId: string;
+  month: { start: Date; end: Date };
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["coach-insights", coachId, month.start.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("coach_insights", {
+        _coach_id: coachId,
+        _from: month.start.toISOString(),
+        _to: month.end.toISOString(),
+      });
+      if (error) throw error;
+      return data as unknown as CoachInsights;
+    },
+  });
+  if (isLoading || !data) return null;
+  const bdayFmt = new Intl.DateTimeFormat("es-MX", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  return (
+    <div className="mb-6 grid gap-3 lg:grid-cols-3">
+      <div className="border border-border p-4">
+        <p className="eyebrow">Asistencia del mes</p>
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <Stat label="Asistencias" value={data.attended} />
+          <Stat label="Promedio por clase" value={data.avg_attendance ?? 0} />
+          <Stat label="Alumnas distintas" value={data.unique_students} />
+          <Stat label="Llegaron tarde" value={data.late} />
+          <Stat label="No llegaron" value={data.no_shows} />
+          <Stat label="Clases dadas" value={data.classes_given} />
+        </div>
+      </div>
+      <div className="border border-border p-4">
+        <p className="eyebrow">Alumnas frecuentes</p>
+        {data.top_students.length === 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground">Aún no hay asistencias este mes.</p>
+        ) : (
+          <ol className="mt-3 space-y-1.5 text-sm">
+            {data.top_students.map((t, i) => (
+              <li key={t.name + i} className="flex items-center justify-between gap-3">
+                <span className="truncate">
+                  <span className="mr-2 text-[0.65rem] text-muted-foreground">{i + 1}</span>
+                  {t.name}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {t.visits} {t.visits === 1 ? "clase" : "clases"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <div className="border border-border p-4">
+        <p className="eyebrow flex items-center gap-1.5">
+          <Cake className="h-3.5 w-3.5" /> Cumpleaños esta semana
+        </p>
+        {data.birthdays.length === 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Ninguna de tus alumnas cumple años en los próximos 7 días.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-1.5 text-sm">
+            {data.birthdays.map((b, i) => (
+              <li key={b.name + i} className="flex items-center justify-between gap-3">
+                <span className="truncate">{b.name}</span>
+                <span className="shrink-0 text-xs capitalize text-muted-foreground">
+                  {bdayFmt.format(new Date(`${b.date}T00:00:00Z`))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <p className="text-xl leading-none">{value}</p>
+      <p className="mt-1 text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+    </div>
   );
 }
 

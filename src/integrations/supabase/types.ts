@@ -1015,6 +1015,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          birth_date: string | null
+          health_notes: string | null
           admin_notes: string
           created_at: string
           email: string
@@ -1023,6 +1025,8 @@ export type Database = {
           phone: string | null
         }
         Insert: {
+          birth_date?: string | null
+          health_notes?: string | null
           admin_notes?: string
           created_at?: string
           email?: string
@@ -1031,6 +1035,8 @@ export type Database = {
           phone?: string | null
         }
         Update: {
+          birth_date?: string | null
+          health_notes?: string | null
           admin_notes?: string
           created_at?: string
           email?: string
@@ -1776,12 +1782,26 @@ export type Database = {
       coach_class_roster: {
         Args: { _class_id: string }
         Returns: {
+          birthday_soon: boolean
           booking_id: string
           checked_in: boolean
+          checkin_status: string | null
+          first_visit: boolean
           full_name: string
+          health_notes: string | null
+          is_guest: boolean
           seat_number: number
           status: string
+          visits: number
         }[]
+      }
+      coach_insights: {
+        Args: { _coach_id: string; _from: string; _to: string }
+        Returns: Json
+      }
+      set_client_details: {
+        Args: { _user_id: string; _birth_date: string | null; _health_notes: string | null }
+        Returns: undefined
       }
       coach_public_schedule: {
         Args: { _coach_name: string; _days?: number }
