@@ -23,9 +23,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Cake,
   Calendar,
   ClipboardCheck,
   FileSpreadsheet,
+  HeartPulse,
   Mail,
   Pencil,
   Phone,
@@ -57,6 +59,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
+import { ClientDetailsForm } from "@/components/client-details-form";
 import { describeError } from "@/lib/describe-error";
 import { downloadIncomeReport } from "@/lib/finance-report";
 import { PAYMENT_LABELS } from "@/lib/finance-workbook";
@@ -3570,7 +3573,9 @@ function DeleteClientPopout({
 
 function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStaff, isCoach, isRecovery } = useAuth();
+  // Cumpleaños y notas de salud: los edita administración o recepción.
+  const canEditDetails = isAdmin || (isStaff && !isCoach && !isRecovery);
   const [tab, setTab] = useState<ClientTab>("reservaciones");
   const [showPackages, setShowPackages] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Tables<"token_plans"> | null>(null);
@@ -4015,6 +4020,18 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
             {tab === "notas" ? (
               <div>
+                {canEditDetails && profile ? (
+                  <div className="mb-8 border-b border-border pb-8">
+                    <p className="mb-4 eyebrow">Cumpleaños y salud (lo ve su coach)</p>
+                    <ClientDetailsForm
+                      userId={clientId}
+                      birthDate={profile.birth_date}
+                      healthNotes={profile.health_notes}
+                      invalidateKeys={[["client-detail-profile", clientId]]}
+                      variant="staff"
+                    />
+                  </div>
+                ) : null}
                 <p className="mb-4 eyebrow">Notas internas del staff</p>
                 <textarea
                   key={profile?.id}
@@ -4065,6 +4082,21 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
                 }
               />
               <InfoRow
+                icon={Cake}
+                label="Cumpleaños"
+                value={
+                  profile?.birth_date ? (
+                    new Intl.DateTimeFormat("es-MX", {
+                      day: "numeric",
+                      month: "long",
+                      timeZone: "UTC",
+                    }).format(new Date(`${profile.birth_date}T00:00:00Z`))
+                  ) : (
+                    <span className="text-muted-foreground">Sin registrar</span>
+                  )
+                }
+              />
+              <InfoRow
                 icon={Phone}
                 label="Teléfono"
                 value={
@@ -4079,6 +4111,15 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
               />
             </div>
           </div>
+
+          {profile?.health_notes ? (
+            <div className="border border-amber-500/40 bg-amber-500/5 p-5">
+              <p className="eyebrow flex items-center gap-1.5 text-amber-800">
+                <HeartPulse className="h-3.5 w-3.5" /> Para su coach
+              </p>
+              <p className="mt-2 whitespace-pre-line text-sm">{profile.health_notes}</p>
+            </div>
+          ) : null}
 
           <MembershipStatusCard userId={clientId} staffView />
           <CreditLotsSummary userId={clientId} />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ClientDetailsForm } from "@/components/client-details-form";
 import { SiteLayout } from "@/components/site-chrome";
 import { SignaturePad } from "@/components/signature-pad";
 import { Constellation } from "@/components/brand";
@@ -319,6 +320,23 @@ function Cuenta() {
             >
               Firmar waiver
             </button>
+          </div>
+        </section>
+      ) : null}
+
+      {user ? (
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
+            <p className="eyebrow">Mis datos</p>
+            <h2 className="statement mt-4 text-2xl">Para cuidarte mejor</h2>
+            <div className="mt-6">
+              <ClientDetailsForm
+                userId={user.id}
+                birthDate={profile.data?.birth_date}
+                healthNotes={profile.data?.health_notes}
+                invalidateKeys={[["profile", user.id]]}
+              />
+            </div>
           </div>
         </section>
       ) : null}

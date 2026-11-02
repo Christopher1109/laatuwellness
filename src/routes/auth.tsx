@@ -33,7 +33,19 @@ const signUpSchema = z.object({
   email: z.string().trim().email("Correo inválido").max(255),
   phone: z.string().trim().min(10, "Escribe un número a 10 dígitos").max(30),
   password: z.string().min(8, "Mínimo 8 caracteres").max(72),
+  // Opcional: para felicitarte en tu cumpleaños.
+  birth_date: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === "" || (/^\d{4}-\d{2}-\d{2}$/.test(v) && v >= "1900-01-01" && v <= todayIso()),
+      "Revisa tu fecha de nacimiento",
+    ),
 });
+
+function todayIso() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Monterrey" }).format(new Date());
+}
 
 const signInSchema = z.object({
   email: z.string().trim().email("Correo inválido").max(255),
@@ -79,6 +91,7 @@ function Auth() {
           full_name: form.get("full_name"),
           email: form.get("email"),
           phone: form.get("phone"),
+          birth_date: form.get("birth_date") ?? "",
           password: form.get("password"),
         });
         if (!parsed.success) {
@@ -93,6 +106,7 @@ function Auth() {
             data: {
               full_name: parsed.data.full_name,
               phone: parsed.data.phone || null,
+              birth_date: parsed.data.birth_date || null,
             },
           },
         });
@@ -216,6 +230,23 @@ function Auth() {
                     placeholder="81 1234 5678"
                     className={field}
                   />
+                </div>
+                <div>
+                  <label htmlFor="birth_date" className="eyebrow">
+                    Fecha de nacimiento{" "}
+                    <span className="normal-case tracking-normal">(opcional)</span>
+                  </label>
+                  <input
+                    id="birth_date"
+                    name="birth_date"
+                    type="date"
+                    min="1900-01-01"
+                    max={todayIso()}
+                    className={field}
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Para consentirte en tu cumpleaños.
+                  </p>
                 </div>
               </>
             ) : null}
