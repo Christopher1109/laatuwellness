@@ -68,7 +68,7 @@ function classPhase(c: CheckInClass, now: number): Phase {
 
 // Clase que se abre sola: la que ya empezó más recientemente (hasta 15 min
 // después de terminar); si ninguna, la siguiente del día.
-export function pickCurrentClass(classes: CheckInClass[], now = Date.now()) {
+function pickCurrentClass(classes: CheckInClass[], now = Date.now()) {
   if (classes.length === 0) return "";
   const inProgress = classes
     .filter((c) => {
@@ -126,7 +126,8 @@ export function CheckInView({
   classId: string;
   onSelectClass: (id: string) => void;
   rows: CheckInRow[] | undefined;
-  onSetStatus: (bookingId: string, status: CheckInStatus) => void;
+  /** status null = quitar la marca (se volvió a tocar el botón activo). */
+  onSetStatus: (bookingId: string, status: CheckInStatus | null) => void;
   pendingBookingId?: string | null;
   now?: number;
 }) {
@@ -315,7 +316,8 @@ export function CheckInView({
                         type="button"
                         disabled={pendingBookingId === r.id}
                         aria-pressed={on}
-                        onClick={() => onSetStatus(r.id, o.value)}
+                        title={on ? "Toca de nuevo para quitar la marca" : undefined}
+                        onClick={() => onSetStatus(r.id, on ? null : o.value)}
                         className={cn(
                           "flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap border px-2 text-[0.62rem] uppercase tracking-[0.08em] transition-colors disabled:opacity-50 sm:px-3 sm:tracking-[0.12em]",
                           on
@@ -440,8 +442,19 @@ export function CheckInPanel() {
   });
 
   const setStatus = useMutation({
-    mutationFn: async ({ bookingId, status }: { bookingId: string; status: CheckInStatus }) => {
-      if (status === "no_show") {
+    mutationFn: async ({
+      bookingId,
+      status,
+    }: {
+      bookingId: string;
+      status: CheckInStatus | null;
+    }) => {
+      if (status === null) {
+        // Se marcó por error: la persona vuelve a quedar pendiente.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+        const { error } = await (supabase.rpc as any)("clear_check_in", { _booking_id: bookingId });
+        if (error) throw error;
+      } else if (status === "no_show") {
         // El monto real ($150 MXN) lo decide el servidor y solo aplica si el
         // cliente tiene membresía activa — este valor es solo informativo.
         const { error } = await supabase.rpc("mark_no_show", {
@@ -457,7 +470,10 @@ export function CheckInPanel() {
         if (error) throw error;
       }
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["checkin-bookings", classId] }),
+    onSuccess: (_d, vars) => {
+      if (vars.status === null) toast.success("Marca quitada.");
+      void qc.invalidateQueries({ queryKey: ["checkin-bookings", classId] });
+    },
     onError: (e) => toast.error(describeError(e, "No se pudo guardar la llegada.")),
   });
 

@@ -176,6 +176,13 @@
       "when": 1793575352615,
       "tag": "0024_meet_laatu",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793639511347,
+      "tag": "0025_quitar_check_in",
+      "breakpoints": true
     }
   ]
 }
