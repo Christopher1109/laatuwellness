@@ -3180,7 +3180,9 @@ function CreditKindAdjuster({ userId }: { userId: string }) {
 
 export function ClientsPanel() {
   const qc = useQueryClient();
-  const { isRecovery } = useAuth();
+  // Los ingresos (totales y por cliente) solo los ve administración; staff y
+  // recepción ven la operación del cliente sin montos acumulados.
+  const { isRecovery, isAdmin } = useAuth();
 
   const { data } = useQuery({
     queryKey: ["admin-clients"],
@@ -3358,11 +3360,15 @@ export function ClientsPanel() {
 
   return (
     <div>
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="border border-border p-4">
-          <p className="eyebrow">Ingresos totales</p>
-          <p className="mt-1 text-xl">{money(summary.totalRevenue)}</p>
-        </div>
+      <div
+        className={`mb-6 grid gap-4 sm:grid-cols-2 ${isAdmin ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
+      >
+        {isAdmin ? (
+          <div className="border border-border p-4">
+            <p className="eyebrow">Ingresos totales</p>
+            <p className="mt-1 text-xl">{money(summary.totalRevenue)}</p>
+          </div>
+        ) : null}
         <div className="border border-border p-4">
           <p className="eyebrow">Clientes</p>
           <p className="mt-1 text-xl">{summary.totalClients}</p>
@@ -3438,7 +3444,8 @@ export function ClientsPanel() {
                 {c.phone ? ` · ${c.phone}` : ""}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {c.waiver ? "Waiver ✓" : "Sin waiver"} · {money(c.revenue_cents)} pagados ·{" "}
+                {c.waiver ? "Waiver ✓" : "Sin waiver"} ·{" "}
+                {isAdmin ? `${money(c.revenue_cents)} pagados · ` : ""}
                 {c.bookings.attended} asistidas · {c.bookings.no_show} no-show ·{" "}
                 {c.bookings.cancelled} canceladas
                 {c.refund_events > 0 ? ` · ${c.refund_events} reembolsos` : ""}
@@ -4031,7 +4038,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
         <StatTile label="Asistencias" value={stats.attended} />
         <StatTile label="No-shows" value={stats.noShow} />
         <StatTile label="Cancelaciones" value={stats.cancelled} />
-        <StatTile label="Total pagado" value={money(stats.paid)} />
+        {isAdmin ? <StatTile label="Total pagado" value={money(stats.paid)} /> : null}
         <StatTile
           label="Última visita"
           value={stats.lastVisit ? fmtShortDate(stats.lastVisit) : "—"}
