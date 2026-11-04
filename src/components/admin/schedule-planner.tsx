@@ -82,12 +82,15 @@ type Brush =
   | { kind: "tbd" }
   | { kind: "type"; id: string | null };
 
-function startOfIsoWeek(d: Date) {
+/** Domingo de la semana de `d`: los calendarios del estudio empiezan en domingo. */
+function startOfStudioWeek(d: Date) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const iso = (x.getDay() + 6) % 7; // 0 = lunes
-  x.setDate(x.getDate() - iso);
+  x.setDate(x.getDate() - x.getDay());
   return x;
 }
+
+/** Día de la semana como lo guardan los horarios (0 = lunes … 6 = domingo). */
+const templateWeekday = (d: Date) => (d.getDay() + 6) % 7;
 
 function addDays(d: Date, n: number) {
   const x = new Date(d);
@@ -129,12 +132,13 @@ export function SchedulePlannerPanel({
   const [brush, setBrush] = useState<Brush | null>(null);
   const [publishScope, setPublishScope] = useState<"week" | "month" | "until">("week");
   const [publishUntil, setPublishUntil] = useState("");
-  const [weekCursor, setWeekCursor] = useState<Date>(() => startOfIsoWeek(new Date()));
+  const [weekCursor, setWeekCursor] = useState<Date>(() => startOfStudioWeek(new Date()));
 
   const now = new Date();
-  const weekStart = startOfIsoWeek(weekCursor);
-  // La semana pertenece al mes de su lunes.
-  const monthCursor = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+  const weekStart = startOfStudioWeek(weekCursor);
+  // La semana (domingo a sábado) pertenece al mes de su lunes.
+  const weekMonday = addDays(weekStart, 1);
+  const monthCursor = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), 1);
   const monthKey = ymd(monthCursor);
   const prevMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
   const prevMonthKey = ymd(prevMonth);
@@ -143,7 +147,7 @@ export function SchedulePlannerPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ymd(weekStart)],
   );
-  const isCurrentWeek = ymd(weekStart) === ymd(startOfIsoWeek(now));
+  const isCurrentWeek = ymd(weekStart) === ymd(startOfStudioWeek(now));
   const monthLabel = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(
     monthCursor,
   );
@@ -152,7 +156,7 @@ export function SchedulePlannerPanel({
     return `${f.format(weekDates[0]!)} – ${f.format(weekDates[6]!)}`;
   })();
   const goToWeek = (d: Date) => {
-    setWeekCursor(startOfIsoWeek(d));
+    setWeekCursor(startOfStudioWeek(d));
     setEditingCell(null);
   };
 
@@ -682,7 +686,9 @@ export function SchedulePlannerPanel({
   const toggleBrush = (b: Brush) => setBrush((cur) => (sameBrush(cur, b) ? null : b));
 
   const editing = editingCell ? cellFor(editingCell.weekday, editingCell.time) : undefined;
-  const editingDate = editingCell ? weekDates[editingCell.weekday]! : null;
+  const editingDate = editingCell
+    ? (weekDates.find((d) => templateWeekday(d) === editingCell.weekday) ?? null)
+    : null;
 
   return (
     <div>
@@ -872,8 +878,8 @@ export function SchedulePlannerPanel({
               <th className="w-20 px-3 py-2 text-left text-[0.65rem] uppercase text-muted-foreground">
                 Hora
               </th>
-              {WEEKDAY_LABELS.map((d, i) => {
-                const date = weekDates[i]!;
+              {weekDates.map((date) => {
+                const d = WEEKDAY_LABELS[templateWeekday(date)]!;
                 const isToday = ymd(date) === ymd(new Date());
                 const inMonth = date.getMonth() === monthCursor.getMonth();
                 const closed = blackoutSet.has(ymd(date));
@@ -928,9 +934,10 @@ export function SchedulePlannerPanel({
                     </button>
                   </div>
                 </td>
-                {WEEKDAY_LABELS.map((_, weekday) => {
+                {weekDates.map((date) => {
+                  const weekday = templateWeekday(date);
                   const cell = cellFor(weekday, time);
-                  const dayKey = ymd(weekDates[weekday]!);
+                  const dayKey = ymd(date);
                   const dayClosed = blackoutSet.has(dayKey);
                   const slotBlocked = slotBlockSet.has(`${dayKey}|${time}`);
                   const typeName = cell?.class_type_id

@@ -422,17 +422,30 @@ export function CheckInPanel() {
       const { data: profiles } = ids.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", ids)
         : { data: [] as { id: string; full_name: string; email: string }[] };
+      // Coaches que toman clase con su crédito: recepción no lee sus perfiles,
+      // así que el nombre sale de staff_profiles.
+      const coachIds = (bookings ?? [])
+        .filter((b) => b.coach_credit && b.user_id)
+        .map((b) => b.user_id as string);
+      const { data: coachProfiles } = coachIds.length
+        ? await supabase.from("staff_profiles").select("user_id, full_name").in("user_id", coachIds)
+        : { data: [] as { user_id: string | null; full_name: string }[] };
       const bookingIds = (bookings ?? []).map((b) => b.id);
       const { data: checks } = bookingIds.length
         ? await supabase.from("check_ins").select("booking_id, status").in("booking_id", bookingIds)
         : { data: [] as { booking_id: string; status: string }[] };
       return (bookings ?? []).map((b) => {
         const profile = profiles?.find((p) => p.id === b.user_id);
+        const coachName = b.coach_credit
+          ? coachProfiles?.find((c) => c.user_id === b.user_id)?.full_name
+          : undefined;
         const status = checks?.find((c) => c.booking_id === b.id)?.status ?? null;
         return {
           id: b.id,
-          name: profile?.full_name || b.guest_name || "Sin nombre",
-          detail: profile?.email ?? b.guest_phone ?? "",
+          name: profile?.full_name || coachName || b.guest_name || "Sin nombre",
+          detail: b.coach_credit
+            ? "Coach · clase de cortesía"
+            : (profile?.email ?? b.guest_phone ?? ""),
           isGuest: !b.user_id && Boolean(b.guest_name),
           seat: b.seat_number,
           status: (status as CheckInStatus | null) ?? null,

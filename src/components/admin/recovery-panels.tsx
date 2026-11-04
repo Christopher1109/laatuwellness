@@ -24,8 +24,9 @@ const addDays = (d: Date, n: number) => {
   x.setDate(x.getDate() + n);
   return x;
 };
-const mondayOf = (d: Date) =>
-  addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
+// Las semanas del estudio van de domingo a sábado.
+const sundayOf = (d: Date) =>
+  addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -d.getDay());
 
 type View = "dia" | "semana" | "mes";
 
@@ -36,7 +37,7 @@ function rangeFor(view: View, anchor: Date): { from: Date; to: Date } {
     return { from: d, to: d };
   }
   if (view === "semana") {
-    const m = mondayOf(anchor);
+    const m = sundayOf(anchor);
     return { from: m, to: addDays(m, 6) };
   }
   return {
