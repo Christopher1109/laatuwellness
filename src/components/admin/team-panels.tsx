@@ -22,6 +22,7 @@ import type { TeamRole } from "@/lib/team-member";
 import { saveTeamMember } from "@/utils/team-admin.functions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popout, input } from "@/components/admin/ops-panels";
+import { Schedule } from "@/components/schedule";
 
 // ============================================================================
 // EQUIPO — Staff y Coaches se ven por bloques (tarjetas). "Editar" abre un
@@ -1200,6 +1201,7 @@ export function CoachProfilePanel() {
 
   return (
     <div className="space-y-8">
+      <CoachCreditsSection />
       <div className="border border-border p-6">
         <CoachClassesView coachId={staffProfile.id} />
       </div>
@@ -1217,6 +1219,539 @@ export function CoachProfilePanel() {
           y aquí.
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CRÉDITOS SEMANALES DE COACH — cada coach puede tomar hasta N clases del
+// estudio por semana (domingo a sábado). No se acumulan.
+// ============================================================================
+
+type CoachCreditBooking = {
+  booking_id: string;
+  class_id?: string;
+  starts_at: string;
+  duration_min?: number;
+  seat_number?: number | null;
+  module_key: string | null;
+  class_name: string | null;
+  coach: string | null;
+  status?: string;
+  checkin_status?: string | null;
+};
+
+type CoachCreditStatus = {
+  limit: number;
+  week_start: string;
+  used_this_week: number;
+  next_week_start: string;
+  used_next_week: number;
+  bookings: CoachCreditBooking[];
+};
+
+const COACH_CREDIT_ERRORS: Record<string, string> = {
+  CLASS_PAST: "Esa clase ya empezó; ya no se puede cancelar.",
+  ALREADY_CANCELLED: "Esa reserva ya estaba cancelada.",
+};
+
+/** "2026-11-01" → Date local. */
+const localDate = (ymdStr: string) => {
+  const [y, m, d] = ymdStr.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+};
+
+const ymdLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const sundayOfLocal = (d: Date) => {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - x.getDay());
+  return x;
+};
+
+function weekRangeLabel(startYmd: string) {
+  const start = localDate(startYmd);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const f = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
+  return `${f.format(start)} – ${f.format(end)}`;
+}
+
+const classWhen = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+
+function CreditDots({ used, limit }: { used: number; limit: number }) {
+  return (
+    <div className="mt-2 flex gap-1.5">
+      {Array.from({ length: Math.max(limit, 0) }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "h-2.5 w-8",
+            i < used ? "bg-foreground" : "border border-foreground/40 bg-transparent",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Sección en "Mi perfil" de la coach: sus créditos y la agenda para reservar. */
+export function CoachCreditsSection() {
+  const qc = useQueryClient();
+  const [showSchedule, setShowSchedule] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["coach-credit-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("coach_credit_status");
+      if (error) throw error;
+      return (data as unknown as CoachCreditStatus | null) ?? null;
+    },
+  });
+
+  const cancel = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase.rpc("coach_cancel_booking", { _booking_id: bookingId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reserva cancelada. Tu crédito de esa semana quedó libre.");
+      for (const key of ["coach-credit-status", "classes", "my-bookings"]) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
+    onError: (e: Error) => {
+      const key = Object.keys(COACH_CREDIT_ERRORS).find((k) => e.message.includes(k));
+      toast.error(key ? COACH_CREDIT_ERRORS[key] : "No se pudo cancelar la reserva.");
+    },
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground">Cargando tus créditos…</p>;
+  if (!data) return null;
+
+  const left = Math.max(data.limit - data.used_this_week, 0);
+  const leftNext = Math.max(data.limit - data.used_next_week, 0);
+
+  return (
+    <div className="border border-border p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow">Mis clases como coach</p>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            Tienes {data.limit} {data.limit === 1 ? "clase" : "clases"} por semana para tomar en el
+            estudio. La semana va de domingo a sábado y las que no uses no se acumulan.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowSchedule((v) => !v)}
+          className="bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background"
+        >
+          {showSchedule ? "Ocultar horarios" : "Reservar clase"}
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="border border-border p-4">
+          <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+            Esta semana · {weekRangeLabel(data.week_start)}
+          </p>
+          <p className="mt-1 text-xl">
+            {left} de {data.limit} disponibles
+          </p>
+          <CreditDots used={data.used_this_week} limit={data.limit} />
+        </div>
+        <div className="border border-border p-4">
+          <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+            Próxima semana · {weekRangeLabel(data.next_week_start)}
+          </p>
+          <p className="mt-1 text-xl">
+            {leftNext} de {data.limit} disponibles
+          </p>
+          <CreditDots used={data.used_next_week} limit={data.limit} />
+        </div>
+      </div>
+
+      {data.bookings.length > 0 ? (
+        <div className="mt-5">
+          <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+            Mis reservas
+          </p>
+          <ul className="mt-2 divide-y divide-border border border-border">
+            {data.bookings.map((b) => (
+              <li key={b.booking_id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 text-sm">
+                  <p className="capitalize">{classWhen(b.starts_at)}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[
+                      b.class_name ?? MODULE_LABELS[b.module_key ?? ""] ?? "Clase",
+                      b.coach,
+                      b.seat_number ? `Lugar ${b.seat_number}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                {new Date(b.starts_at).getTime() > Date.now() ? (
+                  <button
+                    type="button"
+                    disabled={cancel.isPending}
+                    onClick={() => {
+                      if (window.confirm("¿Cancelar esta reserva?")) cancel.mutate(b.booking_id);
+                    }}
+                    className="shrink-0 border border-input px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.14em] hover:bg-foreground hover:text-background disabled:opacity-40"
+                  >
+                    Cancelar
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                    En curso
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {showSchedule ? (
+        <div className="mt-6 border-t border-border pt-6">
+          <Schedule coachMode defaultRange="semana" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type CoachUsageRow = {
+  staff_id: string;
+  full_name: string;
+  active: boolean;
+  has_account: boolean;
+  color: string | null;
+  photo_url: string | null;
+  weekly_limit: number;
+  used_this_week: number;
+  last_used_at: string | null;
+  bookings: CoachCreditBooking[];
+};
+
+const CHECKIN_LABELS: Record<string, string> = {
+  a_tiempo: "Asistió",
+  tarde: "Llegó tarde",
+  no_show: "No llegó",
+};
+
+function usageState(periodUsed: number, limit: number) {
+  if (periodUsed === 0) return { label: "Sin usar", tone: "text-muted-foreground border-border" };
+  if (periodUsed >= limit)
+    return { label: "Completo", tone: "text-emerald-700 border-emerald-600/40 bg-emerald-50" };
+  return { label: "Parcial", tone: "text-amber-800 border-amber-500/40 bg-amber-50" };
+}
+
+/** Panel administrativo: quién usa sus créditos de coach y quién no. */
+export function CoachCreditsUsagePanel() {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+  const [period, setPeriod] = useState<"semana" | "mes">("semana");
+  const [anchor, setAnchor] = useState(() => new Date());
+  const [showInactive, setShowInactive] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const range = useMemo(() => {
+    if (period === "semana") {
+      const from = sundayOfLocal(anchor);
+      const to = new Date(from);
+      to.setDate(to.getDate() + 6);
+      return { from, to, weeks: 1 };
+    }
+    const from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+    // Semanas (domingo a sábado) que tocan el mes.
+    const weeks =
+      Math.round((sundayOfLocal(to).getTime() - sundayOfLocal(from).getTime()) / 6048e5) + 1;
+    return { from, to, weeks };
+  }, [period, anchor]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["coach-credit-usage", ymdLocal(range.from), ymdLocal(range.to)],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("coach_credit_usage", {
+        _from: ymdLocal(range.from),
+        _to: ymdLocal(range.to),
+      });
+      if (error) throw error;
+      return (data as unknown as CoachUsageRow[] | null) ?? [];
+    },
+  });
+
+  const saveLimit = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: number }) => {
+      const { error } = await supabase
+        .from("staff_profiles")
+        .update({ weekly_class_credits: value })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Créditos semanales actualizados.");
+      void qc.invalidateQueries({ queryKey: ["coach-credit-usage"] });
+    },
+    onError: () => toast.error("No se pudo guardar. Usa un número entre 0 y 14."),
+  });
+
+  const shift = (dir: -1 | 1) =>
+    setAnchor((a) =>
+      period === "semana"
+        ? new Date(a.getFullYear(), a.getMonth(), a.getDate() + dir * 7)
+        : new Date(a.getFullYear(), a.getMonth() + dir, 1),
+    );
+
+  const rows = (data ?? [])
+    .filter((r) => showInactive || r.active)
+    .map((r) => {
+      const used = r.bookings.filter((b) => b.status === "reservada");
+      const periodLimit = r.weekly_limit * range.weeks;
+      return {
+        ...r,
+        used,
+        periodLimit,
+        attended: used.filter(
+          (b) => b.checkin_status === "a_tiempo" || b.checkin_status === "tarde",
+        ).length,
+        cancelled: r.bookings.filter((b) => b.status === "cancelada").length,
+      };
+    })
+    .sort((a, b) => b.used.length - a.used.length || a.full_name.localeCompare(b.full_name, "es"));
+
+  const usedCoaches = rows.filter((r) => r.used.length > 0).length;
+  const totalUsed = rows.reduce((acc, r) => acc + r.used.length, 0);
+  const totalAvailable = rows.reduce((acc, r) => acc + r.periodLimit, 0);
+
+  const periodLabel =
+    period === "semana"
+      ? weekRangeLabel(ymdLocal(range.from))
+      : new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(range.from);
+
+  const opened = rows.find((r) => r.staff_id === openId) ?? null;
+
+  return (
+    <div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-xl text-xs text-muted-foreground">
+          Cada coach tiene clases de cortesía por semana (domingo a sábado) que reserva desde su
+          perfil. No se acumulan: lo que no se usa en la semana se pierde.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {(["semana", "mes"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "border px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em]",
+                period === p ? "border-foreground bg-foreground text-background" : "border-input",
+              )}
+            >
+              {p === "semana" ? "Semana" : "Mes"}
+            </button>
+          ))}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => shift(-1)}
+              className="p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label="Anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-[9rem] text-center text-xs capitalize">{periodLabel}</span>
+            <button
+              type="button"
+              onClick={() => shift(1)}
+              className="p-1.5 text-muted-foreground hover:text-foreground"
+              aria-label="Siguiente"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Ver inactivas
+          </label>
+        </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          ["Coaches", rows.length],
+          ["Lo usaron", usedCoaches],
+          ["No lo usaron", rows.length - usedCoaches],
+          ["Clases usadas", `${totalUsed} de ${totalAvailable}`],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="border border-border p-3">
+            <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+              {label}
+            </p>
+            <p className="mt-1 text-xl">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Cargando…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin coaches dadas de alta.</p>
+      ) : (
+        <div className="overflow-x-auto border border-border">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 text-left text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                <th className="px-3 py-2">Coach</th>
+                <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2">Usadas en el periodo</th>
+                <th className="px-3 py-2">Esta semana</th>
+                <th className="px-3 py-2">Asistió</th>
+                <th className="px-3 py-2">Último uso</th>
+                <th className="px-3 py-2">Por semana</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const state = usageState(r.used.length, r.periodLimit);
+                return (
+                  <tr
+                    key={r.staff_id}
+                    className={cn(
+                      "border-b border-border last:border-0",
+                      !r.active && "opacity-50",
+                    )}
+                  >
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(r.staff_id)}
+                        className="flex items-center gap-2 text-left hover:underline"
+                      >
+                        <Avatar className="h-7 w-7">
+                          {r.photo_url ? <AvatarImage src={r.photo_url} alt="" /> : null}
+                          <AvatarFallback
+                            className="text-[0.6rem]"
+                            style={coachSwatch(normalizeHex(r.color))}
+                          >
+                            {initials(r.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{r.full_name}</span>
+                      </button>
+                      {!r.has_account ? (
+                        <span className="block text-[0.6rem] text-amber-700">
+                          Sin acceso al sistema
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={cn("border px-2 py-0.5 text-[0.62rem] uppercase", state.tone)}
+                      >
+                        {state.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {r.used.length} de {r.periodLimit}
+                      {r.cancelled ? (
+                        <span className="text-xs text-muted-foreground">
+                          {" "}
+                          · {r.cancelled} cancel.
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">
+                      {r.used_this_week} de {r.weekly_limit}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{r.attended}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {r.last_used_at ? classWhen(r.last_used_at) : "Nunca"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isAdmin ? (
+                        <input
+                          type="number"
+                          min={0}
+                          max={14}
+                          defaultValue={r.weekly_limit}
+                          key={`${r.staff_id}-${r.weekly_limit}`}
+                          onBlur={(e) => {
+                            const value = Number(e.target.value);
+                            if (Number.isInteger(value) && value !== r.weekly_limit)
+                              saveLimit.mutate({ id: r.staff_id, value });
+                          }}
+                          className={`${input} w-16`}
+                          aria-label={`Clases por semana de ${r.full_name}`}
+                        />
+                      ) : (
+                        r.weekly_limit
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {opened ? (
+        <Popout onClose={() => setOpenId(null)}>
+          <p className="text-lg">{opened.full_name}</p>
+          <p className="text-xs capitalize text-muted-foreground">{periodLabel}</p>
+          {opened.bookings.length === 0 ? (
+            <p className="mt-6 text-sm text-muted-foreground">
+              No reservó clases con su crédito en este periodo.
+            </p>
+          ) : (
+            <ul className="mt-5 divide-y divide-border border border-border">
+              {opened.bookings.map((b) => (
+                <li
+                  key={b.booking_id}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0 text-sm">
+                    <p className="capitalize">{classWhen(b.starts_at)}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[b.class_name ?? MODULE_LABELS[b.module_key ?? ""] ?? "Clase", b.coach]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    {b.status === "cancelada"
+                      ? "Canceló"
+                      : b.checkin_status
+                        ? (CHECKIN_LABELS[b.checkin_status] ?? b.checkin_status)
+                        : new Date(b.starts_at).getTime() > Date.now()
+                          ? "Reservada"
+                          : "Sin check-in"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Popout>
+      ) : null}
     </div>
   );
 }

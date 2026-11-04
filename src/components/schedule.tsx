@@ -24,7 +24,15 @@ const ERRORS: Record<string, string> = {
   SEAT_TAKEN: "Ese lugar ya lo tomó alguien más, elige otro.",
   NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
   BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
+  COACH_WEEKLY_LIMIT:
+    "Ya usaste tus clases de coach de esa semana. Se renuevan cada domingo y no se acumulan.",
+  COACH_OWN_CLASS: "Esa clase la impartes tú; elige otra.",
+  COACH_CLASS_NOT_ALLOWED: "Con tus créditos de coach solo puedes tomar clases del estudio.",
+  COACH_ONLY: "Esta opción es solo para coaches activas.",
 };
+
+/** Programas que no se pueden tomar con créditos de coach (consultorios). */
+const COACH_EXCLUDED_MODULES = new Set(["rehabilitacion", "nutricion", "psicologia"]);
 
 export type Rango = "hoy" | "semana" | "siguiente";
 
@@ -41,11 +49,10 @@ function startOfDay(d: Date) {
   return x;
 }
 
-/** Lunes de la semana de `d`. */
+/** Domingo de la semana de `d` (las semanas del estudio empiezan en domingo). */
 function startOfWeek(d: Date) {
   const x = startOfDay(d);
-  const day = (x.getDay() + 6) % 7;
-  x.setDate(x.getDate() - day);
+  x.setDate(x.getDate() - x.getDay());
   return x;
 }
 
@@ -126,6 +133,7 @@ type ClassRow = {
   tokens_cost: number;
   module_key: string | null;
   class_type_id: string | null;
+  coach_id: string | null;
   is_tbd: boolean;
   taken: number;
   waitlisted: number;
@@ -146,11 +154,14 @@ export function SeatPickerModal({
   onClose,
   onConfirm,
   pending,
+  coachMode = false,
 }: {
   classItem: SeatPickerClass;
   onClose: () => void;
   onConfirm: (seat: number | null, useCredits: boolean) => void;
   pending: boolean;
+  /** Reserva con crédito semanal de coach: no hay forma de pago que elegir. */
+  coachMode?: boolean;
 }) {
   const [seat, setSeat] = useState<number | null>(null);
   const [useCredits, setUseCredits] = useState(false);
@@ -212,7 +223,11 @@ export function SeatPickerModal({
         <p className="mt-3 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
           Verde = libre · oscuro = ocupado
         </p>
-        {classItem.module_key === "rehabilitacion" ? (
+        {coachMode ? (
+          <p className="mt-5 text-xs text-muted-foreground">
+            Se usa 1 de tus clases de coach de esa semana (domingo a sábado).
+          </p>
+        ) : classItem.module_key === "rehabilitacion" ? (
           <p className="mt-5 text-xs text-muted-foreground">
             Se usa un crédito de DorisFisio del tipo de la sesión (Upper o Lower, o Full Body).
           </p>
@@ -253,12 +268,18 @@ export function Schedule({
   showTabs = true,
   showModuleFilter,
   limit,
+  coachMode = false,
 }: {
   moduleKey?: string | undefined;
   defaultRange?: Rango;
   showTabs?: boolean;
   showModuleFilter?: boolean;
   limit?: number;
+  /**
+   * Vista de la coach en su perfil: reserva con su crédito semanal
+   * (coach_book_class), sin consultorios, sin lista de espera ni tokens.
+   */
+  coachMode?: boolean;
 }) {
   const [rango, setRango] = useState<Rango>(defaultRange);
   // Si hoy ya no quedan clases, se pasa solo a "Próximos 7 días" (una vez).
@@ -266,7 +287,7 @@ export function Schedule({
   const [filtro, setFiltro] = useState<string | null>(null);
   // Día seleccionado dentro del rango (null = todos los días del rango).
   const [dia, setDia] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, staffProfile } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { from, to } = rangeBounds(rango);
@@ -345,9 +366,11 @@ export function Schedule({
     queryKey: ["my-bookings", user?.id],
     enabled: Boolean(user),
     queryFn: async () => {
+      // Solo las reservas propias (el equipo puede leer las de todas).
       const { data, error } = await supabase
         .from("bookings")
         .select("class_id, status")
+        .eq("user_id", user!.id)
         .in("status", ["reservada", "lista_espera"]);
       if (error) throw error;
       return data;
@@ -378,6 +401,7 @@ export function Schedule({
       "app-bookings",
       "app-my-booked-ids",
       "membership-status",
+      "coach-credit-status",
     ]) {
       void qc.invalidateQueries({ queryKey: [key] });
     }
@@ -393,22 +417,31 @@ export function Schedule({
       seat: number | null;
       useCredits?: boolean;
     }) => {
-      const { error } = await supabase.rpc("book_class", {
-        _class_id: classId,
-        _seat: seat,
-        _use_credits: useCredits,
-      });
+      const { error } = coachMode
+        ? await supabase.rpc("coach_book_class", { _class_id: classId, _seat: seat })
+        : await supabase.rpc("book_class", {
+            _class_id: classId,
+            _seat: seat,
+            _use_credits: useCredits,
+          });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Clase reservada. Nos vemos en el estudio.");
+      toast.success(
+        coachMode
+          ? "Clase reservada con tu crédito de coach."
+          : "Clase reservada. Nos vemos en el estudio.",
+      );
       setPickingSeatFor(null);
       refreshAfterBooking();
     },
     onError: (error: Error) => {
       const key = Object.keys(ERRORS).find((k) => error.message.includes(k));
       toast.error(key ? ERRORS[key] : "No pudimos completar la reserva.");
-      if (key === "WAIVER_REQUIRED" || key?.startsWith("INSUFFICIENT_TOKENS")) {
+      if (coachMode && (key === "COACH_WEEKLY_LIMIT" || key === "COACH_OWN_CLASS")) {
+        setPickingSeatFor(null);
+      }
+      if (!coachMode && (key === "WAIVER_REQUIRED" || key?.startsWith("INSUFFICIENT_TOKENS"))) {
         setPickingSeatFor(null);
         navigate({ to: "/cuenta" });
       }
@@ -438,9 +471,11 @@ export function Schedule({
   const all = useMemo(
     () =>
       (classes ?? []).filter(
-        (c) => !c.module_key || enabledKeys.size === 0 || enabledKeys.has(c.module_key),
+        (c) =>
+          (!c.module_key || enabledKeys.size === 0 || enabledKeys.has(c.module_key)) &&
+          !(coachMode && c.module_key && COACH_EXCLUDED_MODULES.has(c.module_key)),
       ),
-    [classes, enabledKeys],
+    [classes, enabledKeys, coachMode],
   );
 
   useEffect(() => {
@@ -462,12 +497,13 @@ export function Schedule({
     const keys = new Set(all.map((c) => c.module_key ?? "otros"));
     const catalogo = (modules ?? [])
       .filter((m) => (m as { bookable?: boolean }).bookable !== false)
+      .filter((m) => !(coachMode && COACH_EXCLUDED_MODULES.has(m.key)))
       .map((m) => m.key);
     const base = moduleKey ? [moduleKey] : limit ? catalogo.filter((k) => keys.has(k)) : catalogo;
     const ordered = [...base];
     for (const k of keys) if (!ordered.includes(k)) ordered.push(k);
     return ordered;
-  }, [all, modules, moduleKey, limit]);
+  }, [all, modules, moduleKey, limit, coachMode]);
 
   /** Días con sesiones dentro del rango, para el selector de día. */
   const dias = useMemo(() => {
@@ -616,6 +652,8 @@ export function Schedule({
                         const mine = bookedIds.has(c.id);
                         const waiting = waitlistedIds.has(c.id);
                         const libres = Math.max(c.capacity - c.taken, 0);
+                        const ownClass =
+                          coachMode && Boolean(staffProfile?.id) && c.coach_id === staffProfile?.id;
                         return (
                           <li
                             key={c.id}
@@ -645,14 +683,24 @@ export function Schedule({
                                 </span>
                               </div>
                               <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
-                                {libres} lugares · {c.duration_min} min · {c.tokens_cost}{" "}
-                                {c.tokens_cost === 1 ? "token" : "tokens"}
+                                {libres} lugares · {c.duration_min} min
+                                {coachMode
+                                  ? ""
+                                  : ` · ${c.tokens_cost} ${c.tokens_cost === 1 ? "token" : "tokens"}`}
                                 {c.waitlisted > 0 ? ` · ${c.waitlisted} en espera` : ""}
                               </p>
                             </div>
                             {mine ? (
                               <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-secondary">
                                 Reservada
+                              </span>
+                            ) : ownClass ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
+                                Tu clase
+                              </span>
+                            ) : coachMode && full ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
+                                Llena
                               </span>
                             ) : waiting ? (
                               <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-amber-600">
@@ -691,7 +739,7 @@ export function Schedule({
         </div>
       )}
 
-      {!user ? (
+      {!user && !coachMode ? (
         <p className="mt-8 text-sm text-muted-foreground">
           Puedes ver los horarios sin cuenta.{" "}
           <Link to="/auth" className="border-b border-current pb-0.5 text-foreground">
@@ -706,6 +754,7 @@ export function Schedule({
           classItem={pickingSeatFor}
           onClose={() => setPickingSeatFor(null)}
           pending={book.isPending}
+          coachMode={coachMode}
           onConfirm={(seat, useCredits) =>
             book.mutate({ classId: pickingSeatFor.id, seat, useCredits })
           }

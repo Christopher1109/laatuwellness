@@ -60,6 +60,7 @@ export type Database = {
         Row: {
           credit_kind: string
           class_id: string
+          coach_credit: boolean
           created_at: string
           id: string
           seat_number: number | null
@@ -73,6 +74,7 @@ export type Database = {
         Insert: {
           credit_kind?: string
           class_id: string
+          coach_credit?: boolean
           created_at?: string
           id?: string
           seat_number?: number | null
@@ -86,6 +88,7 @@ export type Database = {
         Update: {
           credit_kind?: string
           class_id?: string
+          coach_credit?: boolean
           created_at?: string
           id?: string
           seat_number?: number | null
@@ -1293,6 +1296,7 @@ export type Database = {
           photo_url: string | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string | null
+          weekly_class_credits: number
         }
         Insert: {
           active?: boolean
@@ -1306,6 +1310,7 @@ export type Database = {
           photo_url?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
+          weekly_class_credits?: number
         }
         Update: {
           active?: boolean
@@ -1319,6 +1324,7 @@ export type Database = {
           photo_url?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
+          weekly_class_credits?: number
         }
         Relationships: []
       }
@@ -1797,6 +1803,22 @@ export type Database = {
       }
       coach_insights: {
         Args: { _coach_id: string; _from: string; _to: string }
+        Returns: Json
+      }
+      coach_book_class: {
+        Args: { _class_id: string; _seat?: number | null }
+        Returns: Database["public"]["Tables"]["bookings"]["Row"]
+      }
+      coach_cancel_booking: {
+        Args: { _booking_id: string }
+        Returns: Database["public"]["Tables"]["bookings"]["Row"]
+      }
+      coach_credit_status: {
+        Args: never
+        Returns: Json
+      }
+      coach_credit_usage: {
+        Args: { _from: string; _to: string }
         Returns: Json
       }
       set_client_details: {

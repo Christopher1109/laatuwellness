@@ -57,8 +57,8 @@ function rangeForView(date: Date | null, view: ViewMode) {
   }
   if (view === "week") {
     return {
-      start: startOfWeek(anchor, { weekStartsOn: 1 }),
-      end: addDays(endOfWeek(anchor, { weekStartsOn: 1 }), 1),
+      start: startOfWeek(anchor, { weekStartsOn: 0 }),
+      end: addDays(endOfWeek(anchor, { weekStartsOn: 0 }), 1),
     };
   }
   return { start: startOfMonth(anchor), end: addDays(endOfMonth(anchor), 1) };
@@ -203,8 +203,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
   const monthGrid = useMemo(() => {
     if (!monthCursor) return [];
-    const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 1 });
-    const gridEnd = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 1 });
+    const gridStart = startOfWeek(startOfMonth(monthCursor), { weekStartsOn: 0 });
+    const gridEnd = endOfWeek(endOfMonth(monthCursor), { weekStartsOn: 0 });
     const days: Date[] = [];
     let cur = gridStart;
     while (cur <= gridEnd) {
@@ -253,7 +253,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
               </button>
             </div>
             <div className="grid grid-cols-7 gap-0.5 text-center text-[0.6rem] text-muted-foreground">
-              {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
+              {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
                 <span key={i}>{d}</span>
               ))}
             </div>
@@ -526,6 +526,16 @@ function ClassDetailDrawer({
       const { data: profiles } = ids.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", ids)
         : { data: [] as { id: string; full_name: string; email: string }[] };
+      // Coaches con crédito semanal: recepción no lee sus perfiles.
+      const coachIds = (bookings ?? [])
+        .filter((b) => b.coach_credit && b.user_id)
+        .map((b) => b.user_id as string);
+      const { data: coachProfiles } = coachIds.length
+        ? await supabase
+            .from("staff_profiles")
+            .select("user_id, full_name, email")
+            .in("user_id", coachIds)
+        : { data: [] as { user_id: string | null; full_name: string; email: string }[] };
       const { data: checks } = await supabase
         .from("check_ins")
         .select("*")
@@ -535,7 +545,14 @@ function ClassDetailDrawer({
         );
       return ((bookings as BookingRow[] | null) ?? []).map((b) => ({
         ...b,
-        profile: profiles?.find((p) => p.id === b.user_id),
+        profile:
+          profiles?.find((p) => p.id === b.user_id) ??
+          (b.coach_credit
+            ? (() => {
+                const c = coachProfiles?.find((x) => x.user_id === b.user_id);
+                return c ? { full_name: `${c.full_name} (coach)`, email: c.email } : undefined;
+              })()
+            : undefined),
         checkin: checks?.find((c) => c.booking_id === b.id),
       }));
     },

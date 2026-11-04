@@ -44,6 +44,7 @@ import { SchedulePlannerPanel } from "@/components/admin/schedule-planner";
 import {
   CoachesPanel,
   CoachProfilePanel,
+  CoachCreditsUsagePanel,
   StaffDirectoryPanel,
 } from "@/components/admin/team-panels";
 import { RecoveryClientsPanel, RecoverySessionsPanel } from "@/components/admin/recovery-panels";
@@ -127,6 +128,7 @@ function Admin() {
             { key: "clientes", label: "Clientes", icon: Contact },
             { key: "staff", label: "Staff", icon: UserCog },
             { key: "coaches", label: "Coaches", icon: Users },
+            { key: "creditos-coach", label: "Clases de coaches", icon: Ticket },
             { key: "nomina", label: "Nómina", icon: Wallet },
           ],
         },
@@ -321,6 +323,7 @@ function Admin() {
       {activeKey === "clientes" ? isRecovery ? <RecoveryClientsPanel /> : <ClientsPanel /> : null}
       {activeKey === "staff" ? <StaffDirectoryPanel /> : null}
       {activeKey === "coaches" ? <CoachesPanel /> : null}
+      {activeKey === "creditos-coach" ? <CoachCreditsUsagePanel /> : null}
       {activeKey === "nomina" ? <PayrollPanel /> : null}
       {activeKey === "paquetes" ? (
         isRecovery ? (
