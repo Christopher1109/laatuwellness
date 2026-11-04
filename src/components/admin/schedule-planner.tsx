@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateInput } from "@/components/date-input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -1060,11 +1061,10 @@ export function SchedulePlannerPanel({
             </button>
           ))}
           {publishScope === "until" ? (
-            <input
-              type="date"
+            <DateInput
               value={publishUntil}
               min={ymd(addDays(weekStart, 6))}
-              onChange={(e) => setPublishUntil(e.target.value)}
+              onChange={setPublishUntil}
               className={`${input} w-44`}
               aria-label="Aplicar hasta"
             />

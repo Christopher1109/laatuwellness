@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DateInput } from "@/components/date-input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,12 +65,12 @@ export function ClientDetailsForm({
     >
       <label className="block">
         <span className="eyebrow">Fecha de nacimiento</span>
-        <input
-          type="date"
+        <DateInput
           value={bd}
           min="1900-01-01"
           max={todayIso()}
-          onChange={(e) => setBd(e.target.value)}
+          yearPicker
+          onChange={setBd}
           className={`${field} max-w-xs`}
         />
       </label>

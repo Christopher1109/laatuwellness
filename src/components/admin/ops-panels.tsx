@@ -1,4 +1,5 @@
 import { ProfilePlanCheckout } from "@/components/admin/profile-plan-checkout";
+import { DateInput } from "@/components/date-input";
 import { PasswordResetControl } from "@/components/admin/password-reset";
 import { groupClientPurchases, matchesClientPurchaseFilter } from "@/lib/client-purchases";
 import {
@@ -2331,7 +2332,7 @@ export function InventoryPanel() {
           </label>
           <label className="text-xs">
             <span className="eyebrow">Caducidad</span>
-            <input name="expires_at" type="date" className={input} />
+            <DateInput name="expires_at" className={input} />
           </label>
           <div className="flex items-end">
             <button className="w-full bg-foreground px-4 py-2.5 text-[0.7rem] uppercase tracking-[0.16em] text-background">
@@ -5601,27 +5602,24 @@ function PackageEditPopout({
           </label>
           <label className="text-xs">
             <span className="eyebrow">Venta desde</span>
-            <input
+            <DateInput
               name="available_from"
-              type="date"
               defaultValue={mtyDate(plan?.available_from)}
               className={input}
             />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Venta hasta (23:59)</span>
-            <input
+            <DateInput
               name="available_until"
-              type="date"
               defaultValue={mtyDate(plan?.available_until)}
               className={input}
             />
           </label>
           <label className="col-span-2 text-xs">
             <span className="eyebrow">La vigencia empieza a contar desde (opcional)</span>
-            <input
+            <DateInput
               name="membership_starts_at"
-              type="date"
               defaultValue={mtyDate(plan?.membership_starts_at)}
               className={input}
             />
@@ -5962,21 +5960,11 @@ export function PayrollPanel() {
         <div className="flex flex-wrap items-end gap-4">
           <label className="text-xs">
             <span className="eyebrow">Desde</span>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className={input}
-            />
+            <DateInput value={from} onChange={setFrom} clearable={false} className={input} />
           </label>
           <label className="text-xs">
             <span className="eyebrow">Hasta</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className={input}
-            />
+            <DateInput value={to} onChange={setTo} clearable={false} className={input} />
           </label>
           <button
             type="button"
@@ -7063,19 +7051,19 @@ export function FinancePanel() {
       <div className="flex flex-wrap items-end gap-4">
         <label className="text-xs">
           <span className="eyebrow">Desde</span>
-          <input
-            type="date"
+          <DateInput
             value={rangeFromStr}
-            onChange={(e) => setRangeFromStr(e.target.value)}
+            onChange={setRangeFromStr}
+            clearable={false}
             className={input}
           />
         </label>
         <label className="text-xs">
           <span className="eyebrow">Hasta</span>
-          <input
-            type="date"
+          <DateInput
             value={rangeToStr}
-            onChange={(e) => setRangeToStr(e.target.value)}
+            onChange={setRangeToStr}
+            clearable={false}
             className={input}
           />
         </label>

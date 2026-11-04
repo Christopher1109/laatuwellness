@@ -221,6 +221,9 @@ export function CoachesPanel() {
       {openId ? (
         <Popout onClose={() => setOpenId(null)} wide>
           <CoachClassesView coachId={openId} />
+          <div className="mt-8">
+            <CoachPaySection coachId={openId} title="Nómina estimada" />
+          </div>
           <div className="mt-8 border-t border-border pt-6">
             <CoachRateTiersEditor coachId={openId} />
           </div>
@@ -1171,33 +1174,176 @@ function CoachRateTiersEditor({ coachId }: { coachId: string }) {
 // PERFIL DEL COACH (lo que ve el coach al entrar): sus clases de hoy, las
 // próximas y el mes con reservaciones, cancelaciones y lista de espera.
 // ============================================================================
-export function CoachProfilePanel() {
-  const { staffProfile } = useAuth();
+type CoachPaySummary = {
+  rate_cents: number;
+  by_tiers: boolean;
+  classes_given: number;
+  minutes_given: number;
+  earned_cents: number;
+  classes_scheduled: number;
+  projected_cents: number;
+  adjustments_cents: number;
+  classes: {
+    class_id: string;
+    starts_at: string;
+    class_name: string | null;
+    module_key: string | null;
+    attendance: number;
+    given: boolean;
+    pay_cents: number;
+  }[];
+};
 
-  const monthStart = useMemo(() => {
+/**
+ * Nómina estimada del mes: clases impartidas × tarifa (o rangos por
+ * asistencia), ajustes capturados y lo que falta según el horario. La ve la
+ * propia coach y administración.
+ */
+export function CoachPaySection({
+  coachId,
+  title = "Mi nómina",
+}: {
+  coachId: string;
+  title?: string;
+}) {
+  const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
-  }, []);
+  });
+  const [showDetail, setShowDetail] = useState(false);
+  const month = useMemo(() => monthBounds(cursor), [cursor]);
 
-  const { data: monthSeconds } = useQuery({
-    queryKey: ["coach-month-seconds", staffProfile?.id],
-    enabled: Boolean(staffProfile),
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["coach-pay-summary", coachId, month.start.toISOString()],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("staff_worked_seconds", {
-        _staff_id: staffProfile!.id,
-        _from: monthStart.toISOString(),
-        _to: new Date().toISOString(),
+      const { data, error } = await supabase.rpc("coach_pay_summary", {
+        _coach_id: coachId,
+        _from: month.start.toISOString(),
+        _to: month.end.toISOString(),
       });
       if (error) throw error;
-      return data ?? 0;
+      return data as unknown as CoachPaySummary;
     },
   });
+
+  const monthLabel = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(
+    cursor,
+  );
+  const total = (data?.earned_cents ?? 0) + (data?.adjustments_cents ?? 0);
+  const given = (data?.classes ?? []).filter((c) => c.given);
+
+  return (
+    <div className="border border-border p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="eyebrow">{title}</p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setCursor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+            className="p-1.5 text-muted-foreground hover:text-foreground"
+            aria-label="Mes anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[8rem] text-center text-xs capitalize">{monthLabel}</span>
+          <button
+            type="button"
+            onClick={() => setCursor((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+            className="p-1.5 text-muted-foreground hover:text-foreground"
+            aria-label="Mes siguiente"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="mt-4 text-sm text-muted-foreground">Calculando…</p>
+      ) : error || !data ? (
+        <p className="mt-4 text-sm text-muted-foreground">No se pudo calcular la nómina.</p>
+      ) : (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="border border-border p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                Lo que llevo
+              </p>
+              <p className="mt-1 text-xl">{money(total)}</p>
+            </div>
+            <div className="border border-border p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                Clases impartidas
+              </p>
+              <p className="mt-1 text-xl">{data.classes_given}</p>
+            </div>
+            <div className="border border-border p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                {data.by_tiers ? "Pago por clase" : "Tarifa por clase"}
+              </p>
+              <p className="mt-1 text-xl">
+                {data.by_tiers ? "Según asistencia" : money(data.rate_cents)}
+              </p>
+            </div>
+            <div className="border border-border p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                Por dar este mes
+              </p>
+              <p className="mt-1 text-xl">
+                {data.classes_scheduled}{" "}
+                <span className="text-sm text-muted-foreground">
+                  · {money(data.projected_cents)}
+                </span>
+              </p>
+            </div>
+          </div>
+          {data.adjustments_cents ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Incluye ajustes de nómina por {money(data.adjustments_cents)}.
+            </p>
+          ) : null}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Es un estimado con las clases que ya diste. La nómina final la cierra administración.
+          </p>
+          {given.length ? (
+            <button
+              type="button"
+              onClick={() => setShowDetail((v) => !v)}
+              className="mt-3 text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {showDetail ? "Ocultar detalle" : "Ver detalle por clase"}
+            </button>
+          ) : null}
+          {showDetail ? (
+            <ul className="mt-3 divide-y divide-border border border-border">
+              {given.map((c) => (
+                <li
+                  key={c.class_id}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5"
+                >
+                  <div className="min-w-0 text-sm">
+                    <p className="capitalize">{classWhen(c.starts_at)}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {c.class_name ?? MODULE_LABELS[c.module_key ?? ""] ?? "Clase"} ·{" "}
+                      {c.attendance} {c.attendance === 1 ? "reservación" : "reservaciones"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm tabular-nums">{money(c.pay_cents)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function CoachProfilePanel() {
+  const { staffProfile } = useAuth();
 
   if (!staffProfile) {
     return <p className="text-muted-foreground">Cargando tu perfil…</p>;
   }
-
-  const monthEarnings = ((monthSeconds ?? 0) / 3600) * (staffProfile.hourly_rate_cents ?? 0);
 
   return (
     <div className="space-y-8">
@@ -1205,19 +1351,11 @@ export function CoachProfilePanel() {
       <div className="border border-border p-6">
         <CoachClassesView coachId={staffProfile.id} />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="border border-border p-5">
-          <p className="eyebrow">Lo que llevo del mes</p>
-          <p className="mt-2 text-2xl">{money(monthEarnings)}</p>
-          <p className="text-sm text-muted-foreground">
-            {((monthSeconds ?? 0) / 3600).toFixed(1)} horas registradas en el checador
-          </p>
-        </div>
-        <div className="border border-border p-5 text-sm text-muted-foreground">
-          <p className="eyebrow mb-2">¿Te van a cubrir una clase?</p>
-          Avisa a recepción: ellos cambian el coach de esa clase y se actualiza en la página, la app
-          y aquí.
-        </div>
+      <CoachPaySection coachId={staffProfile.id} />
+      <div className="border border-border p-5 text-sm text-muted-foreground">
+        <p className="eyebrow mb-2">¿Te van a cubrir una clase?</p>
+        Avisa a recepción: ellos cambian el coach de esa clase y se actualiza en la página, la app y
+        aquí.
       </div>
     </div>
   );
