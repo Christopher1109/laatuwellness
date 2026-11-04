@@ -815,14 +815,19 @@ function ClassDetailDrawer({
 
   const bookMember = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase.rpc("admin_book_class", {
+      const { data, error } = await supabase.rpc("admin_book_class", {
         _user_id: userId,
         _class_id: classId,
       });
       if (error) throw error;
+      return data as { coach_credit?: boolean } | null;
     },
-    onSuccess: () => {
-      toast.success("Miembro registrado en la clase.");
+    onSuccess: (booking) => {
+      toast.success(
+        booking?.coach_credit
+          ? "Coach registrada con su crédito de la semana."
+          : "Miembro registrado en la clase.",
+      );
       setShowBookMember(false);
       setMemberQuery("");
       invalidate();
@@ -838,13 +843,17 @@ function ClassDetailDrawer({
           ? "La clase ya está llena."
           : e.message.includes("ALREADY_BOOKED")
             ? "Esa persona ya tiene esta clase reservada."
-            : e.message.includes("INSUFFICIENT_TOKENS")
-              ? "No tiene créditos suficientes."
-              : e.message.includes("DAILY_LIMIT_REACHED")
-                ? "Su membresía ya alcanzó el límite de clases de ese día."
-                : e.message.includes("FORBIDDEN")
-                  ? "Tu usuario no puede apartar en esta clase."
-                  : "No se pudo registrar.",
+            : e.message.includes("COACH_WEEKLY_LIMIT")
+              ? "Esta coach ya usó sus clases de esa semana (se renuevan cada domingo)."
+              : e.message.includes("COACH_OWN_CLASS")
+                ? "Esa clase la imparte ella; no puede tomarla con su crédito."
+                : e.message.includes("INSUFFICIENT_TOKENS")
+                  ? "No tiene créditos suficientes."
+                  : e.message.includes("DAILY_LIMIT_REACHED")
+                    ? "Su membresía ya alcanzó el límite de clases de ese día."
+                    : e.message.includes("FORBIDDEN")
+                      ? "Tu usuario no puede apartar en esta clase."
+                      : "No se pudo registrar.",
       );
     },
   });
