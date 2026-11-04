@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateInput } from "@/components/date-input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -275,12 +276,11 @@ export function AddClassForm({
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Fecha">
-            <input
-              type="date"
+            <DateInput
               required
               value={date}
               min={ymd(new Date())}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
               className={control}
             />
           </Field>
@@ -354,11 +354,10 @@ export function AddClassForm({
           {repeat === "weekly_until" ? (
             <div className="mt-3 max-w-xs">
               <Field label="Hasta (incluida)">
-                <input
-                  type="date"
+                <DateInput
                   value={until}
                   min={date || ymd(new Date())}
-                  onChange={(e) => setUntil(e.target.value)}
+                  onChange={setUntil}
                   className={control}
                 />
               </Field>

@@ -14,8 +14,18 @@ describe("repetición de clases agregadas a mano", () => {
     expect(repeatDates(wed, "weekdays").map(ymd)).toEqual(["11/4", "11/5", "11/6"]);
   });
 
-  it("toda la semana llega al domingo", () => {
-    expect(repeatDates(wed, "week").map(ymd)).toEqual(["11/4", "11/5", "11/6", "11/7", "11/8"]);
+  it("toda la semana llega al sábado (semana de domingo a sábado)", () => {
+    expect(repeatDates(wed, "week").map(ymd)).toEqual(["11/4", "11/5", "11/6", "11/7"]);
+    const sun = parseLocalDate("2026-11-08")!;
+    expect(repeatDates(sun, "week").map(ymd)).toEqual([
+      "11/8",
+      "11/9",
+      "11/10",
+      "11/11",
+      "11/12",
+      "11/13",
+      "11/14",
+    ]);
   });
 
   it("mismo día cada semana hasta fin de mes", () => {

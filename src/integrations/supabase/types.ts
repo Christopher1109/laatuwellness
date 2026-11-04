@@ -1817,6 +1817,10 @@ export type Database = {
         Args: never
         Returns: Json
       }
+      coach_pay_summary: {
+        Args: { _coach_id: string; _from: string; _to: string }
+        Returns: Json
+      }
       coach_credit_usage: {
         Args: { _from: string; _to: string }
         Returns: Json

@@ -204,6 +204,13 @@
       "when": 1793815315380,
       "tag": "0028_recepcion_reserva_coach",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793815907189,
+      "tag": "0029_nomina_estimada_coach",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/date-input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -236,12 +237,12 @@ function Auth() {
                     Fecha de nacimiento{" "}
                     <span className="normal-case tracking-normal">(opcional)</span>
                   </label>
-                  <input
+                  <DateInput
                     id="birth_date"
                     name="birth_date"
-                    type="date"
                     min="1900-01-01"
                     max={todayIso()}
+                    yearPicker
                     className={field}
                   />
                   <p className="mt-1.5 text-xs text-muted-foreground">

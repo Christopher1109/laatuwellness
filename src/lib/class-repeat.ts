@@ -7,7 +7,7 @@ export type RepeatMode = "once" | "weekdays" | "week" | "weekly_month" | "weekly
 export const REPEAT_LABELS: Record<RepeatMode, string> = {
   once: "Solo ese día",
   weekdays: "Lunes a viernes de esa semana",
-  week: "Toda esa semana (lunes a domingo)",
+  week: "Toda esa semana (domingo a sábado)",
   weekly_month: "El mismo día cada semana, hasta fin de mes",
   weekly_until: "El mismo día cada semana, hasta una fecha",
 };
@@ -39,11 +39,19 @@ export function repeatDates(start: Date, mode: RepeatMode, until?: Date | null):
   const first = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   const out: Date[] = [];
   if (mode === "once") return [first];
-  if (mode === "weekdays" || mode === "week") {
+  if (mode === "weekdays") {
     const monday = mondayOf(first);
-    const last = mode === "weekdays" ? 4 : 6;
-    for (let i = 0; i <= last; i++) {
+    for (let i = 0; i <= 4; i++) {
       const d = addDays(monday, i);
+      if (d >= first) out.push(d);
+    }
+    return out;
+  }
+  if (mode === "week") {
+    // Las semanas del estudio van de domingo a sábado.
+    const sunday = addDays(first, -first.getDay());
+    for (let i = 0; i <= 6; i++) {
+      const d = addDays(sunday, i);
       if (d >= first) out.push(d);
     }
     return out;
