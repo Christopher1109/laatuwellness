@@ -443,6 +443,21 @@ export function PendingOrdersPanel() {
 }
 
 type PosBrandKey = "laatu" | "goodes";
+
+const TEAM_ROLE_LABEL: Record<string, string> = {
+  admin: "Admin",
+  staff: "Staff",
+  coach: "Coach",
+  recovery: "DorisFisio",
+};
+
+function TeamRoleTag({ role }: { role: string }) {
+  return (
+    <span className="bg-foreground/10 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-foreground">
+      {TEAM_ROLE_LABEL[role] ?? role}
+    </span>
+  );
+}
 type PosPlan = {
   id: string;
   name: string;
@@ -530,6 +545,7 @@ export function POSPanel() {
     id: string;
     full_name: string;
     email: string;
+    team_role?: string | null;
   } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Formas de pago: tarjeta en terminal Clip, efectivo o transferencia. La
@@ -549,12 +565,18 @@ export function POSPanel() {
     queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
     enabled: clientEmail.trim().length > 1 && !matchedClient,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .or(`email.ilike.%${clientEmail.trim()}%,full_name.ilike.%${clientEmail.trim()}%`)
-        .limit(6);
-      return data ?? [];
+      // Incluye al equipo (staff y coaches) para cobrarles con su propia cuenta.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("pos_search_people", {
+        _q: clientEmail.trim(),
+      });
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string;
+        full_name: string;
+        email: string;
+        team_role: string | null;
+      }[];
     },
   });
 
@@ -1060,7 +1082,10 @@ export function POSPanel() {
                     }}
                     className="block w-full px-3 py-2 text-left text-xs hover:bg-muted"
                   >
-                    <span className="block">{c.full_name || "Sin nombre"}</span>
+                    <span className="flex items-center gap-2">
+                      {c.full_name || "Sin nombre"}
+                      {c.team_role ? <TeamRoleTag role={c.team_role} /> : null}
+                    </span>
                     <span className="block text-muted-foreground">{c.email}</span>
                   </button>
                 </li>
@@ -1070,6 +1095,12 @@ export function POSPanel() {
           {matchedClient ? (
             <span className="mt-1 block text-[0.7rem] text-emerald-600">
               ✓ {matchedClient.email}
+              {matchedClient.team_role ? (
+                <>
+                  {" "}
+                  <TeamRoleTag role={matchedClient.team_role} />
+                </>
+              ) : null}
               {needsClient ? " · las clases se le acreditan al pagar" : ""}
             </span>
           ) : needsClient ? (
