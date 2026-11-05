@@ -211,6 +211,13 @@
       "when": 1793815907189,
       "tag": "0029_nomina_estimada_coach",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793906869772,
+      "tag": "0030_pos_buscar_equipo",
+      "breakpoints": true
     }
   ]
 }
