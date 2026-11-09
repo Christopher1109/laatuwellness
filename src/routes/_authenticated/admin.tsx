@@ -80,29 +80,6 @@ const CLASS_MODULE_BLOCKS = [
   { key: "contraste", label: "Contrast Therapy", desc: "Sauna y frío" },
 ] as const;
 
-function ClassModulePicker({ onPick }: { onPick: (key: string) => void }) {
-  return (
-    <div>
-      <h2 className="statement text-2xl">Horarios de clases</h2>
-      <p className="mt-2 text-sm text-muted-foreground">Elige un programa para ver su agenda.</p>
-      <div className="mt-6 grid gap-px bg-border sm:grid-cols-2">
-        {CLASS_MODULE_BLOCKS.map((b) => (
-          <button
-            key={b.key}
-            type="button"
-            onClick={() => onPick(b.key)}
-            className="bg-background p-8 text-left transition-colors hover:bg-muted"
-          >
-            <CalendarDays className="h-5 w-5 text-muted-foreground" />
-            <p className="mt-4 text-lg">{b.label}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{b.desc}</p>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Admin() {
   const { isAdmin, isStaff, isCoach, isRecovery, loading, rolesLoading, staffProfile } = useAuth();
 
@@ -212,7 +189,6 @@ function Admin() {
   const firstKey = groups[0]?.items[0]?.key ?? "";
   const [active, setActive] = useState(firstKey);
   const [focusModule, setFocusModule] = useState<string | null>(null);
-  const [classModule, setClassModule] = useState<string | null>(null);
 
   const activeKey =
     ((isAdmin || (isStaff && !isCoach && !isRecovery)) &&
@@ -282,33 +258,21 @@ function Admin() {
       ) : null}
       {activeKey === "mis-consultas" ? <RecoverySessionsPanel /> : null}
       {activeKey === "check-in" ? <CheckInPanel /> : null}
-      {activeKey === "horarios-clases"
-        ? (() => {
-            const current = isRecovery ? "rehabilitacion" : (focusModule ?? classModule);
-            if (!current) {
-              return <ClassModulePicker onPick={(k) => setClassModule(k)} />;
-            }
-            const label =
-              CLASS_MODULE_BLOCKS.find((b) => b.key === current)?.label ?? "Horarios de clases";
-            return (
-              <div>
-                {isRecovery ? null : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFocusModule(null);
-                      setClassModule(null);
-                    }}
-                    className="mb-4 border border-input px-4 py-2 text-[0.66rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background"
-                  >
-                    ← Todos los programas
-                  </button>
-                )}
-                <AdminSchedulePanel modules={[current]} title={label} />
-              </div>
-            );
-          })()
-        : null}
+      {activeKey === "horarios-clases" ? (
+        isRecovery ? (
+          <AdminSchedulePanel modules={["rehabilitacion"]} title="Horarios de clases" />
+        ) : (
+          // Todas las clases de todos los salones juntas (antes había que
+          // elegir un salón y el equipo se hacía bolas). El salón se indica en
+          // cada clase y se puede filtrar desde el mismo panel.
+          <AdminSchedulePanel
+            key={focusModule ?? "todos"}
+            modules={CLASS_MODULE_BLOCKS.map((b) => b.key)}
+            title="Horarios de clases"
+            initialModule={focusModule}
+          />
+        )
+      ) : null}
 
       {activeKey === "horarios-consultorio" ? (
         <AdminSchedulePanel
