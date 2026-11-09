@@ -64,8 +64,29 @@ function rangeForView(date: Date | null, view: ViewMode) {
   return { start: startOfMonth(anchor), end: addDays(endOfMonth(anchor), 1) };
 }
 
-export function AdminSchedulePanel({ modules, title }: { modules: string[]; title: string }) {
+/** Color de la etiqueta de cada salón, para distinguirlos de un vistazo. */
+const MODULE_TAG: Record<string, string> = {
+  reformer: "border-sky-300 bg-sky-50 text-sky-900",
+  "4mat": "border-violet-300 bg-violet-50 text-violet-900",
+  contraste: "border-orange-300 bg-orange-50 text-orange-900",
+  rehabilitacion: "border-emerald-300 bg-emerald-50 text-emerald-900",
+};
+
+export function AdminSchedulePanel({
+  modules,
+  title,
+  initialModule = null,
+}: {
+  modules: string[];
+  title: string;
+  /** Salón preseleccionado en el filtro (null = todos juntos). */
+  initialModule?: string | null;
+}) {
   const qc = useQueryClient();
+  const multi = modules.length > 1;
+  const [salon, setSalon] = useState<string | null>(
+    initialModule && modules.includes(initialModule) ? initialModule : null,
+  );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<ViewMode>("day");
   const [monthCursor, setMonthCursor] = useState<Date | null>(null);
@@ -181,7 +202,8 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
   const byDay = useMemo(() => {
     const groups = new Map<string, ClassRow[]>();
-    for (const c of classes ?? []) {
+    const visibles = salon ? (classes ?? []).filter((c) => c.module_key === salon) : classes;
+    for (const c of visibles ?? []) {
       const key = format(new Date(c.starts_at), "yyyy-MM-dd");
       groups.set(key, [...(groups.get(key) ?? []), c]);
     }
@@ -199,7 +221,7 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
       );
     }
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [classes, now]);
+  }, [classes, now, salon]);
 
   const monthGrid = useMemo(() => {
     if (!monthCursor) return [];
@@ -335,9 +357,29 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
 
         {/* bloques de clase */}
         <div className="space-y-5">
+          {multi ? (
+            <div className="flex flex-wrap gap-2">
+              {[null, ...modules].map((k) => (
+                <button
+                  key={k ?? "todos"}
+                  type="button"
+                  onClick={() => setSalon(k)}
+                  className={cn(
+                    "rounded-full border px-3.5 py-1.5 text-[0.66rem] uppercase tracking-[0.14em] transition-colors",
+                    salon === k
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+                  )}
+                >
+                  {k === null ? "Todos los salones" : (MODULE_LABELS[k] ?? k)}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {byDay.length === 0 ? (
             <p className="text-muted-foreground">
-              Sin horarios en este rango para {title.toLowerCase()}.
+              Sin horarios en este rango
+              {salon ? ` para ${MODULE_LABELS[salon] ?? salon}` : ""}.
             </p>
           ) : null}
           {byDay.map(([dayKey, items]) => (
@@ -375,6 +417,17 @@ export function AdminSchedulePanel({ modules, title }: { modules: string[]; titl
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
+                          {multi && !salon ? (
+                            <span
+                              className={cn(
+                                "mb-1.5 inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.12em]",
+                                MODULE_TAG[c.module_key ?? ""] ??
+                                  "border-border bg-muted text-foreground",
+                              )}
+                            >
+                              {MODULE_LABELS[c.module_key ?? ""] ?? c.module_key}
+                            </span>
+                          ) : null}
                           <p className="text-[0.7rem] uppercase tracking-[0.08em] text-muted-foreground">
                             {format(new Date(c.starts_at), "HH:mm")} – {format(endTime, "HH:mm")} ·{" "}
                             {finished ? "Concluida" : inProgress ? "En curso" : "Clase"}

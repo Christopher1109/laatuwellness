@@ -259,8 +259,8 @@ export function SeatPickerModal({
 }
 
 /**
- * Agenda de clases con reserva. Todas las clases de todos los salones salen
- * juntas en una sola lista por día y hora; cada clase indica su salón.
+ * Agenda de clases con reserva. Se segmenta por programa y cada programa
+ * vive en su propia ventana con scroll para que la lista nunca crezca de más.
  */
 export function Schedule({
   moduleKey,
@@ -515,24 +515,23 @@ export function Schedule({
     return [...map.values()].sort((a, b) => a.getTime() - b.getTime());
   }, [all]);
 
-  /**
-   * Todas las clases de todos los salones en una sola lista, ordenada por día
-   * y hora. Antes cada salón tenía su propia caja y las clientas solo veían
-   * una ("no había otra clase"); ahora el salón se indica en cada clase.
-   */
-  const porDia = useMemo(() => {
-    let items = filtro ? all.filter((c) => (c.module_key ?? "otros") === filtro) : all;
-    if (dia) items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
-    const map = new Map<string, ClassRow[]>();
-    for (const c of items) {
-      const d = dayLabel(c.starts_at);
-      map.set(d, [...(map.get(d) ?? []), c]);
-    }
-    return { total: items.length, dias: [...map.entries()] };
-  }, [all, filtro, dia]);
-
-  // Solo se marca el salón cuando la lista mezcla más de uno.
-  const mostrarSalon = !moduleKey && !filtro;
+  const grupos = useMemo(() => {
+    const activos = filtro ? presentes.filter((k) => k === filtro) : presentes;
+    return activos.map((key) => {
+      let items = all.filter((c) => (c.module_key ?? "otros") === key);
+      if (dia)
+        items = items.filter((c) => startOfDay(new Date(c.starts_at)).toDateString() === dia);
+      // Se muestran todas las sesiones del rango (antes la portada cortaba a
+      // 6 por programa y DorisFisio llegaba solo hasta el martes); cada
+      // programa tiene su propia lista con scroll, separada por días.
+      const porDia = new Map<string, ClassRow[]>();
+      for (const c of items) {
+        const d = dayLabel(c.starts_at);
+        porDia.set(d, [...(porDia.get(d) ?? []), c]);
+      }
+      return { key, total: items.length, dias: [...porDia.entries()] };
+    });
+  }, [all, presentes, filtro, limit, dia]);
 
   return (
     <div>
@@ -616,126 +615,128 @@ export function Schedule({
 
       {isLoading ? (
         <p className="mt-10 text-muted-foreground">Cargando horarios…</p>
-      ) : porDia.total === 0 ? (
+      ) : grupos.length === 0 ? (
         <p className="mt-10 text-muted-foreground">
           No hay clases publicadas en este rango. Escríbenos por WhatsApp y te avisamos en cuanto se
           abra el horario.
         </p>
       ) : (
-        <section className="mt-8 border border-border bg-background sm:mt-10">
-          <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 sm:px-5 sm:py-4">
-            <BirdBadge size="sm" variant={3} />
-            <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
-              {moduleKey || filtro
-                ? (nombre.get((moduleKey ?? filtro)!) ?? moduleKey ?? filtro)
-                : "Todas las clases"}
-            </h3>
-            <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
-              {porDia.total} {porDia.total === 1 ? "sesión" : "sesiones"}
-            </span>
-          </header>
+        <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-6 lg:grid-cols-2">
+          {grupos.map((g) => (
+            <section key={g.key} className="flex flex-col border border-border bg-background">
+              <header className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 sm:px-5 sm:py-4">
+                <BirdBadge size="sm" variant={3} />
+                <h3 className="flex-1 text-[0.8rem] uppercase tracking-[0.16em]">
+                  {nombre.get(g.key) ?? g.key}
+                </h3>
+                <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
+                  {g.total} {g.total === 1 ? "sesión" : "sesiones"}
+                </span>
+              </header>
 
-          <div
-            className={cn(
-              "px-4 sm:px-5",
-              limit ? "max-h-[32rem] overflow-y-auto sm:max-h-[36rem]" : "",
-            )}
-          >
-            {porDia.dias.map(([day, items]) => (
-              <div key={day} className="py-4">
-                <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
-                  {day}
-                </p>
-                <ul className="mt-2 divide-y divide-border">
-                  {items.map((c) => {
-                    const full = c.taken >= c.capacity;
-                    const mine = bookedIds.has(c.id);
-                    const waiting = waitlistedIds.has(c.id);
-                    const libres = Math.max(c.capacity - c.taken, 0);
-                    const ownClass =
-                      coachMode && Boolean(staffProfile?.id) && c.coach_id === staffProfile?.id;
-                    return (
-                      <li
-                        key={c.id}
-                        className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-baseline gap-3">
-                            <span className="text-base tabular-nums">{timeLabel(c.starts_at)}</span>
-                            <span className="min-w-0 truncate text-sm">
-                              {/* El tipo de clase va primero y resaltado; la coach
+              <div className="max-h-[26rem] overflow-y-auto px-4 sm:max-h-[32rem] sm:px-5">
+                {g.total === 0 ? (
+                  <p className="py-8 text-sm text-muted-foreground">
+                    Sin sesiones en este rango. Cambia de semana o escríbenos por WhatsApp para
+                    apartar tu lugar.
+                  </p>
+                ) : null}
+                {g.dias.map(([day, items]) => (
+                  <div key={day} className="py-4">
+                    <p className="sticky top-0 z-[1] bg-background py-1 text-[0.6rem] uppercase tracking-[0.2em] text-muted-foreground">
+                      {day}
+                    </p>
+                    <ul className="mt-2 divide-y divide-border">
+                      {items.map((c) => {
+                        const full = c.taken >= c.capacity;
+                        const mine = bookedIds.has(c.id);
+                        const waiting = waitlistedIds.has(c.id);
+                        const libres = Math.max(c.capacity - c.taken, 0);
+                        const ownClass =
+                          coachMode && Boolean(staffProfile?.id) && c.coach_id === staffProfile?.id;
+                        return (
+                          <li
+                            key={c.id}
+                            className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-baseline gap-3">
+                                <span className="text-base tabular-nums">
+                                  {timeLabel(c.starts_at)}
+                                </span>
+                                <span className="min-w-0 truncate text-sm">
+                                  {/* El tipo de clase va primero y resaltado; la coach
                                       solo se muestra si ya está definida. */}
-                              {c.class_type_id && classTypes?.get(c.class_type_id) ? (
-                                <span className="text-foreground">
-                                  {classTypes.get(c.class_type_id)}
+                                  {c.class_type_id && classTypes?.get(c.class_type_id) ? (
+                                    <span className="text-foreground">
+                                      {classTypes.get(c.class_type_id)}
+                                    </span>
+                                  ) : null}
+                                  {!c.is_tbd && (c.instructor || c.room) ? (
+                                    <span className="text-muted-foreground">
+                                      {c.class_type_id && classTypes?.get(c.class_type_id)
+                                        ? " · "
+                                        : ""}
+                                      {c.instructor || c.room}
+                                    </span>
+                                  ) : null}
                                 </span>
-                              ) : null}
-                              {!c.is_tbd && (c.instructor || c.room) ? (
-                                <span className="text-muted-foreground">
-                                  {c.class_type_id && classTypes?.get(c.class_type_id) ? " · " : ""}
-                                  {c.instructor || c.room}
-                                </span>
-                              ) : null}
-                            </span>
-                          </div>
-                          {mostrarSalon && c.module_key ? (
-                            <span className="mt-1.5 inline-block rounded-full border border-secondary/60 bg-secondary/10 px-2.5 py-0.5 text-[0.58rem] uppercase tracking-[0.16em] text-foreground">
-                              {nombre.get(c.module_key) ?? c.module_key}
-                            </span>
-                          ) : null}
-                          <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            {libres} lugares · {c.duration_min} min
-                            {coachMode
-                              ? ""
-                              : ` · ${c.tokens_cost} ${c.tokens_cost === 1 ? "token" : "tokens"}`}
-                            {c.waitlisted > 0 ? ` · ${c.waitlisted} en espera` : ""}
-                          </p>
-                        </div>
-                        {mine ? (
-                          <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-secondary">
-                            Reservada
-                          </span>
-                        ) : ownClass ? (
-                          <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
-                            Tu clase
-                          </span>
-                        ) : coachMode && full ? (
-                          <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
-                            Llena
-                          </span>
-                        ) : waiting ? (
-                          <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-amber-600">
-                            En lista de espera
-                          </span>
-                        ) : full ? (
-                          <button
-                            disabled={joinWaitlist.isPending}
-                            onClick={() =>
-                              user ? joinWaitlist.mutate(c.id) : navigate({ to: "/auth" })
-                            }
-                            className="shrink-0 border border-input px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
-                          >
-                            Lista de espera
-                          </button>
-                        ) : (
-                          <button
-                            disabled={book.isPending}
-                            onClick={() =>
-                              user ? setPickingSeatFor(c) : navigate({ to: "/auth" })
-                            }
-                            className="shrink-0 border border-foreground px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-35"
-                          >
-                            Reservar
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                              </div>
+                              <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                {libres} lugares · {c.duration_min} min
+                                {coachMode
+                                  ? ""
+                                  : ` · ${c.tokens_cost} ${c.tokens_cost === 1 ? "token" : "tokens"}`}
+                                {c.waitlisted > 0 ? ` · ${c.waitlisted} en espera` : ""}
+                              </p>
+                            </div>
+                            {mine ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-secondary">
+                                Reservada
+                              </span>
+                            ) : ownClass ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
+                                Tu clase
+                              </span>
+                            ) : coachMode && full ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
+                                Llena
+                              </span>
+                            ) : waiting ? (
+                              <span className="shrink-0 text-[0.6rem] uppercase tracking-[0.16em] text-amber-600">
+                                En lista de espera
+                              </span>
+                            ) : full ? (
+                              <button
+                                disabled={joinWaitlist.isPending}
+                                onClick={() =>
+                                  user ? joinWaitlist.mutate(c.id) : navigate({ to: "/auth" })
+                                }
+                                className="shrink-0 border border-input px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                              >
+                                Lista de espera
+                              </button>
+                            ) : (
+                              <button
+                                disabled={book.isPending}
+                                onClick={() =>
+                                  user ? setPickingSeatFor(c) : navigate({ to: "/auth" })
+                                }
+                                className="shrink-0 border border-foreground px-4 py-1.5 text-[0.62rem] uppercase tracking-[0.16em] transition-colors hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-35"
+                              >
+                                Reservar
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          ))}
+        </div>
       )}
 
       {!user && !coachMode ? (
