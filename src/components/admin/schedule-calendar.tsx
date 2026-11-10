@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { classTitle } from "@/lib/class-focus";
 import { CREDIT_ERRORS } from "@/lib/credit-kinds";
 import { describeError } from "@/lib/describe-error";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -397,7 +398,7 @@ export function AdminSchedulePanel({
                   );
                   const avatar = coachAvatar(c.instructor);
                   const color = coachColor(c.coach_id);
-                  const kind = typeName(c.class_type_id);
+                  const kind = classTitle(typeName(c.class_type_id), c.starts_at);
                   const endTime = new Date(
                     new Date(c.starts_at).getTime() + c.duration_min * 60000,
                   );
@@ -1046,7 +1047,10 @@ function ClassDetailDrawer({
             <div>
               <p className="text-sm font-medium">
                 {cls
-                  ? (classTypes.find((t) => t.id === cls.class_type_id)?.name ??
+                  ? (classTitle(
+                      classTypes.find((t) => t.id === cls.class_type_id)?.name,
+                      cls.starts_at,
+                    ) ??
                     MODULE_LABELS[cls.module_key ?? ""] ??
                     cls.module_key)
                   : ""}{" "}

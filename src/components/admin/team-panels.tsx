@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { classTitle } from "@/lib/class-focus";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -721,7 +722,11 @@ function CoachClassesView({ coachId }: { coachId: string }) {
             <ClassBlock
               key={c.id}
               cls={c}
-              typeName={c.class_type_id ? classTypes?.get(c.class_type_id) : undefined}
+              typeName={
+                c.class_type_id
+                  ? classTitle(classTypes?.get(c.class_type_id), c.starts_at)
+                  : undefined
+              }
               stats={stats?.get(c.id) ?? EMPTY_STATS}
               showDate={tab !== "hoy"}
               onOpen={() => setRosterFor(c)}
@@ -733,7 +738,11 @@ function CoachClassesView({ coachId }: { coachId: string }) {
       {rosterFor ? (
         <ClassRosterPopout
           cls={rosterFor}
-          typeName={rosterFor.class_type_id ? classTypes?.get(rosterFor.class_type_id) : undefined}
+          typeName={
+            rosterFor.class_type_id
+              ? classTitle(classTypes?.get(rosterFor.class_type_id), rosterFor.starts_at)
+              : undefined
+          }
           onClose={() => setRosterFor(null)}
         />
       ) : null}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { classTitle as withDailyFocus } from "@/lib/class-focus";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock, Search, UserX } from "lucide-react";
 import { toast } from "sonner";
@@ -396,7 +397,7 @@ export function CheckInPanel() {
           room: c.room || MODULE_LABELS[c.module_key ?? ""] || "",
           instructor: c.instructor,
           is_tbd: c.is_tbd,
-          typeName: type?.name ?? null,
+          typeName: withDailyFocus(type?.name ?? null, c.starts_at),
           booked: counts.get(c.id) ?? 0,
         };
       });

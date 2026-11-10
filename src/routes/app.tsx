@@ -1,4 +1,5 @@
 import { CreditLotsSummary } from "@/components/credit-lots";
+import { classTitle } from "@/lib/class-focus";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
@@ -362,7 +363,9 @@ function ReservasTab({ onGoToSchedule }: { onGoToSchedule: () => void }) {
     .sort((a, b) => startOf(b).getTime() - startOf(a).getTime());
 
   const className = (b: AppBooking) =>
-    (b.classes!.class_type_id ? typeNames?.get(b.classes!.class_type_id) : undefined) ??
+    (b.classes!.class_type_id
+      ? classTitle(typeNames?.get(b.classes!.class_type_id), b.classes!.starts_at)
+      : undefined) ??
     MODULE_NAMES[b.classes!.module_key ?? ""] ??
     b.classes!.room;
   const coachName = (b: AppBooking) => (b.classes!.is_tbd ? "" : b.classes!.instructor || "");
