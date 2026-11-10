@@ -1,4 +1,5 @@
 import { CreditLotsSummary } from "@/components/credit-lots";
+import { classTitle } from "@/lib/class-focus";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -18,12 +19,15 @@ import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 
 // Tipo de clase primero; la coach solo si ya está definida (no "por anunciar").
 function classLine(c: {
+  starts_at: string;
   room: string;
   instructor: string;
   is_tbd?: boolean | null;
   class_types?: { name: string } | null;
 }) {
-  return [c.class_types?.name, c.room, c.is_tbd ? null : c.instructor].filter(Boolean).join(" · ");
+  return [classTitle(c.class_types?.name, c.starts_at), c.room, c.is_tbd ? null : c.instructor]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export const Route = createFileRoute("/_authenticated/cuenta")({

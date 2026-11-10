@@ -1,4 +1,5 @@
 import { BookingPaymentChoice } from "@/components/booking-payment-choice";
+import { classTitle } from "@/lib/class-focus";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -667,7 +668,7 @@ export function Schedule({
                                       solo se muestra si ya está definida. */}
                               {c.class_type_id && classTypes?.get(c.class_type_id) ? (
                                 <span className="text-foreground">
-                                  {classTypes.get(c.class_type_id)}
+                                  {classTitle(classTypes.get(c.class_type_id), c.starts_at)}
                                 </span>
                               ) : null}
                               {!c.is_tbd && (c.instructor || c.room) ? (
