@@ -1623,7 +1623,7 @@ export function CoachCreditsUsagePanel() {
 
   // Perfiles del staff (no coaches) que todavía no tienen clases semanales,
   // para darlos de alta a mano desde este panel.
-  const { data: candidates } = useQuery({
+  const { data: candidates, isError: candidatesError } = useQuery({
     enabled: isAdmin && adding,
     queryKey: ["class-credit-candidates"],
     queryFn: async () => {
@@ -1945,7 +1945,12 @@ export function CoachCreditsUsagePanel() {
             Elige quién del staff tendrá clases semanales (empieza con 2; lo puedes cambiar en la
             columna "Por semana").
           </p>
-          {!candidates ? (
+          {candidatesError ? (
+            <p className="mt-6 text-sm text-destructive">
+              No se pudo cargar la lista del staff. Cierra y vuelve a intentar; si sigue, avisa a
+              soporte.
+            </p>
+          ) : !candidates ? (
             <p className="mt-6 text-sm text-muted-foreground">Cargando…</p>
           ) : candidates.length === 0 ? (
             <p className="mt-6 text-sm text-muted-foreground">
