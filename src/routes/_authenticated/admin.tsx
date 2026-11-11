@@ -45,6 +45,7 @@ import {
   CoachesPanel,
   CoachProfilePanel,
   CoachCreditsUsagePanel,
+  CoachCreditsSection,
   StaffDirectoryPanel,
 } from "@/components/admin/team-panels";
 import { RecoveryClientsPanel, RecoverySessionsPanel } from "@/components/admin/recovery-panels";
@@ -236,12 +237,18 @@ function Admin() {
             }}
           />
         ) : (
-          <StaffHomePanel
-            onGoTo={(key, moduleKey) => {
-              setFocusModule(moduleKey ?? null);
-              setActive(key);
-            }}
-          />
+          <div className="space-y-8">
+            <StaffHomePanel
+              onGoTo={(key, moduleKey) => {
+                setFocusModule(moduleKey ?? null);
+                setActive(key);
+              }}
+            />
+            {/* Solo aparece si administración le dio clases semanales a este perfil. */}
+            <div className="mx-auto max-w-5xl">
+              <CoachCreditsSection />
+            </div>
+          </div>
         )
       ) : null}
       {activeKey === "panel-staff" ? (

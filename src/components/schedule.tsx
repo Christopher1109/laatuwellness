@@ -26,10 +26,10 @@ const ERRORS: Record<string, string> = {
   NOT_WAITLISTED: "Ya no estás en la lista de espera de esta clase.",
   BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
   COACH_WEEKLY_LIMIT:
-    "Ya usaste tus clases de coach de esa semana. Se renuevan cada domingo y no se acumulan.",
+    "Ya usaste tus clases semanales de esa semana. Se renuevan cada domingo y no se acumulan.",
   COACH_OWN_CLASS: "Esa clase la impartes tú; elige otra.",
-  COACH_CLASS_NOT_ALLOWED: "Con tus créditos de coach solo puedes tomar clases del estudio.",
-  COACH_ONLY: "Esta opción es solo para coaches activas.",
+  COACH_CLASS_NOT_ALLOWED: "Con tus clases semanales solo puedes tomar clases del estudio.",
+  COACH_ONLY: "Esta opción es solo para coaches y staff con clases semanales.",
 };
 
 /** Programas que no se pueden tomar con créditos de coach (consultorios). */
@@ -226,7 +226,7 @@ export function SeatPickerModal({
         </p>
         {coachMode ? (
           <p className="mt-5 text-xs text-muted-foreground">
-            Se usa 1 de tus clases de coach de esa semana (domingo a sábado).
+            Se usa 1 de tus clases semanales (domingo a sábado).
           </p>
         ) : classItem.module_key === "rehabilitacion" ? (
           <p className="mt-5 text-xs text-muted-foreground">
@@ -430,7 +430,7 @@ export function Schedule({
     onSuccess: () => {
       toast.success(
         coachMode
-          ? "Clase reservada con tu crédito de coach."
+          ? "Clase reservada con tu clase semanal."
           : "Clase reservada. Nos vemos en el estudio.",
       );
       setPickingSeatFor(null);

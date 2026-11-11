@@ -218,6 +218,13 @@
       "when": 1793906869772,
       "tag": "0030_pos_buscar_equipo",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793907469772,
+      "tag": "0031_clases_semanales_staff",
+      "breakpoints": true
     }
   ]
 }

@@ -1297,6 +1297,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           user_id: string | null
           weekly_class_credits: number
+          class_credits_enabled: boolean
         }
         Insert: {
           active?: boolean
@@ -1311,6 +1312,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
           weekly_class_credits?: number
+          class_credits_enabled?: boolean
         }
         Update: {
           active?: boolean
@@ -1325,6 +1327,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
           weekly_class_credits?: number
+          class_credits_enabled?: boolean
         }
         Relationships: []
       }
