@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { TEAM_ROLE_LABELS } from "@/lib/credit-kinds";
 import { coachSwatch, normalizeHex } from "@/lib/coach-colors";
 import type { TeamRole } from "@/lib/team-member";
 import { saveTeamMember } from "@/utils/team-admin.functions";
@@ -1390,6 +1391,8 @@ type CoachCreditBooking = {
 
 type CoachCreditStatus = {
   limit: number;
+  /** false = perfil de staff con clases semanales (no es coach). */
+  is_coach?: boolean;
   week_start: string;
   used_this_week: number;
   next_week_start: string;
@@ -1492,7 +1495,9 @@ export function CoachCreditsSection() {
     <div className="border border-border p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">Mis clases como coach</p>
+          <p className="eyebrow">
+            {data.is_coach === false ? "Mis clases del estudio" : "Mis clases como coach"}
+          </p>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
             Tienes {data.limit} {data.limit === 1 ? "clase" : "clases"} por semana para tomar en el
             estudio. La semana va de domingo a sábado y las que no uses no se acumulan.
@@ -1582,6 +1587,7 @@ export function CoachCreditsSection() {
 type CoachUsageRow = {
   staff_id: string;
   full_name: string;
+  role?: string;
   active: boolean;
   has_account: boolean;
   color: string | null;
@@ -1613,6 +1619,45 @@ export function CoachCreditsUsagePanel() {
   const [anchor, setAnchor] = useState(() => new Date());
   const [showInactive, setShowInactive] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  // Perfiles del staff (no coaches) que todavía no tienen clases semanales,
+  // para darlos de alta a mano desde este panel.
+  const { data: candidates } = useQuery({
+    enabled: isAdmin && adding,
+    queryKey: ["class-credit-candidates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("id, full_name, role, user_id, color, photo_url")
+        .eq("active", true)
+        .neq("role", "coach")
+        .eq("class_credits_enabled", false)
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const setEnabled = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const { error } = await supabase
+        .from("staff_profiles")
+        .update({ class_credits_enabled: enabled })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success(
+        v.enabled
+          ? "Perfil agregado: ya tiene sus clases semanales."
+          : "Perfil quitado de la lista.",
+      );
+      void qc.invalidateQueries({ queryKey: ["coach-credit-usage"] });
+      void qc.invalidateQueries({ queryKey: ["class-credit-candidates"] });
+    },
+    onError: () => toast.error("No se pudo guardar el cambio."),
+  });
 
   const range = useMemo(() => {
     if (period === "semana") {
@@ -1695,8 +1740,9 @@ export function CoachCreditsUsagePanel() {
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-xl text-xs text-muted-foreground">
-          Cada coach tiene clases de cortesía por semana (domingo a sábado) que reserva desde su
-          perfil. No se acumulan: lo que no se usa en la semana se pierde.
+          Cada coach (y los perfiles de staff que agregues) tiene clases de cortesía por semana
+          (domingo a sábado) que reserva desde su perfil o su inicio. No se acumulan: lo que no se
+          usa en la semana se pierde.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {(["semana", "mes"] as const).map((p) => (
@@ -1731,6 +1777,15 @@ export function CoachCreditsUsagePanel() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="bg-foreground px-3 py-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-background"
+            >
+              + Agregar perfil
+            </button>
+          ) : null}
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
@@ -1744,7 +1799,7 @@ export function CoachCreditsUsagePanel() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          ["Coaches", rows.length],
+          ["Perfiles", rows.length],
           ["Lo usaron", usedCoaches],
           ["No lo usaron", rows.length - usedCoaches],
           ["Clases usadas", `${totalUsed} de ${totalAvailable}`],
@@ -1761,13 +1816,13 @@ export function CoachCreditsUsagePanel() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin coaches dadas de alta.</p>
+        <p className="text-sm text-muted-foreground">Sin perfiles dados de alta.</p>
       ) : (
         <div className="overflow-x-auto border border-border">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40 text-left text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                <th className="px-3 py-2">Coach</th>
+                <th className="px-3 py-2">Perfil</th>
                 <th className="px-3 py-2">Estado</th>
                 <th className="px-3 py-2">Usadas en el periodo</th>
                 <th className="px-3 py-2">Esta semana</th>
@@ -1804,6 +1859,28 @@ export function CoachCreditsUsagePanel() {
                         </Avatar>
                         <span>{r.full_name}</span>
                       </button>
+                      {r.role && r.role !== "coach" ? (
+                        <span className="mt-0.5 flex items-center gap-2 text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">
+                          {TEAM_ROLE_LABELS[r.role] ?? r.role}
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              disabled={setEnabled.isPending}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `¿Quitar a ${r.full_name} de las clases semanales? Sus reservas ya hechas se quedan.`,
+                                  )
+                                )
+                                  setEnabled.mutate({ id: r.staff_id, enabled: false });
+                              }}
+                              className="normal-case tracking-normal text-destructive hover:underline"
+                            >
+                              Quitar
+                            </button>
+                          ) : null}
+                        </span>
+                      ) : null}
                       {!r.has_account ? (
                         <span className="block text-[0.6rem] text-amber-700">
                           Sin acceso al sistema
@@ -1860,6 +1937,57 @@ export function CoachCreditsUsagePanel() {
           </table>
         </div>
       )}
+
+      {adding ? (
+        <Popout onClose={() => setAdding(false)}>
+          <p className="text-lg">Agregar perfil</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Elige quién del staff tendrá clases semanales (empieza con 2; lo puedes cambiar en la
+            columna "Por semana").
+          </p>
+          {!candidates ? (
+            <p className="mt-6 text-sm text-muted-foreground">Cargando…</p>
+          ) : candidates.length === 0 ? (
+            <p className="mt-6 text-sm text-muted-foreground">
+              Todo el staff activo ya está en la lista. Para alguien nuevo, primero dalo de alta en
+              Staff.
+            </p>
+          ) : (
+            <ul className="mt-5 max-h-[60vh] divide-y divide-border overflow-y-auto border border-border">
+              {candidates.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Avatar className="h-7 w-7">
+                      {c.photo_url ? <AvatarImage src={c.photo_url} alt="" /> : null}
+                      <AvatarFallback
+                        className="text-[0.6rem]"
+                        style={coachSwatch(normalizeHex(c.color))}
+                      >
+                        {initials(c.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">{c.full_name}</p>
+                      <p className="text-[0.62rem] uppercase tracking-[0.1em] text-muted-foreground">
+                        {TEAM_ROLE_LABELS[c.role] ?? c.role}
+                        {!c.user_id ? " · sin acceso al sistema" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={setEnabled.isPending}
+                    onClick={() => setEnabled.mutate({ id: c.id, enabled: true })}
+                    className="shrink-0 border border-foreground px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.14em] hover:bg-foreground hover:text-background disabled:opacity-40"
+                  >
+                    Agregar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Popout>
+      ) : null}
 
       {opened ? (
         <Popout onClose={() => setOpenId(null)}>
