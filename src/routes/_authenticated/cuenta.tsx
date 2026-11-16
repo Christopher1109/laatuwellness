@@ -219,13 +219,17 @@ function Cuenta() {
   });
 
   const now = Date.now();
-  const upcoming = (bookings.data ?? []).filter(
+  // Si una clase se desactivó o se borró, la clienta ya no puede leerla (RLS) y
+  // la reserva llega con `classes: null`. Sin este filtro la página entera se
+  // caía ("This page didn't load"), igual que ya se hace en /app.
+  const withClass = (bookings.data ?? []).filter((b) => b.classes);
+  const upcoming = withClass.filter(
     (b) => b.status === "reservada" && new Date(b.classes!.starts_at).getTime() > now,
   );
-  const waitlisted = (bookings.data ?? []).filter(
+  const waitlisted = withClass.filter(
     (b) => b.status === "lista_espera" && new Date(b.classes!.starts_at).getTime() > now,
   );
-  const past = (bookings.data ?? []).filter(
+  const past = withClass.filter(
     (b) =>
       (b.status !== "reservada" && b.status !== "lista_espera") ||
       new Date(b.classes!.starts_at).getTime() <= now,
