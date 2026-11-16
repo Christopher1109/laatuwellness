@@ -418,11 +418,14 @@ export function Schedule({
       seat: number | null;
       useCredits?: boolean;
     }) => {
+      // `_seat` se omite cuando no hay lugar elegido: en la base de datos vale
+      // DEFAULT NULL, así que omitirlo y enviar NULL significan lo mismo.
+      const seatArg = seat == null ? {} : { _seat: seat };
       const { error } = coachMode
-        ? await supabase.rpc("coach_book_class", { _class_id: classId, _seat: seat ?? undefined })
+        ? await supabase.rpc("coach_book_class", { _class_id: classId, ...seatArg })
         : await supabase.rpc("book_class", {
             _class_id: classId,
-            _seat: seat,
+            ...seatArg,
             _use_credits: useCredits,
           });
       if (error) throw error;
