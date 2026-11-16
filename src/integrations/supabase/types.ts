@@ -58,45 +58,45 @@ export type Database = {
       }
       bookings: {
         Row: {
-          credit_kind: string
           class_id: string
           coach_credit: boolean
           created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           seat_number: number | null
           status: string
           tokens_spent: number
           user_id: string | null
-          guest_name: string | null
-          guest_phone: string | null
           waitlisted_at: string | null
         }
         Insert: {
-          credit_kind?: string
           class_id: string
           coach_credit?: boolean
           created_at?: string
+          credit_kind?: string
+          guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           seat_number?: number | null
           status?: string
           tokens_spent?: number
           user_id?: string | null
-          guest_name?: string | null
-          guest_phone?: string | null
           waitlisted_at?: string | null
         }
         Update: {
-          credit_kind?: string
           class_id?: string
           coach_credit?: boolean
           created_at?: string
+          credit_kind?: string
+          guest_name?: string | null
+          guest_phone?: string | null
           id?: string
           seat_number?: number | null
           status?: string
           tokens_spent?: number
           user_id?: string | null
-          guest_name?: string | null
-          guest_phone?: string | null
           waitlisted_at?: string | null
         }
         Relationships: [
@@ -143,9 +143,9 @@ export type Database = {
       }
       class_types: {
         Row: {
-          credit_kind: string | null
           active: boolean
           created_at: string
+          credit_kind: string | null
           default_capacity: number | null
           description: string
           id: string
@@ -154,9 +154,9 @@ export type Database = {
           sort_order: number
         }
         Insert: {
-          credit_kind?: string | null
           active?: boolean
           created_at?: string
+          credit_kind?: string | null
           default_capacity?: number | null
           description?: string
           id?: string
@@ -165,9 +165,9 @@ export type Database = {
           sort_order?: number
         }
         Update: {
-          credit_kind?: string | null
           active?: boolean
           created_at?: string
+          credit_kind?: string | null
           default_capacity?: number | null
           description?: string
           id?: string
@@ -450,8 +450,8 @@ export type Database = {
       }
       credit_lots: {
         Row: {
-          credit_kind: string
           created_at: string
+          credit_kind: string
           expires_at: string | null
           granted: number
           id: string
@@ -462,8 +462,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          credit_kind?: string
           created_at?: string
+          credit_kind?: string
           expires_at?: string | null
           granted: number
           id?: string
@@ -474,8 +474,8 @@ export type Database = {
           user_id: string
         }
         Update: {
-          credit_kind?: string
           created_at?: string
+          credit_kind?: string
           expires_at?: string | null
           granted?: number
           id?: string
@@ -860,6 +860,8 @@ export type Database = {
           error: string | null
           id: string
           items: Json
+          other_cents: number
+          other_method: string | null
           pinpad_request_id: string | null
           plans: Json
           refund_amount_cents: number | null
@@ -886,6 +888,8 @@ export type Database = {
           error?: string | null
           id?: string
           items?: Json
+          other_cents?: number
+          other_method?: string | null
           pinpad_request_id?: string | null
           plans?: Json
           refund_amount_cents?: number | null
@@ -912,6 +916,8 @@ export type Database = {
           error?: string | null
           id?: string
           items?: Json
+          other_cents?: number
+          other_method?: string | null
           pinpad_request_id?: string | null
           plans?: Json
           refund_amount_cents?: number | null
@@ -1018,32 +1024,32 @@ export type Database = {
       }
       profiles: {
         Row: {
-          birth_date: string | null
-          health_notes: string | null
           admin_notes: string
+          birth_date: string | null
           created_at: string
           email: string
           full_name: string
+          health_notes: string | null
           id: string
           phone: string | null
         }
         Insert: {
-          birth_date?: string | null
-          health_notes?: string | null
           admin_notes?: string
+          birth_date?: string | null
           created_at?: string
           email?: string
           full_name?: string
+          health_notes?: string | null
           id: string
           phone?: string | null
         }
         Update: {
-          birth_date?: string | null
-          health_notes?: string | null
           admin_notes?: string
+          birth_date?: string | null
           created_at?: string
           email?: string
           full_name?: string
+          health_notes?: string | null
           id?: string
           phone?: string | null
         }
@@ -1286,6 +1292,7 @@ export type Database = {
       staff_profiles: {
         Row: {
           active: boolean
+          class_credits_enabled: boolean
           color: string | null
           created_at: string
           email: string
@@ -1297,10 +1304,10 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           user_id: string | null
           weekly_class_credits: number
-          class_credits_enabled: boolean
         }
         Insert: {
           active?: boolean
+          class_credits_enabled?: boolean
           color?: string | null
           created_at?: string
           email?: string
@@ -1312,10 +1319,10 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
           weekly_class_credits?: number
-          class_credits_enabled?: boolean
         }
         Update: {
           active?: boolean
+          class_credits_enabled?: boolean
           color?: string | null
           created_at?: string
           email?: string
@@ -1327,7 +1334,6 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string | null
           weekly_class_credits?: number
-          class_credits_enabled?: boolean
         }
         Relationships: []
       }
@@ -1374,9 +1380,9 @@ export type Database = {
       }
       token_ledger: {
         Row: {
-          credit_kind: string
           created_at: string
           created_by: string | null
+          credit_kind: string
           delta: number
           id: string
           reason: string
@@ -1384,9 +1390,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          credit_kind?: string
           created_at?: string
           created_by?: string | null
+          credit_kind?: string
           delta: number
           id?: string
           reason?: string
@@ -1394,9 +1400,9 @@ export type Database = {
           user_id: string
         }
         Update: {
-          credit_kind?: string
           created_at?: string
           created_by?: string | null
+          credit_kind?: string
           delta?: number
           id?: string
           reason?: string
@@ -1415,7 +1421,6 @@ export type Database = {
       }
       token_plans: {
         Row: {
-          credit_kind: string
           active: boolean
           available_from: string | null
           available_until: string | null
@@ -1423,6 +1428,7 @@ export type Database = {
           clip_recurring_link_url: string | null
           compare_at_price_cents: number | null
           created_at: string
+          credit_kind: string
           currency: string
           daily_class_limit: number | null
           description: string
@@ -1448,7 +1454,6 @@ export type Database = {
           welcome_gift: boolean
         }
         Insert: {
-          credit_kind?: string
           active?: boolean
           available_from?: string | null
           available_until?: string | null
@@ -1456,6 +1461,7 @@ export type Database = {
           clip_recurring_link_url?: string | null
           compare_at_price_cents?: number | null
           created_at?: string
+          credit_kind?: string
           currency?: string
           daily_class_limit?: number | null
           description?: string
@@ -1481,7 +1487,6 @@ export type Database = {
           welcome_gift?: boolean
         }
         Update: {
-          credit_kind?: string
           active?: boolean
           available_from?: string | null
           available_until?: string | null
@@ -1489,6 +1494,7 @@ export type Database = {
           clip_recurring_link_url?: string | null
           compare_at_price_cents?: number | null
           created_at?: string
+          credit_kind?: string
           currency?: string
           daily_class_limit?: number | null
           description?: string
@@ -1688,20 +1694,57 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_add_guest: {
+        Args: {
+          _class_id: string
+          _guest_name: string
+          _guest_phone?: string
+          _seat?: number
+        }
+        Returns: {
+          class_id: string
+          coach_credit: boolean
+          created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string | null
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_adjust_tokens: {
-        Args: { _delta: number; _reason: string; _user_id: string }
+        Args: {
+          _credit_kind?: string
+          _delta: number
+          _reason: string
+          _user_id: string
+        }
         Returns: number
       }
       admin_book_class: {
         Args: { _class_id: string; _seat?: number; _user_id: string }
         Returns: {
           class_id: string
+          coach_credit: boolean
           created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           seat_number: number | null
           status: string
           tokens_spent: number
-          user_id: string
+          user_id: string | null
           waitlisted_at: string | null
         }
         SetofOptions: {
@@ -1715,17 +1758,22 @@ export type Database = {
         Args: { _payment_method: string; _plan_id: string; _user_id: string }
         Returns: string
       }
+      birthday_in_year: { Args: { _bd: string; _y: number }; Returns: string }
       book_class:
         | {
             Args: { _class_id: string }
             Returns: {
               class_id: string
+              coach_credit: boolean
               created_at: string
+              credit_kind: string
+              guest_name: string | null
+              guest_phone: string | null
               id: string
               seat_number: number | null
               status: string
               tokens_spent: number
-              user_id: string
+              user_id: string | null
               waitlisted_at: string | null
             }
             SetofOptions: {
@@ -1739,12 +1787,16 @@ export type Database = {
             Args: { _class_id: string; _seat?: number; _use_credits?: boolean }
             Returns: {
               class_id: string
+              coach_credit: boolean
               created_at: string
+              credit_kind: string
+              guest_name: string | null
+              guest_phone: string | null
               id: string
               seat_number: number | null
               status: string
               tokens_spent: number
-              user_id: string
+              user_id: string | null
               waitlisted_at: string | null
             }
             SetofOptions: {
@@ -1755,16 +1807,21 @@ export type Database = {
             }
           }
       booking_window_end: { Args: never; Returns: string }
+      can_view_coach: { Args: { _coach_id: string }; Returns: boolean }
       cancel_booking: {
         Args: { _booking_id: string }
         Returns: {
           class_id: string
+          coach_credit: boolean
           created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           seat_number: number | null
           status: string
           tokens_spent: number
-          user_id: string
+          user_id: string | null
           waitlisted_at: string | null
         }
         SetofOptions: {
@@ -1774,6 +1831,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      class_credit_kind: { Args: { _class_id: string }; Returns: string }
       class_occupancy_batch: {
         Args: { _class_ids: string[] }
         Returns: {
@@ -1785,52 +1843,88 @@ export type Database = {
       class_seats_taken: { Args: { _class_id: string }; Returns: number }
       class_taken_seats: { Args: { _class_id: string }; Returns: number[] }
       class_waitlist_count: { Args: { _class_id: string }; Returns: number }
+      clear_check_in: { Args: { _booking_id: string }; Returns: boolean }
       client_place_order:
         | { Args: { _items: Json }; Returns: string }
         | { Args: { _items: Json; _note?: string }; Returns: string }
+      coach_book_class: {
+        Args: { _class_id: string; _seat?: number }
+        Returns: {
+          class_id: string
+          coach_credit: boolean
+          created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string | null
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      coach_cancel_booking: {
+        Args: { _booking_id: string }
+        Returns: {
+          class_id: string
+          coach_credit: boolean
+          created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string | null
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       coach_class_roster: {
         Args: { _class_id: string }
         Returns: {
           birthday_soon: boolean
           booking_id: string
           checked_in: boolean
-          checkin_status: string | null
+          checkin_status: string
           first_visit: boolean
           full_name: string
-          health_notes: string | null
+          health_notes: string
           is_guest: boolean
           seat_number: number
           status: string
           visits: number
         }[]
       }
-      coach_insights: {
-        Args: { _coach_id: string; _from: string; _to: string }
+      coach_credit_status: { Args: never; Returns: Json }
+      coach_credit_usage: {
+        Args: { _from: string; _to: string }
         Returns: Json
       }
-      coach_book_class: {
-        Args: { _class_id: string; _seat?: number | null }
-        Returns: Database["public"]["Tables"]["bookings"]["Row"]
+      coach_credits_used: {
+        Args: { _user_id: string; _week: string }
+        Returns: number
       }
-      coach_cancel_booking: {
-        Args: { _booking_id: string }
-        Returns: Database["public"]["Tables"]["bookings"]["Row"]
-      }
-      coach_credit_status: {
-        Args: never
+      coach_insights: {
+        Args: { _coach_id: string; _from: string; _to: string }
         Returns: Json
       }
       coach_pay_summary: {
         Args: { _coach_id: string; _from: string; _to: string }
         Returns: Json
-      }
-      coach_credit_usage: {
-        Args: { _from: string; _to: string }
-        Returns: Json
-      }
-      set_client_details: {
-        Args: { _user_id: string; _birth_date: string | null; _health_notes: string | null }
-        Returns: undefined
       }
       coach_public_schedule: {
         Args: { _coach_name: string; _days?: number }
@@ -1850,6 +1944,8 @@ export type Database = {
         Args: { _from_month: string; _module_key: string; _to_month: string }
         Returns: number
       }
+      credit_balances: { Args: { _user_id: string }; Returns: Json }
+      days_to_birthday: { Args: { _bd: string; _d: string }; Returns: number }
       fulfill_merch_cart_order: {
         Args: { _external_ref: string; _items: Json; _user_id: string }
         Returns: string
@@ -1879,7 +1975,9 @@ export type Database = {
           coach_name: string
         }[]
       }
+      grant_welcome_gift: { Args: { _user_id: string }; Returns: boolean }
       has_active_membership: { Args: { _user_id: string }; Returns: boolean }
+      has_paid_purchase: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1887,17 +1985,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      insufficient_credit_code: { Args: { _required: string }; Returns: string }
+      is_recovery: { Args: { _user_id: string }; Returns: boolean }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       join_waitlist: {
         Args: { _class_id: string }
         Returns: {
           class_id: string
+          coach_credit: boolean
           created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           seat_number: number | null
           status: string
           tokens_spent: number
-          user_id: string
+          user_id: string | null
           waitlisted_at: string | null
         }
         SetofOptions: {
@@ -1911,12 +2015,16 @@ export type Database = {
         Args: { _booking_id: string }
         Returns: {
           class_id: string
+          coach_credit: boolean
           created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
           id: string
           seat_number: number | null
           status: string
           tokens_spent: number
-          user_id: string
+          user_id: string | null
           waitlisted_at: string | null
         }
         SetofOptions: {
@@ -1965,7 +2073,34 @@ export type Database = {
         Returns: string
       }
       membership_status: { Args: { _user_id: string }; Returns: Json }
+      move_booking: {
+        Args: { _booking_id: string; _target_class_id: string }
+        Returns: {
+          class_id: string
+          coach_credit: boolean
+          created_at: string
+          credit_kind: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          seat_number: number | null
+          status: string
+          tokens_spent: number
+          user_id: string | null
+          waitlisted_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       person_label: { Args: { _user_id: string }; Returns: string }
+      pick_credit_kind: {
+        Args: { _required: string; _user_id: string }
+        Returns: string
+      }
       plan_purchase_block_reason: {
         Args: { _plan_id: string; _user_id: string }
         Returns: string
@@ -2000,6 +2135,15 @@ export type Database = {
         Args: { _id: string; _kind: string }
         Returns: Json
       }
+      pos_search_people: {
+        Args: { _q: string }
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+          team_role: string
+        }[]
+      }
       pos_sell_plans_cash: {
         Args: { _payment_method?: string; _plans: Json; _user_id: string }
         Returns: number
@@ -2020,9 +2164,51 @@ export type Database = {
         Args: { _configured_start?: string; _purchased_at: string }
         Returns: string
       }
+      recovery_add_credits: {
+        Args: {
+          _credit_kind: string
+          _qty: number
+          _reason?: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      recovery_clients: {
+        Args: never
+        Returns: {
+          created_at: string
+          doris_fb: number
+          doris_ul: number
+          email: string
+          full_name: string
+          id: string
+          last_activity: string
+          last_session: string
+          next_session: string
+          phone: string
+        }[]
+      }
+      recovery_sessions: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          booking_id: string
+          checked_in: boolean
+          class_type: string
+          client_email: string
+          client_name: string
+          credit_kind: string
+          price_cents: number
+          starts_at: string
+          status: string
+        }[]
+      }
       redeem_coupon: { Args: { _code: string }; Returns: number }
       refund_booking_credit: {
         Args: { p_booking_id: string; p_reason: string }
+        Returns: undefined
+      }
+      set_client_details: {
+        Args: { _birth_date: string; _health_notes: string; _user_id: string }
         Returns: undefined
       }
       set_schedule_slot_block: {
@@ -2038,7 +2224,12 @@ export type Database = {
         Args: { _from: string; _staff_id: string; _to: string }
         Returns: number
       }
+      studio_week_start: { Args: { _at: string }; Returns: string }
       token_balance: { Args: { _user_id: string }; Returns: number }
+      token_balance_kind: {
+        Args: { _kind: string; _user_id: string }
+        Returns: number
+      }
       user_daily_class_limit: {
         Args: { _at: string; _user_id: string }
         Returns: number

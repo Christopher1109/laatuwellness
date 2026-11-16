@@ -38,10 +38,12 @@ export function ClientDetailsForm({
 
   const save = useMutation({
     mutationFn: async () => {
+      // La función de base de datos recibe NULL para "sin fecha" / "sin notas"
+      // y no tiene valores por defecto, así que hay que enviarlos explícitamente.
       const { error } = await supabase.rpc("set_client_details", {
         _user_id: userId,
-        _birth_date: bd || null,
-        _health_notes: notes.trim() || null,
+        _birth_date: (bd || null) as string,
+        _health_notes: (notes.trim() || null) as string,
       });
       if (error) throw error;
     },
