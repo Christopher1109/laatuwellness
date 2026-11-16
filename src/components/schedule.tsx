@@ -419,7 +419,7 @@ export function Schedule({
       useCredits?: boolean;
     }) => {
       const { error } = coachMode
-        ? await supabase.rpc("coach_book_class", { _class_id: classId, _seat: seat })
+        ? await supabase.rpc("coach_book_class", { _class_id: classId, _seat: seat ?? undefined })
         : await supabase.rpc("book_class", {
             _class_id: classId,
             _seat: seat,
