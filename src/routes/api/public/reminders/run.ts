@@ -17,7 +17,53 @@ export const Route = createFileRoute("/api/public/reminders/run")({
         if (!apiKey) return new Response("RESEND_API_KEY no configurada", { status: 500 });
         const from = process.env["RESEND_FROM"] ?? "LAATU WELLNESS <hola@laatuwellness.com>";
         const replyTo = process.env["RESEND_REPLY_TO"] ?? "lore@laatuwellness.com";
-        const dryRun = new URL(request.url).searchParams.get("dry") === "1";
+        const params = new URL(request.url).searchParams;
+        const dryRun = params.get("dry") === "1";
+
+        // Prueba: manda las 3 plantillas a un correo dado, sin tocar a clientas
+        // ni registrar nada. Solo con la credencial de las tareas programadas.
+        const testTo = params.get("test_to");
+        if (testTo) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testTo)) {
+            return new Response("Correo inválido", { status: 400 });
+          }
+          const sample: ReminderRow = {
+            user_id: "test",
+            email: testTo,
+            full_name: "Prueba",
+            plan_name: "Founders Access",
+            ends_at: new Date(Date.now() + 10 * 86400000).toISOString(),
+            is_founders: true,
+            auto_renew_plan: null,
+          };
+          const variants: ReminderRow[] = [
+            sample,
+            { ...sample, is_founders: false, plan_name: "The Everyday" },
+            { ...sample, auto_renew_plan: "Founders Access · Mensual recurrente" },
+          ];
+          const sent: { template: string; status: number; detail?: string }[] = [];
+          for (const row of variants) {
+            const email = buildReminderEmail(row);
+            const res = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from,
+                to: [testTo],
+                reply_to: replyTo,
+                subject: `[PRUEBA] ${email.subject}`,
+                html: email.html,
+                text: email.text,
+              }),
+            });
+            sent.push({
+              template: email.template,
+              status: res.status,
+              ...(res.ok ? {} : { detail: (await res.text()).slice(0, 300) }),
+            });
+          }
+          return Response.json({ test: true, sent });
+        }
 
         const { data, error } = await admin.rpc("due_membership_reminders");
         if (error) {
