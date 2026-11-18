@@ -109,6 +109,30 @@ export type Database = {
           },
         ]
       }
+      cancellation_policy: {
+        Row: {
+          cancel_hours: number
+          fine_cents: number
+          free_misses: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          cancel_hours?: number
+          fine_cents?: number
+          free_misses?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          cancel_hours?: number
+          fine_cents?: number
+          free_misses?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       check_ins: {
         Row: {
           booking_id: string
@@ -683,6 +707,60 @@ export type Database = {
           },
         ]
       }
+      no_shows: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          cycle_closed: boolean
+          fee_id: string | null
+          id: string
+          kind: string
+          user_id: string
+          waived: boolean
+          waived_at: string | null
+          waived_by: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          cycle_closed?: boolean
+          fee_id?: string | null
+          id?: string
+          kind: string
+          user_id: string
+          waived?: boolean
+          waived_at?: string | null
+          waived_by?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          cycle_closed?: boolean
+          fee_id?: string | null
+          id?: string
+          kind?: string
+          user_id?: string
+          waived?: boolean
+          waived_at?: string | null
+          waived_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_shows_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_shows_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "membership_fees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_adjustments: {
         Row: {
           amount_cents: number
@@ -1052,6 +1130,66 @@ export type Database = {
           health_notes?: string | null
           id?: string
           phone?: string | null
+        }
+        Relationships: []
+      }
+      renewal_opt_outs: {
+        Row: {
+          cycle_end: string
+          decided_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          cycle_end: string
+          decided_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          cycle_end?: string
+          decided_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_cards: {
+        Row: {
+          auto_renew: boolean
+          brand: string
+          consent_accepted_at: string
+          created_at: string
+          customer_id: string
+          last4: string
+          payment_method_id: string
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_renew?: boolean
+          brand?: string
+          consent_accepted_at?: string
+          created_at?: string
+          customer_id: string
+          last4?: string
+          payment_method_id: string
+          provider?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_renew?: boolean
+          brand?: string
+          consent_accepted_at?: string
+          created_at?: string
+          customer_id?: string
+          last4?: string
+          payment_method_id?: string
+          provider?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1441,6 +1579,7 @@ export type Database = {
           membership_starts_at: string | null
           name: string
           new_clients_only: boolean
+          no_show_penalty: boolean
           price_cents: number
           purchasable_once: boolean
           recurring: boolean
@@ -1474,6 +1613,7 @@ export type Database = {
           membership_starts_at?: string | null
           name: string
           new_clients_only?: boolean
+          no_show_penalty?: boolean
           price_cents: number
           purchasable_once?: boolean
           recurring?: boolean
@@ -1507,6 +1647,7 @@ export type Database = {
           membership_starts_at?: string | null
           name?: string
           new_clients_only?: boolean
+          no_show_penalty?: boolean
           price_cents?: number
           purchasable_once?: boolean
           recurring?: boolean
@@ -1946,6 +2087,19 @@ export type Database = {
       }
       credit_balances: { Args: { _user_id: string }; Returns: Json }
       days_to_birthday: { Args: { _bd: string; _d: string }; Returns: number }
+      due_renewals: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          customer_id: string
+          ends_at: string
+          payment_method_id: string
+          plan_id: string
+          plan_name: string
+          renewal_plan_id: string
+          user_id: string
+        }[]
+      }
       fulfill_merch_cart_order: {
         Args: { _external_ref: string; _items: Json; _user_id: string }
         Returns: string
@@ -2073,6 +2227,7 @@ export type Database = {
         Returns: string
       }
       membership_status: { Args: { _user_id: string }; Returns: Json }
+      miss_status: { Args: { _user_id: string }; Returns: Json }
       move_booking: {
         Args: { _booking_id: string; _target_class_id: string }
         Returns: {
@@ -2096,6 +2251,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      opt_out_renewal: { Args: never; Returns: undefined }
       person_label: { Args: { _user_id: string }; Returns: string }
       pick_credit_kind: {
         Args: { _required: string; _user_id: string }
@@ -2207,6 +2363,11 @@ export type Database = {
         Args: { p_booking_id: string; p_reason: string }
         Returns: undefined
       }
+      register_falta: {
+        Args: { _booking_id: string; _kind: string; _user_id: string }
+        Returns: string
+      }
+      renewal_status: { Args: { _user_id: string }; Returns: Json }
       set_client_details: {
         Args: { _birth_date: string; _health_notes: string; _user_id: string }
         Returns: undefined
@@ -2234,6 +2395,8 @@ export type Database = {
         Args: { _at: string; _user_id: string }
         Returns: number
       }
+      waive_membership_fee: { Args: { _fee_id: string }; Returns: undefined }
+      waive_no_show: { Args: { _no_show_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user" | "staff" | "coach" | "recovery"

@@ -225,6 +225,13 @@
       "when": 1793907469772,
       "tag": "0031_clases_semanales_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794960403432,
+      "tag": "0032_cancellation_policy_and_card_renewals",
+      "breakpoints": true
     }
   ]
 }

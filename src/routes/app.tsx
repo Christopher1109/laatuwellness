@@ -18,6 +18,11 @@ import { rememberPostAuthRoute, useStandalone } from "@/hooks/use-standalone";
 import { cn } from "@/lib/utils";
 import { appTeamDestination } from "@/lib/app-team-navigation";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
+import { cancelWarning } from "@/lib/cancellation-policy";
+import { MissStatusBanner } from "@/components/miss-status-banner";
+import { RenewalReminder } from "@/components/renewal-reminder";
+import { processMyRenewal } from "@/utils/payments.functions";
+import { getStripeEnvironment, paymentsConfigured } from "@/lib/stripe";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -60,6 +65,24 @@ const TABS: { key: Tab; label: string; icon: typeof CalendarDays }[] = [
 function AppShell() {
   const { user, loading, rolesLoading, isAdmin, isStaff, isCoach } = useAuth();
   const [tab, setTab] = useState<Tab>("horarios");
+  const qc = useQueryClient();
+
+  // Renovación perezosa: si su membresía venció con tarjeta guardada y
+  // renovación automática, se cobra sola al abrir la app (una vez por sesión).
+  useEffect(() => {
+    if (!user || !paymentsConfigured()) return;
+    if (sessionStorage.getItem("laatu:renewal-checked")) return;
+    sessionStorage.setItem("laatu:renewal-checked", "1");
+    processMyRenewal({ data: { environment: getStripeEnvironment() } })
+      .then((r) => {
+        if (r.charged > 0) {
+          toast.success("Tu membresía se renovó automáticamente.");
+          void qc.invalidateQueries({ queryKey: ["membership-status"] });
+        }
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   if (loading || rolesLoading) {
     return (
@@ -77,6 +100,7 @@ function AppShell() {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppTopBar />
+      <RenewalReminder userId={user.id} />
       <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         {tab === "horarios" ? <HorariosTab /> : null}
         {tab === "reservas" ? <ReservasTab onGoToSchedule={() => setTab("horarios")} /> : null}
@@ -260,16 +284,7 @@ function relativeDay(d: Date) {
 
 /** Qué pasa si cancela ahora, según la política del estudio. */
 function cancelPolicy(startsAt: Date, tokensSpent: number) {
-  const hours = (startsAt.getTime() - Date.now()) / 3600000;
-  if (hours >= 12) {
-    return tokensSpent > 0
-      ? "Faltan más de 12 horas: se te regresa tu crédito."
-      : "Faltan más de 12 horas: puedes cancelar sin problema.";
-  }
-  if (hours < 2) {
-    return "Faltan menos de 2 horas: el crédito no se regresa y, si tienes membresía, se aplica un cargo de $150.";
-  }
-  return "Faltan menos de 12 horas: el crédito ya no se regresa.";
+  return cancelWarning({ startsAt, tokensSpent });
 }
 
 function ReservasTab({ onGoToSchedule }: { onGoToSchedule: () => void }) {
@@ -489,7 +504,8 @@ function ReservasTab({ onGoToSchedule }: { onGoToSchedule: () => void }) {
 
   return (
     <div className="px-5 py-6">
-      <div className="grid grid-cols-3 gap-1 rounded-full bg-muted p-1">
+      <MissStatusBanner userId={user?.id} />
+      <div className="mt-4 grid grid-cols-3 gap-1 rounded-full bg-muted p-1">
         {segments.map(([key, label, count]) => (
           <button
             key={key}

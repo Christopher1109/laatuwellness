@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { describeError } from "@/lib/describe-error";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
 
@@ -106,6 +107,107 @@ export const chargeMembershipFee = createServerFn({ method: "POST" })
     } catch (error) {
       return { charged: false, error: getStripeErrorMessage(error) };
     }
+  });
+
+// Guardar tarjeta desde el perfil: Checkout en modo setup (no cobra nada).
+// El webhook checkout.session.completed guarda solo el identificador del
+// método de pago; nunca guardamos datos de la tarjeta.
+export const createCardSetupSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { returnUrl: string; environment: StripeEnv; consentAccepted: boolean }) => {
+    if (!data.consentAccepted) {
+      throw new Error("Debes aceptar el cobro automático y la política de cancelación.");
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<CheckoutSessionResult> => {
+    try {
+      const stripe = createStripeClient(data.environment);
+      const email = (context.claims as { email?: string } | undefined)?.email;
+      const customerId = await resolveOrCreateCustomer(stripe, {
+        userId: context.userId,
+        ...(email ? { email } : {}),
+      });
+      const session = await stripe.checkout.sessions.create({
+        mode: "setup",
+        ui_mode: "embedded_page",
+        return_url: data.returnUrl,
+        customer: customerId,
+        payment_method_types: ["card"],
+        metadata: {
+          kind: "card_setup",
+          userId: context.userId,
+          consent_at: new Date().toISOString(),
+        },
+      });
+      return { clientSecret: session.clientSecret ?? "" };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
+  });
+
+// La clienta paga su propia multa/cargo pendiente con su tarjeta guardada.
+export const payMyMembershipFee = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { membershipFeeId: string; environment: StripeEnv }) => {
+    if (!/^[a-zA-Z0-9-]+$/.test(data.membershipFeeId)) throw new Error("Invalid membershipFeeId");
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ charged: boolean; error?: string }> => {
+    const { data: fee } = await context.supabase
+      .from("membership_fees")
+      .select("id, user_id, amount_cents, status, reason")
+      .eq("id", data.membershipFeeId)
+      .maybeSingle();
+    if (!fee || fee.user_id !== context.userId) return { charged: false, error: "Cargo no encontrado" };
+    if (fee.status !== "pending_charge") return { charged: false, error: "Este cargo ya fue procesado" };
+
+    const { data: card } = await context.supabase
+      .from("saved_cards")
+      .select("customer_id, payment_method_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!card) {
+      return { charged: false, error: "No tienes una tarjeta guardada. Regístrala en tu perfil." };
+    }
+
+    try {
+      const stripe = createStripeClient(data.environment);
+      await stripe.paymentIntents.create({
+        amount: fee.amount_cents,
+        currency: "mxn",
+        customer: card.customer_id,
+        payment_method: card.payment_method_id,
+        off_session: true,
+        confirm: true,
+        description: fee.reason || "Cargo Läätu Wellness",
+      });
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin
+        .from("membership_fees")
+        .update({ status: "charged", charged_at: new Date().toISOString() })
+        .eq("id", fee.id);
+      return { charged: true };
+    } catch (error) {
+      return { charged: false, error: getStripeErrorMessage(error) };
+    }
+  });
+
+// Renovación perezosa: al entrar a la app, si su membresía ya venció y tiene
+// tarjeta con renovación automática, se cobra y se renueva el ciclo.
+export const processMyRenewal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: StripeEnv }) => data)
+  .handler(async ({ data, context }): Promise<{ processed: number; charged: number }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { findDueRenewals, chargeRenewal } = await import("@/lib/renewals.server");
+    const due = await findDueRenewals(supabaseAdmin, context.userId);
+    let charged = 0;
+    for (const renewal of due) {
+      const result = await chargeRenewal(supabaseAdmin, data.environment, renewal);
+      if (result.charged) charged += 1;
+    }
+    return { processed: due.length, charged };
   });
 
 export const createCheckoutSession = createServerFn({ method: "POST" })

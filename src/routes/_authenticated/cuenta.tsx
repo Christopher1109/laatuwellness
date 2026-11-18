@@ -1,7 +1,7 @@
 import { CreditLotsSummary } from "@/components/credit-lots";
 import { classTitle } from "@/lib/class-focus";
 import { MembershipStatusCard, useMembershipStatus } from "@/components/membership-status";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,6 +16,16 @@ import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan
 import { usePlanLocks } from "@/hooks/use-plan-locks";
 import { CouponRedeemBox } from "@/components/coupon-redeem";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
+import { MissStatusBanner } from "@/components/miss-status-banner";
+import { PaymentMethodCard } from "@/components/payment-method-card";
+import { RenewalReminder } from "@/components/renewal-reminder";
+import {
+  DEFAULT_POLICY,
+  cancelWarning,
+  type CancellationPolicy,
+} from "@/lib/cancellation-policy";
+import { processMyRenewal } from "@/utils/payments.functions";
+import { getStripeEnvironment, paymentsConfigured } from "@/lib/stripe";
 
 // Tipo de clase primero; la coach solo si ya está definida (no "por anunciar").
 function classLine(c: {
@@ -66,7 +76,54 @@ function Cuenta() {
   const qc = useQueryClient();
   const [signature, setSignature] = useState<string | null>(null);
   const [buying, setBuying] = useState<CheckoutPlan | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const planLock = usePlanLocks(user?.id);
+
+  const policy = useQuery({
+    queryKey: ["cancellation-policy"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cancellation_policy")
+        .select("cancel_hours, free_misses, fine_cents")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as CancellationPolicy | null) ?? DEFAULT_POLICY;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // Renovación perezosa: si su membresía venció con tarjeta guardada y
+  // renovación automática, se cobra sola al entrar (una vez por sesión).
+  useEffect(() => {
+    if (!user || !paymentsConfigured()) return;
+    if (sessionStorage.getItem("laatu:renewal-checked")) return;
+    sessionStorage.setItem("laatu:renewal-checked", "1");
+    processMyRenewal({ data: { environment: getStripeEnvironment() } })
+      .then((r) => {
+        if (r.charged > 0) {
+          toast.success("Tu membresía se renovó automáticamente.");
+          void qc.invalidateQueries({ queryKey: ["membership-status"] });
+          void qc.invalidateQueries({ queryKey: ["transactions"] });
+        }
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Aviso al volver de registrar la tarjeta (Checkout en modo setup).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tarjeta") === "guardada") {
+      toast.success("Tu tarjeta quedó registrada. Tu membresía se renovará automáticamente.");
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => {
+        void qc.invalidateQueries({ queryKey: ["saved-card"] });
+        void qc.invalidateQueries({ queryKey: ["renewal-status"] });
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const profile = useQuery({
     queryKey: ["profile", user?.id],
@@ -199,8 +256,10 @@ function Cuenta() {
     },
     onSuccess: () => {
       toast.success("Reserva cancelada.");
+      setConfirmingCancel(null);
       void qc.invalidateQueries({ queryKey: ["bookings"] });
       void qc.invalidateQueries({ queryKey: ["balance"] });
+      void qc.invalidateQueries({ queryKey: ["miss-status"] });
     },
     onError: () => toast.error("No pudimos cancelar la reserva."),
   });
@@ -244,6 +303,7 @@ function Cuenta() {
 
   return (
     <SiteLayout>
+      <RenewalReminder userId={user?.id} />
       {showWelcome ? (
         <section className="border-b border-border bg-muted/40">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
@@ -291,7 +351,13 @@ function Cuenta() {
           <div className="mt-6 grid max-w-3xl gap-4 sm:grid-cols-2">
             {membership.data ? <MembershipStatusCard userId={user?.id} user={user} /> : null}
             <CreditLotsSummary userId={user?.id} />
+            {user ? <PaymentMethodCard userId={user.id} /> : null}
           </div>
+          {user ? (
+            <div className="mt-6 max-w-3xl">
+              <MissStatusBanner userId={user.id} />
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -404,12 +470,39 @@ function Cuenta() {
                     </p>
                     <p className="text-sm text-muted-foreground">{classLine(b.classes!)}</p>
                   </div>
-                  <button
-                    onClick={() => cancel.mutate(b.id)}
-                    className="border border-input px-5 py-2 text-[0.7rem] uppercase tracking-[0.16em] hover:border-foreground"
-                  >
-                    Cancelar
-                  </button>
+                  {confirmingCancel === b.id ? (
+                    <div className="w-full border border-border bg-muted/40 p-4">
+                      <p className="text-sm">
+                        {cancelWarning({
+                          startsAt: b.classes!.starts_at,
+                          tokensSpent: b.tokens_spent,
+                          policy: policy.data ?? DEFAULT_POLICY,
+                        })}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => cancel.mutate(b.id)}
+                          disabled={cancel.isPending}
+                          className="bg-foreground px-4 py-2 text-[0.65rem] uppercase tracking-[0.16em] text-background disabled:opacity-50"
+                        >
+                          Sí, cancelar
+                        </button>
+                        <button
+                          onClick={() => setConfirmingCancel(null)}
+                          className="border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.16em] hover:border-foreground"
+                        >
+                          No, mantener
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmingCancel(b.id)}
+                      className="border border-input px-5 py-2 text-[0.7rem] uppercase tracking-[0.16em] hover:border-foreground"
+                    >
+                      Cancelar
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
