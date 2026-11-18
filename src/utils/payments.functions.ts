@@ -114,14 +114,35 @@ export const chargeMembershipFee = createServerFn({ method: "POST" })
 // método de pago; nunca guardamos datos de la tarjeta.
 export const createCardSetupSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { returnUrl: string; environment: StripeEnv; consentAccepted: boolean }) => {
-    if (!data.consentAccepted) {
-      throw new Error("Debes aceptar el cobro automático y la política de cancelación.");
-    }
-    return data;
-  })
+  .inputValidator(
+    (data: {
+      returnUrl: string;
+      environment: StripeEnv;
+      consentAccepted: boolean;
+      /** Plan que se renovará automáticamente con esta tarjeta (p. ej. Founders mensual). */
+      renewalPlanId?: string;
+    }) => {
+      if (!data.consentAccepted) {
+        throw new Error("Debes aceptar el cobro automático y la política de cancelación.");
+      }
+      if (data.renewalPlanId && !/^[a-f0-9-]{36}$/i.test(data.renewalPlanId)) {
+        throw new Error("Plan de renovación inválido");
+      }
+      return data;
+    },
+  )
   .handler(async ({ data, context }): Promise<CheckoutSessionResult> => {
     try {
+      if (data.renewalPlanId) {
+        const { data: plan } = await context.supabase
+          .from("token_plans")
+          .select("id, active, validity_months")
+          .eq("id", data.renewalPlanId)
+          .maybeSingle();
+        if (!plan?.active || plan.validity_months == null) {
+          return { error: "Este plan no se puede renovar automáticamente." };
+        }
+      }
       const stripe = createStripeClient(data.environment);
       const email = (context.claims as { email?: string } | undefined)?.email;
       const customerId = await resolveOrCreateCustomer(stripe, {
@@ -138,6 +159,7 @@ export const createCardSetupSession = createServerFn({ method: "POST" })
           kind: "card_setup",
           userId: context.userId,
           consent_at: new Date().toISOString(),
+          ...(data.renewalPlanId ? { renewalPlanId: data.renewalPlanId } : {}),
         },
       });
       return { clientSecret: session.client_secret ?? "" };
@@ -156,7 +178,7 @@ export const payMyMembershipFee = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ charged: boolean; error?: string }> => {
     const { data: fee } = await context.supabase
       .from("membership_fees")
-      .select("id, user_id, amount_cents, status, reason")
+      .select("id, user_id, amount_cents, status, reason, kind, renewal_plan_id")
       .eq("id", data.membershipFeeId)
       .maybeSingle();
     if (!fee || fee.user_id !== context.userId) return { charged: false, error: "Cargo no encontrado" };
@@ -185,8 +207,10 @@ export const payMyMembershipFee = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await supabaseAdmin
         .from("membership_fees")
-        .update({ status: "charged", charged_at: new Date().toISOString() })
+        .update({ status: "charged", charged_at: new Date().toISOString(), paid_method: "tarjeta" })
         .eq("id", fee.id);
+      const { activateRenewalFee } = await import("@/lib/renewals.server");
+      await activateRenewalFee(supabaseAdmin, fee);
       return { charged: true };
     } catch (error) {
       return { charged: false, error: getStripeErrorMessage(error) };
@@ -198,13 +222,13 @@ export const payMyMembershipFee = createServerFn({ method: "POST" })
 export const processMyRenewal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) => data)
-  .handler(async ({ data, context }): Promise<{ processed: number; charged: number }> => {
+  .handler(async ({ context }): Promise<{ processed: number; charged: number }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { findDueRenewals, chargeRenewal } = await import("@/lib/renewals.server");
     const due = await findDueRenewals(supabaseAdmin, context.userId);
     let charged = 0;
     for (const renewal of due) {
-      const result = await chargeRenewal(supabaseAdmin, data.environment, renewal);
+      const result = await chargeRenewal(supabaseAdmin, renewal);
       if (result.charged) charged += 1;
     }
     return { processed: due.length, charged };

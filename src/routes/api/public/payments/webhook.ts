@@ -114,6 +114,9 @@ async function saveCardFromSetup(session: any, env: StripeEnv) {
     brand: paymentMethod.card?.brand ?? "",
     last4: paymentMethod.card?.last4 ?? "",
     auto_renew: true,
+    // "Cambiar tarjeta" no trae plan: se conserva el que ya había elegido.
+    ...(session.metadata?.renewalPlanId ? { renewal_plan_id: session.metadata.renewalPlanId } : {}),
+    stripe_env: env,
     consent_accepted_at: session.metadata?.consent_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

@@ -584,6 +584,10 @@ export type Database = {
           reason: string
           status: string
           user_id: string
+          kind: string
+          renewal_plan_id: string | null
+          cycle_end: string | null
+          paid_method: string | null
         }
         Insert: {
           amount_cents?: number
@@ -595,6 +599,10 @@ export type Database = {
           reason?: string
           status?: string
           user_id: string
+          kind?: string
+          renewal_plan_id?: string | null
+          cycle_end?: string | null
+          paid_method?: string | null
         }
         Update: {
           amount_cents?: number
@@ -606,6 +614,10 @@ export type Database = {
           reason?: string
           status?: string
           user_id?: string
+          kind?: string
+          renewal_plan_id?: string | null
+          cycle_end?: string | null
+          paid_method?: string | null
         }
         Relationships: [
           {
@@ -1166,6 +1178,8 @@ export type Database = {
           provider: string
           updated_at: string
           user_id: string
+          renewal_plan_id: string | null
+          stripe_env: string
         }
         Insert: {
           auto_renew?: boolean
@@ -1178,6 +1192,8 @@ export type Database = {
           provider?: string
           updated_at?: string
           user_id: string
+          renewal_plan_id?: string | null
+          stripe_env?: string
         }
         Update: {
           auto_renew?: boolean
@@ -1190,6 +1206,8 @@ export type Database = {
           provider?: string
           updated_at?: string
           user_id?: string
+          renewal_plan_id?: string | null
+          stripe_env?: string
         }
         Relationships: []
       }
@@ -1591,6 +1609,7 @@ export type Database = {
           tokens: number
           validity_days: number | null
           welcome_gift: boolean
+          validity_months: number | null
         }
         Insert: {
           active?: boolean
@@ -1625,6 +1644,7 @@ export type Database = {
           tokens: number
           validity_days?: number | null
           welcome_gift?: boolean
+          validity_months?: number | null
         }
         Update: {
           active?: boolean
@@ -1659,6 +1679,7 @@ export type Database = {
           tokens?: number
           validity_days?: number | null
           welcome_gift?: boolean
+          validity_months?: number | null
         }
         Relationships: [
           {

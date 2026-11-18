@@ -29,6 +29,7 @@ import { Route as ProgramasKeyRouteImport } from './routes/programas/$key'
 import { Route as ApiPublicClipPinpadWebhookRouteImport } from './routes/api/public/clip/pinpad-webhook'
 import { Route as ApiPublicClipWebhookRouteImport } from './routes/api/public/clip/webhook'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicRemindersRunRouteImport } from './routes/api/public/reminders/run'
 import { Route as ApiPublicRenewalsRunRouteImport } from './routes/api/public/renewals/run'
 
 const IndexRoute = IndexRouteImport.update({
@@ -132,6 +133,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRemindersRunRoute = ApiPublicRemindersRunRouteImport.update({
+  id: '/api/public/reminders/run',
+  path: '/api/public/reminders/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRenewalsRunRoute = ApiPublicRenewalsRunRouteImport.update({
   id: '/api/public/renewals/run',
   path: '/api/public/renewals/run',
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/reminders/run': typeof ApiPublicRemindersRunRoute
   '/api/public/renewals/run': typeof ApiPublicRenewalsRunRoute
 }
 export interface FileRoutesByTo {
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/reminders/run': typeof ApiPublicRemindersRunRoute
   '/api/public/renewals/run': typeof ApiPublicRenewalsRunRoute
 }
 export interface FileRoutesById {
@@ -204,6 +212,7 @@ export interface FileRoutesById {
   '/api/public/clip/pinpad-webhook': typeof ApiPublicClipPinpadWebhookRoute
   '/api/public/clip/webhook': typeof ApiPublicClipWebhookRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/reminders/run': typeof ApiPublicRemindersRunRoute
   '/api/public/renewals/run': typeof ApiPublicRenewalsRunRoute
 }
 export interface FileRouteTypes {
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/reminders/run'
     | '/api/public/renewals/run'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -250,6 +260,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/reminders/run'
     | '/api/public/renewals/run'
   id:
     | '__root__'
@@ -273,6 +284,7 @@ export interface FileRouteTypes {
     | '/api/public/clip/pinpad-webhook'
     | '/api/public/clip/webhook'
     | '/api/public/payments/webhook'
+    | '/api/public/reminders/run'
     | '/api/public/renewals/run'
   fileRoutesById: FileRoutesById
 }
@@ -294,6 +306,7 @@ export interface RootRouteChildren {
   ApiPublicClipPinpadWebhookRoute: typeof ApiPublicClipPinpadWebhookRoute
   ApiPublicClipWebhookRoute: typeof ApiPublicClipWebhookRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicRemindersRunRoute: typeof ApiPublicRemindersRunRoute
   ApiPublicRenewalsRunRoute: typeof ApiPublicRenewalsRunRoute
 }
 
@@ -439,6 +452,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/reminders/run': {
+      id: '/api/public/reminders/run'
+      path: '/api/public/reminders/run'
+      fullPath: '/api/public/reminders/run'
+      preLoaderRoute: typeof ApiPublicRemindersRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/renewals/run': {
       id: '/api/public/renewals/run'
       path: '/api/public/renewals/run'
@@ -482,6 +502,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicClipPinpadWebhookRoute: ApiPublicClipPinpadWebhookRoute,
   ApiPublicClipWebhookRoute: ApiPublicClipWebhookRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicRemindersRunRoute: ApiPublicRemindersRunRoute,
   ApiPublicRenewalsRunRoute: ApiPublicRenewalsRunRoute,
 }
 export const routeTree = rootRouteImport

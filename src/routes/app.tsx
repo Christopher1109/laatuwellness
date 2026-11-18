@@ -100,7 +100,7 @@ function AppShell() {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppTopBar />
-      <RenewalReminder userId={user.id} />
+      <RenewalReminder userId={user.id} user={user} />
       <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))]">
         {tab === "horarios" ? <HorariosTab /> : null}
         {tab === "reservas" ? <ReservasTab onGoToSchedule={() => setTab("horarios")} /> : null}

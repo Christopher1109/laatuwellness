@@ -31,13 +31,14 @@ export function useSavedCard(userId: string | undefined) {
 }
 
 /** Checkout embebido en modo "setup": registra la tarjeta sin cobrar nada. */
-export function CardSetupCheckout() {
+export function CardSetupCheckout({ renewalPlanId }: { renewalPlanId?: string } = {}) {
   const fetchClientSecret = async (): Promise<string> => {
     const result = await createCardSetupSession({
       data: {
         returnUrl: `${window.location.origin}/cuenta?tarjeta=guardada`,
         environment: getStripeEnvironment(),
         consentAccepted: true,
+        ...(renewalPlanId ? { renewalPlanId } : {}),
       },
     });
     if ("error" in result) throw new Error(result.error);
@@ -55,7 +56,7 @@ export function CardSetupCheckout() {
 }
 
 const CONSENT_TEXT =
-  "Acepto el cobro automático de mi membresía en cada renovación y la política de cancelación: puedo cancelar sin costo hasta 12 h antes de la clase; a la 3ª falta se cobra una multa de $150 a esta tarjeta.";
+  "Acepto que esta tarjeta se use para la renovación automática que yo elija (por el monto y periodo de ese plan) y para la política de cancelación: puedo cancelar sin costo hasta 12 h antes de la clase; a la 3ª falta se cobra una multa de $150 a esta tarjeta.";
 
 /** Sección "Método de pago" del perfil: tarjeta guardada y renovación automática. */
 export function PaymentMethodCard({ userId }: { userId: string }) {

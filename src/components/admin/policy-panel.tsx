@@ -210,6 +210,7 @@ function MissesReport() {
       const { data: fees, error: e2 } = await supabase
         .from("membership_fees")
         .select("id, user_id, amount_cents, status, reason, created_at")
+        .eq("kind", "multa")
         .gte("created_at", fromIso)
         .lte("created_at", toIso)
         .order("created_at", { ascending: false });
@@ -420,7 +421,7 @@ export function ClientPolicySection({ clientId }: { clientId: string }) {
   });
 
   const invalidate = () => {
-    for (const key of ["miss-status", "client-no-shows", "client-fees"]) {
+    for (const key of ["miss-status", "client-no-shows", "client-fees", "renewal-status", "client-freezes"]) {
       void qc.invalidateQueries({ queryKey: [key, clientId] });
     }
   };
@@ -449,6 +450,65 @@ export function ClientPolicySection({ clientId }: { clientId: string }) {
     onError: (e) => toast.error(describeError(e, "No se pudo condonar la multa.")),
   });
 
+  const paidAtReception = useMutation({
+    mutationFn: async (id: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva aún no está en los tipos generados
+      const { error } = await (supabase.rpc as any)("mark_fee_paid_at_reception", { _fee_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Marcado como pagado en recepción.");
+      invalidate();
+    },
+    onError: (e) => toast.error(describeError(e, "No se pudo registrar el pago.")),
+  });
+
+  const freezes = useQuery({
+    queryKey: ["client-freezes", clientId],
+    queryFn: async (): Promise<{ days: number; created_at: string }[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabla nueva aún no está en los tipos generados
+      const { data, error } = await (supabase.from as any)("membership_freezes")
+        .select("days, created_at")
+        .eq("user_id", clientId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as { days: number; created_at: string }[];
+    },
+  });
+  const yearAgo = Date.now() - 365 * 86400000;
+  const freezeUsed = (freezes.data ?? [])
+    .filter((f) => new Date(f.created_at).getTime() > yearAgo)
+    .reduce((sum, f) => sum + f.days, 0);
+  const freezeLeft = Math.max(0, 14 - freezeUsed);
+  const [freezeDays, setFreezeDays] = useState(7);
+
+  const freeze = useMutation({
+    mutationFn: async (days: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva aún no está en los tipos generados
+      const { data, error } = await (supabase.rpc as any)("freeze_membership", {
+        _user_id: clientId,
+        _days: days,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (newEnd) => {
+      toast.success(`Membresía congelada. Nuevo vencimiento: ${fmtDate(newEnd)}.`);
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ["membership-status", clientId] });
+    },
+    onError: (e) => {
+      const msg = String((e as { message?: string })?.message ?? "");
+      toast.error(
+        msg.includes("FREEZE_LIMIT")
+          ? "Supera las 2 semanas de congelamiento permitidas al año."
+          : msg.includes("NO_ACTIVE_MEMBERSHIP")
+            ? "La clienta no tiene una membresía activa."
+            : describeError(e, "No se pudo congelar la membresía."),
+      );
+    },
+  });
+
   const count = status.data?.count ?? 0;
   const card = renewal.data?.has_card ? renewal.data : null;
 
@@ -475,7 +535,32 @@ export function ClientPolicySection({ clientId }: { clientId: string }) {
         <p className="mt-2 text-xs text-muted-foreground">
           {renewal.data.plan_name} · próximo cobro/vencimiento: {fmtDate(renewal.data.ends_at)}
           {renewal.data.opted_out ? " · decidió no renovar" : ""}
+          {renewal.data.renewal_plan_name ? ` · renueva con: ${renewal.data.renewal_plan_name}` : ""}
         </p>
+      ) : null}
+
+      {renewal.data && new Date(renewal.data.ends_at).getTime() > Date.now() ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
+          <span className="text-muted-foreground">
+            Congelar membresía · disponibles {freezeLeft} de 14 días este año
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, freezeLeft)}
+            value={freezeDays}
+            onChange={(e) => setFreezeDays(Number(e.target.value))}
+            className="w-16 border border-input bg-background px-2 py-1 text-sm"
+            aria-label="Días a congelar"
+          />
+          <button
+            onClick={() => freeze.mutate(freezeDays)}
+            disabled={freeze.isPending || freezeLeft === 0 || freezeDays < 1 || freezeDays > freezeLeft}
+            className="border border-input px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] hover:border-foreground disabled:opacity-50"
+          >
+            Congelar
+          </button>
+        </div>
       ) : null}
 
       {(misses.data ?? []).length > 0 ? (
@@ -512,19 +597,28 @@ export function ClientPolicySection({ clientId }: { clientId: string }) {
                   {f.reason} ·{" "}
                   {f.status === "charged"
                     ? `cobrada ${f.charged_at ? fmtDate(f.charged_at) : ""}`
-                    : f.status === "condonada"
+                    : f.status === "waived" || f.status === "condonada"
                       ? "condonada"
                       : "pendiente"}
                 </span>
               </span>
               {f.status === "pending_charge" ? (
-                <button
-                  onClick={() => waiveFee.mutate(f.id)}
-                  disabled={waiveFee.isPending}
-                  className="shrink-0 border border-input px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] hover:border-foreground disabled:opacity-50"
-                >
-                  Condonar
-                </button>
+                <span className="flex shrink-0 gap-1">
+                  <button
+                    onClick={() => paidAtReception.mutate(f.id)}
+                    disabled={paidAtReception.isPending}
+                    className="border border-input px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] hover:border-foreground disabled:opacity-50"
+                  >
+                    Pagada en recepción
+                  </button>
+                  <button
+                    onClick={() => waiveFee.mutate(f.id)}
+                    disabled={waiveFee.isPending}
+                    className="border border-input px-2 py-1 text-[0.58rem] uppercase tracking-[0.12em] hover:border-foreground disabled:opacity-50"
+                  >
+                    Condonar
+                  </button>
+                </span>
               ) : null}
             </li>
           ))}

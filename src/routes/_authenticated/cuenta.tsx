@@ -303,7 +303,7 @@ function Cuenta() {
 
   return (
     <SiteLayout>
-      <RenewalReminder userId={user?.id} />
+      <RenewalReminder userId={user?.id} user={user} />
       {showWelcome ? (
         <section className="border-b border-border bg-muted/40">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">

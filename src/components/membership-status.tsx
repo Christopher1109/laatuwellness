@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
+import { FoundersRenewButton } from "@/components/renewal-reminder";
 import { describeMembershipToday, daysUntil } from "@/lib/membership-display";
 
 export type MembershipStatus = {
@@ -46,7 +45,6 @@ export function MembershipStatusCard({
   staffView?: boolean;
 }) {
   const { data: m } = useMembershipStatus(userId);
-  const [renewing, setRenewing] = useState<CheckoutPlan | null>(null);
   if (!m) return null;
   const days = daysUntil(m.ends_at);
 
@@ -80,25 +78,8 @@ export function MembershipStatusCard({
       <p className="mt-3 text-xs text-muted-foreground">
         Las clases no son acumulables. Tu acceso termina en la fecha de vencimiento.
       </p>
-      {!staffView && m.renewal_plan_id ? (
-        <button
-          onClick={() =>
-            setRenewing({
-              id: m.renewal_plan_id!,
-              name: m.renewal_plan_name ?? "Renovación semestral",
-              price_cents: m.renewal_price_cents ?? 0,
-              tokens: 0,
-              recurring: false,
-            })
-          }
-          className="mt-4 w-full bg-foreground px-4 py-3 text-[0.68rem] uppercase tracking-[0.16em] text-background"
-        >
-          Renovar semestral · 180 días
-        </button>
-      ) : null}
-      {renewing ? (
-        <PlanCheckoutModal plan={renewing} user={user ?? null} onClose={() => setRenewing(null)} />
-      ) : null}
+      {/* Founders: "Renovar" abre las 3 opciones (recurrente, semestral, sin recurrencia). */}
+      {!staffView ? <FoundersRenewButton userId={userId} user={user ?? null} /> : null}
     </div>
   );
 }
