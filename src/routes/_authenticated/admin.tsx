@@ -49,6 +49,7 @@ import {
   StaffDirectoryPanel,
 } from "@/components/admin/team-panels";
 import { RecoveryClientsPanel, RecoverySessionsPanel } from "@/components/admin/recovery-panels";
+import { PolicyPanel } from "@/components/admin/policy-panel";
 import { TEAM_ROLE_LABELS } from "@/lib/credit-kinds";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -117,6 +118,7 @@ function Admin() {
             { key: "merch", label: "Merch", icon: PackageOpen },
             { key: "goodes", label: "Goddess", icon: Tag },
             { key: "cupones", label: "Cupones", icon: Ticket },
+            { key: "politicas", label: "Políticas", icon: ScrollText },
             { key: "finanzas", label: "Finanzas", icon: LineChart },
             { key: "kardex", label: "Kardex", icon: ScrollText },
           ],
@@ -306,6 +308,7 @@ function Admin() {
       {activeKey === "merch" ? <MerchPanel /> : null}
       {activeKey === "goodes" ? <GoodesPanel /> : null}
       {activeKey === "cupones" ? <CouponsPanel readOnly={!isAdmin} /> : null}
+      {activeKey === "politicas" && isAdmin ? <PolicyPanel /> : null}
       {activeKey === "finanzas" ? <FinancePanel /> : null}
       {activeKey === "kardex" ? <KardexPanel /> : null}
       {activeKey === "mi-perfil" ? <CoachProfilePanel /> : null}

@@ -61,6 +61,7 @@ import { Button } from "@/components/ui/button";
 import { tryChargePendingNoShowFee } from "@/utils/membership-fee";
 import { SignaturePad } from "@/components/signature-pad";
 import { ClientDetailsForm } from "@/components/client-details-form";
+import { ClientPolicySection } from "@/components/admin/policy-panel";
 import { describeError } from "@/lib/describe-error";
 import { downloadIncomeReport } from "@/lib/finance-report";
 import { PAYMENT_LABELS } from "@/lib/finance-workbook";
@@ -4155,6 +4156,7 @@ function ClientDetailDrawer({ clientId, onClose }: { clientId: string; onClose: 
 
           <MembershipStatusCard userId={clientId} staffView />
           <CreditLotsSummary userId={clientId} />
+          <ClientPolicySection clientId={clientId} />
           <CreditKindAdjuster userId={clientId} />
 
           <div className="border border-border p-5">

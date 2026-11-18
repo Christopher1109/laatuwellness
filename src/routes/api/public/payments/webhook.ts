@@ -105,7 +105,8 @@ async function saveCardFromSetup(session: any, env: StripeEnv) {
   await stripe.customers.update(customerId, {
     invoice_settings: { default_payment_method: paymentMethodId },
   });
-  const { error } = await getSupabase().from("saved_cards").upsert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- "saved_cards" no está en los tipos generados de este cliente sin genérico
+  const { error } = await (getSupabase().from as any)("saved_cards").upsert({
     user_id: userId,
     provider: "stripe",
     customer_id: customerId,

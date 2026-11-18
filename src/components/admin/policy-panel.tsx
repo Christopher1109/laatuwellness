@@ -308,15 +308,16 @@ function ExpiringWithoutCard() {
       // Una fila por clienta: su vencimiento más lejano dentro de la ventana.
       const byUser = new Map<string, { name: string; email: string; plan: string; ends: string }>();
       for (const t of txs ?? []) {
-        if (cardOf.get(t.user_id)) continue;
+        if (cardOf.get(t.user_id) || !t.access_ends_at) continue;
+        const ends = t.access_ends_at;
         const plan = (t.token_plans as unknown as { name: string } | null)?.name ?? "Membresía";
         const existing = byUser.get(t.user_id);
-        if (!existing || t.access_ends_at > existing.ends) {
+        if (!existing || ends > existing.ends) {
           byUser.set(t.user_id, {
             name: profileOf.get(t.user_id)?.full_name ?? "—",
             email: profileOf.get(t.user_id)?.email ?? "",
             plan,
-            ends: t.access_ends_at,
+            ends,
           });
         }
       }

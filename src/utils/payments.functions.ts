@@ -140,7 +140,7 @@ export const createCardSetupSession = createServerFn({ method: "POST" })
           consent_at: new Date().toISOString(),
         },
       });
-      return { clientSecret: session.clientSecret ?? "" };
+      return { clientSecret: session.client_secret ?? "" };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
     }
