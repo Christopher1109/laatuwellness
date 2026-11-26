@@ -511,6 +511,21 @@ export type Database = {
         }
         Relationships: []
       }
+      cron_secrets: {
+        Row: {
+          name: string
+          secret: string
+        }
+        Insert: {
+          name: string
+          secret?: string
+        }
+        Update: {
+          name?: string
+          secret?: string
+        }
+        Relationships: []
+      }
       inventory_movements: {
         Row: {
           created_at: string
@@ -580,14 +595,14 @@ export type Database = {
           charged_at: string | null
           created_at: string
           created_by: string | null
+          cycle_end: string | null
           id: string
+          kind: string
+          paid_method: string | null
           reason: string
+          renewal_plan_id: string | null
           status: string
           user_id: string
-          kind: string
-          renewal_plan_id: string | null
-          cycle_end: string | null
-          paid_method: string | null
         }
         Insert: {
           amount_cents?: number
@@ -595,14 +610,14 @@ export type Database = {
           charged_at?: string | null
           created_at?: string
           created_by?: string | null
+          cycle_end?: string | null
           id?: string
+          kind?: string
+          paid_method?: string | null
           reason?: string
+          renewal_plan_id?: string | null
           status?: string
           user_id: string
-          kind?: string
-          renewal_plan_id?: string | null
-          cycle_end?: string | null
-          paid_method?: string | null
         }
         Update: {
           amount_cents?: number
@@ -610,14 +625,14 @@ export type Database = {
           charged_at?: string | null
           created_at?: string
           created_by?: string | null
+          cycle_end?: string | null
           id?: string
+          kind?: string
+          paid_method?: string | null
           reason?: string
+          renewal_plan_id?: string | null
           status?: string
           user_id?: string
-          kind?: string
-          renewal_plan_id?: string | null
-          cycle_end?: string | null
-          paid_method?: string | null
         }
         Relationships: [
           {
@@ -627,7 +642,70 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "membership_fees_renewal_plan_id_fkey"
+            columns: ["renewal_plan_id"]
+            isOneToOne: false
+            referencedRelation: "token_plans"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      membership_freezes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          days: number
+          id: string
+          transaction_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          days: number
+          id?: string
+          transaction_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          days?: number
+          id?: string
+          transaction_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_freezes_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_reminders: {
+        Row: {
+          cycle_end: string
+          sent_at: string
+          template: string
+          user_id: string
+        }
+        Insert: {
+          cycle_end: string
+          sent_at?: string
+          template: string
+          user_id: string
+        }
+        Update: {
+          cycle_end?: string
+          sent_at?: string
+          template?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       membership_requests: {
         Row: {
@@ -1176,10 +1254,10 @@ export type Database = {
           last4: string
           payment_method_id: string
           provider: string
-          updated_at: string
-          user_id: string
           renewal_plan_id: string | null
           stripe_env: string
+          updated_at: string
+          user_id: string
         }
         Insert: {
           auto_renew?: boolean
@@ -1190,10 +1268,10 @@ export type Database = {
           last4?: string
           payment_method_id: string
           provider?: string
-          updated_at?: string
-          user_id: string
           renewal_plan_id?: string | null
           stripe_env?: string
+          updated_at?: string
+          user_id: string
         }
         Update: {
           auto_renew?: boolean
@@ -1204,12 +1282,20 @@ export type Database = {
           last4?: string
           payment_method_id?: string
           provider?: string
-          updated_at?: string
-          user_id?: string
           renewal_plan_id?: string | null
           stripe_env?: string
+          updated_at?: string
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_cards_renewal_plan_id_fkey"
+            columns: ["renewal_plan_id"]
+            isOneToOne: false
+            referencedRelation: "token_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schedule_blackouts: {
         Row: {
@@ -1608,8 +1694,8 @@ export type Database = {
           terms: string
           tokens: number
           validity_days: number | null
-          welcome_gift: boolean
           validity_months: number | null
+          welcome_gift: boolean
         }
         Insert: {
           active?: boolean
@@ -1643,8 +1729,8 @@ export type Database = {
           terms?: string
           tokens: number
           validity_days?: number | null
-          welcome_gift?: boolean
           validity_months?: number | null
+          welcome_gift?: boolean
         }
         Update: {
           active?: boolean
@@ -1678,8 +1764,8 @@ export type Database = {
           terms?: string
           tokens?: number
           validity_days?: number | null
-          welcome_gift?: boolean
           validity_months?: number | null
+          welcome_gift?: boolean
         }
         Relationships: [
           {
@@ -2108,6 +2194,18 @@ export type Database = {
       }
       credit_balances: { Args: { _user_id: string }; Returns: Json }
       days_to_birthday: { Args: { _bd: string; _d: string }; Returns: number }
+      due_membership_reminders: {
+        Args: never
+        Returns: {
+          auto_renew_plan: string
+          email: string
+          ends_at: string
+          full_name: string
+          is_founders: boolean
+          plan_name: string
+          user_id: string
+        }[]
+      }
       due_renewals: {
         Args: never
         Returns: {
@@ -2118,8 +2216,13 @@ export type Database = {
           plan_id: string
           plan_name: string
           renewal_plan_id: string
+          stripe_env: string
           user_id: string
         }[]
+      }
+      freeze_membership: {
+        Args: { _days: number; _user_id: string }
+        Returns: string
       }
       fulfill_merch_cart_order: {
         Args: { _external_ref: string; _items: Json; _user_id: string }
@@ -2223,6 +2326,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_fee_paid_at_reception: {
+        Args: { _fee_id: string }
+        Returns: undefined
+      }
       mark_no_show: {
         Args: { _booking_id: string; _penalty_cents?: number }
         Returns: {
@@ -2245,6 +2352,10 @@ export type Database = {
       }
       membership_end: {
         Args: { _days: number; _start: string }
+        Returns: string
+      }
+      membership_end_months: {
+        Args: { _months: number; _start: string }
         Returns: string
       }
       membership_status: { Args: { _user_id: string }; Returns: Json }
