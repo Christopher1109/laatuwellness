@@ -689,18 +689,21 @@ export type Database = {
       membership_reminders: {
         Row: {
           cycle_end: string
+          family_id: string | null
           sent_at: string
           template: string
           user_id: string
         }
         Insert: {
           cycle_end: string
+          family_id?: string | null
           sent_at?: string
           template: string
           user_id: string
         }
         Update: {
           cycle_end?: string
+          family_id?: string | null
           sent_at?: string
           template?: string
           user_id?: string
@@ -1226,18 +1229,21 @@ export type Database = {
       renewal_opt_outs: {
         Row: {
           cycle_end: string
+          family_id: string | null
           decided_at: string
           id: string
           user_id: string
         }
         Insert: {
           cycle_end: string
+          family_id?: string | null
           decided_at?: string
           id?: string
           user_id: string
         }
         Update: {
           cycle_end?: string
+          family_id?: string | null
           decided_at?: string
           id?: string
           user_id?: string
@@ -1695,6 +1701,8 @@ export type Database = {
           tokens: number
           validity_days: number | null
           validity_months: number | null
+          weekly_class_limit: number | null
+          card_renewable: boolean
           welcome_gift: boolean
         }
         Insert: {
@@ -1730,6 +1738,8 @@ export type Database = {
           tokens: number
           validity_days?: number | null
           validity_months?: number | null
+          weekly_class_limit?: number | null
+          card_renewable?: boolean
           welcome_gift?: boolean
         }
         Update: {
@@ -1765,6 +1775,8 @@ export type Database = {
           tokens?: number
           validity_days?: number | null
           validity_months?: number | null
+          weekly_class_limit?: number | null
+          card_renewable?: boolean
           welcome_gift?: boolean
         }
         Relationships: [

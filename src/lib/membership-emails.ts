@@ -9,6 +9,8 @@ export type ReminderRow = {
   ends_at: string;
   is_founders: boolean;
   auto_renew_plan: string | null;
+  /** Membresía (familia) del aviso; una clienta puede tener varias. */
+  family_id?: string | null;
 };
 
 export type ReminderEmail = {

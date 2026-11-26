@@ -32,6 +32,8 @@ const KNOWN: Record<string, string> = {
   ONLY_CASH_SALES: "Solo se pueden reembolsar aquí ventas del mostrador (efectivo o terminal).",
   SALE_NOT_FOUND: "No se encontró la venta.",
   BOOKING_WINDOW: "Las clases se abren para reservar con una semana de anticipación.",
+  CARD_REQUIRED: "Primero registra una tarjeta en tu perfil.",
+  PLAN_NOT_RENEWABLE: "Esta membresía no se puede cobrar automáticamente.",
   PENDING_FINE:
     "Tienes un cargo pendiente. Págalo desde tu perfil (Mi cuenta) para volver a reservar.",
 };

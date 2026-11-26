@@ -119,7 +119,7 @@ export const createCardSetupSession = createServerFn({ method: "POST" })
       returnUrl: string;
       environment: StripeEnv;
       consentAccepted: boolean;
-      /** Plan que se renovará automáticamente con esta tarjeta (p. ej. Founders mensual). */
+      /** Membresía que se cobrará automáticamente con esta tarjeta (token_plans.card_renewable). */
       renewalPlanId?: string;
     }) => {
       if (!data.consentAccepted) {
@@ -136,10 +136,10 @@ export const createCardSetupSession = createServerFn({ method: "POST" })
       if (data.renewalPlanId) {
         const { data: plan } = await context.supabase
           .from("token_plans")
-          .select("id, active, validity_months")
+          .select("id, active, card_renewable")
           .eq("id", data.renewalPlanId)
           .maybeSingle();
-        if (!plan?.active || plan.validity_months == null) {
+        if (!plan?.active || !plan.card_renewable) {
           return { error: "Este plan no se puede renovar automáticamente." };
         }
       }
@@ -181,8 +181,10 @@ export const payMyMembershipFee = createServerFn({ method: "POST" })
       .select("id, user_id, amount_cents, status, reason, kind, renewal_plan_id")
       .eq("id", data.membershipFeeId)
       .maybeSingle();
-    if (!fee || fee.user_id !== context.userId) return { charged: false, error: "Cargo no encontrado" };
-    if (fee.status !== "pending_charge") return { charged: false, error: "Este cargo ya fue procesado" };
+    if (!fee || fee.user_id !== context.userId)
+      return { charged: false, error: "Cargo no encontrado" };
+    if (fee.status !== "pending_charge")
+      return { charged: false, error: "Este cargo ya fue procesado" };
 
     const { data: card } = await context.supabase
       .from("saved_cards")
@@ -255,7 +257,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: reason, error: reasonError } = await supabaseAdmin.rpc(
           "plan_purchase_block_reason",
-          { _user_id: data.userId ?? "00000000-0000-0000-0000-000000000000", _plan_id: data.planId },
+          {
+            _user_id: data.userId ?? "00000000-0000-0000-0000-000000000000",
+            _plan_id: data.planId,
+          },
         );
         if (reasonError) return { error: describeError(reasonError) };
         if (reason) return { error: describeError(String(reason)) };

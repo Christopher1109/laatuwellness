@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { CardSetupCheckout } from "@/components/payment-method-card";
+import { CardSetupCheckout, useSetAutoRenewal } from "@/components/payment-method-card";
 import { PlanCheckoutModal, type CheckoutPlan } from "@/components/payments/plan-checkout-modal";
 import { paymentsConfigured } from "@/lib/stripe";
 
@@ -10,6 +10,10 @@ type PlanOption = { id: string | null; name: string | null; price_cents: number 
 
 export type RenewalStatus = {
   plan_name: string;
+  family_id?: string | null;
+  stripe_subscription?: boolean;
+  /** Plan con el que se puede cobrar sola con tarjeta (The Everyday, Two a Day). */
+  renewable_plan?: PlanOption | null;
   ends_at: string;
   days_left: number;
   has_card: boolean;
@@ -63,16 +67,21 @@ function Overlay({ children, label }: { children: React.ReactNode; label: string
   );
 }
 
-function useOptOut(userId: string | undefined) {
+function useOptOut(userId: string | undefined, familyId?: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("opt_out_renewal");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- firma nueva (por membresía)
+      const { error } = await (supabase.rpc as any)(
+        "opt_out_renewal",
+        familyId ? { _family_id: familyId } : {},
+      );
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Entendido: tu membresía terminará en su fecha de vencimiento.");
       void qc.invalidateQueries({ queryKey: ["renewal-status", userId] });
+      void qc.invalidateQueries({ queryKey: ["my-auto-renewals", userId] });
     },
     onError: () => toast.error("No se pudo guardar tu decisión."),
   });
@@ -98,14 +107,21 @@ export function FoundersRenewalOptions({
   const [consent, setConsent] = useState(false);
   const [settingUp, setSettingUp] = useState(false);
   const [buying, setBuying] = useState<CheckoutPlan | null>(null);
-  const optOut = useOptOut(userId);
+  const optOut = useOptOut(userId, status.family_id);
+  const setAuto = useSetAutoRenewal(userId);
   if (!opts) return null;
 
   const buy = (p: PlanOption) => {
     if (!p.id) return;
     // Pago único (Clip): la opción 03 es sin recurrencia aunque el plan exista
     // como suscripción en Stripe.
-    setBuying({ id: p.id, name: p.name ?? "", price_cents: p.price_cents ?? 0, tokens: 0, recurring: false });
+    setBuying({
+      id: p.id,
+      name: p.name ?? "",
+      price_cents: p.price_cents ?? 0,
+      tokens: 0,
+      recurring: false,
+    });
   };
 
   if (buying) {
@@ -132,7 +148,8 @@ export function FoundersRenewalOptions({
                 01 | Membresía recurrente — {money(opts.monthly.price_cents)}/mes
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                Conserva tu precio especial de Founders con un cargo automático el día 2 de cada mes.
+                Conserva tu precio especial de Founders con un cargo automático el día 2 de cada
+                mes.
               </span>
             </button>
             <button
@@ -168,10 +185,12 @@ export function FoundersRenewalOptions({
               <li>Puedes cancelar sin costo hasta 12 horas antes de tu clase.</li>
               <li>Cancelar con menos de 12 horas o no asistir cuenta como falta.</li>
               <li>
-                A la 3ª falta se cobra una multa de $150. Después vuelves a tener 2 faltas sin cargo,
-                y a la siguiente se cobra de nuevo.
+                A la 3ª falta se cobra una multa de $150. Después vuelves a tener 2 faltas sin
+                cargo, y a la siguiente se cobra de nuevo.
               </li>
-              <li>Para continuar con tu membresía es necesario registrar una tarjeta en tu cuenta.</li>
+              <li>
+                Para continuar con tu membresía es necesario registrar una tarjeta en tu cuenta.
+              </li>
             </ul>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
@@ -228,12 +247,30 @@ export function FoundersRenewalOptions({
             {MONTHLY_CONSENT(money(opts.monthly.price_cents))}
           </label>
           <div className="mt-5 space-y-2">
+            {status.has_card && opts.monthly.id ? (
+              <button
+                onClick={() =>
+                  setAuto.mutate(
+                    { planId: opts.monthly.id!, enabled: true },
+                    { onSuccess: onClose },
+                  )
+                }
+                disabled={!consent || setAuto.isPending}
+                className="w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+              >
+                Activar con mi tarjeta {status.card_brand} ···· {status.card_last4}
+              </button>
+            ) : null}
             <button
               onClick={() => setSettingUp(true)}
               disabled={!consent}
-              className="w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+              className={
+                status.has_card
+                  ? "w-full border border-input px-5 py-3 text-[0.65rem] uppercase tracking-[0.16em] disabled:opacity-40"
+                  : "w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+              }
             >
-              Registrar tarjeta
+              {status.has_card ? "Usar otra tarjeta" : "Registrar tarjeta"}
             </button>
             <button
               onClick={() => setStep("options")}
@@ -268,7 +305,12 @@ export function FoundersRenewButton({
         Renovar
       </button>
       {open ? (
-        <FoundersRenewalOptions status={data} userId={userId} user={user} onClose={() => setOpen(false)} />
+        <FoundersRenewalOptions
+          status={data}
+          userId={userId}
+          user={user}
+          onClose={() => setOpen(false)}
+        />
       ) : null}
     </>
   );
@@ -285,7 +327,7 @@ export function RenewalReminder({
 }) {
   const { data } = useRenewalStatus(userId);
   const [dismissed, setDismissed] = useState(false);
-  const optOut = useOptOut(userId);
+  const optOut = useOptOut(userId, data?.family_id);
 
   if (!data || dismissed) return null;
 
@@ -311,12 +353,24 @@ export function RenewalReminder({
         {data.plan_name}, renuévala fácilmente aquí. Nos encantará que sigas formando parte de
         nuestra comunidad. 🩵
       </p>
+      {data.renewable_plan?.id ? (
+        <AutoRenewOffer
+          status={data}
+          plan={data.renewable_plan}
+          userId={userId}
+          onDone={() => setDismissed(true)}
+        />
+      ) : null}
       <div className="mt-6 space-y-2">
         <a
           href="/paquetes"
-          className="block w-full bg-foreground px-5 py-3.5 text-center text-[0.7rem] uppercase tracking-[0.16em] text-background"
+          className={
+            data.renewable_plan?.id
+              ? "block w-full border border-input px-5 py-3 text-center text-[0.7rem] uppercase tracking-[0.16em] hover:border-foreground"
+              : "block w-full bg-foreground px-5 py-3.5 text-center text-[0.7rem] uppercase tracking-[0.16em] text-background"
+          }
         >
-          Renovar
+          {data.renewable_plan?.id ? "Renovar una sola vez" : "Renovar"}
         </a>
         <button
           onClick={() => optOut.mutate()}
@@ -333,5 +387,84 @@ export function RenewalReminder({
         </button>
       </div>
     </Overlay>
+  );
+}
+
+/** Opción "cobro automático con tarjeta" del pop-up genérico (The Everyday, Two a Day). */
+function AutoRenewOffer({
+  status,
+  plan,
+  userId,
+  onDone,
+}: {
+  status: RenewalStatus;
+  plan: PlanOption;
+  userId: string | undefined;
+  onDone: () => void;
+}) {
+  const [consent, setConsent] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
+  const setAuto = useSetAutoRenewal(userId);
+  if (!plan.id || !paymentsConfigured()) return null;
+  const price = money(plan.price_cents);
+
+  if (settingUp) {
+    return (
+      <div className="mt-5">
+        <p className="text-xs text-muted-foreground">
+          No se hace ningún cobro al registrarla. El primer cargo de {price} será al terminar tu
+          periodo actual ({fmtDate(status.ends_at)}).
+        </p>
+        <div className="mt-4">
+          <CardSetupCheckout renewalPlanId={plan.id} />
+        </div>
+        <button
+          onClick={() => setSettingUp(false)}
+          className="mt-4 w-full border border-input px-4 py-2 text-[0.65rem] uppercase tracking-[0.16em]"
+        >
+          Regresar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 border border-border p-4">
+      <p className="text-sm font-medium">Cobro automático — {price} cada periodo</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Tu {status.plan_name} se renueva sola con tu tarjeta al terminar cada periodo. Puedes
+        desactivarlo cuando quieras desde tu perfil.
+      </p>
+      <label className="mt-3 flex cursor-pointer items-start gap-3 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-foreground"
+        />
+        {`Acepto el cargo automático de ${price} a mi tarjeta al terminar cada periodo de mi ${plan.name ?? status.plan_name}, hasta que lo desactive desde mi perfil, y la política de cancelación: puedo cancelar sin costo hasta 12 h antes de la clase; a la 3ª falta se cobra una multa de $150 a esta tarjeta.`}
+      </label>
+      <div className="mt-3 space-y-2">
+        {status.has_card ? (
+          <button
+            onClick={() =>
+              setAuto.mutate({ planId: plan.id!, enabled: true }, { onSuccess: onDone })
+            }
+            disabled={!consent || setAuto.isPending}
+            className="w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+          >
+            Activar con mi tarjeta {status.card_brand} ···· {status.card_last4}
+          </button>
+        ) : (
+          <button
+            onClick={() => setSettingUp(true)}
+            disabled={!consent}
+            className="w-full bg-foreground px-5 py-3.5 text-[0.7rem] uppercase tracking-[0.16em] text-background disabled:opacity-40"
+          >
+            Registrar tarjeta
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

@@ -39,4 +39,6 @@ export const CREDIT_ERRORS: Record<string, string> = {
     "Esta sesión es Full Body y no hay créditos de DorisFisio Full Body disponibles (un crédito de Upper o Lower no sirve para Full Body).",
   INSUFFICIENT_TOKENS_DORIS:
     "Para el consultorio de DorisFisio se necesita un crédito de DorisFisio (Upper o Lower, o Full Body).",
+  WEEKLY_LIMIT_REACHED:
+    "Tu Membresía DorisFisio incluye 1 sesión por semana (domingo a sábado) y ya tienes una reservada esa semana. Elige otra semana o pide ayuda en recepción.",
 };
