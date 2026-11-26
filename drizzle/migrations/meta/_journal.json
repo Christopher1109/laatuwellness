@@ -232,6 +232,13 @@
       "when": 1794960403432,
       "tag": "0032_cancellation_policy_and_card_renewals",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795734792007,
+      "tag": "0033_add_dorisfisio_monthly",
+      "breakpoints": true
     }
   ]
 }
