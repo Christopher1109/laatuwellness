@@ -5511,6 +5511,10 @@ function PackageEditPopout({
             daily_class_limit: f.get("daily_class_limit")
               ? Number(f.get("daily_class_limit"))
               : null,
+            weekly_class_limit: f.get("weekly_class_limit")
+              ? Number(f.get("weekly_class_limit"))
+              : null,
+            card_renewable: f.get("card_renewable") === "on",
             max_sales: f.get("max_sales") ? Number(f.get("max_sales")) : null,
             // Fechas en hora de Monterrey (UTC-6, sin horario de verano).
             available_from: f.get("available_from")
@@ -5624,6 +5628,18 @@ function PackageEditPopout({
             />
           </label>
           <label className="text-xs">
+            <span className="eyebrow">Sesiones por semana (domingo a sábado)</span>
+            <input
+              name="weekly_class_limit"
+              type="number"
+              min={1}
+              defaultValue={
+                (plan as { weekly_class_limit?: number | null } | null)?.weekly_class_limit ?? ""
+              }
+              className={input}
+            />
+          </label>
+          <label className="text-xs">
             <span className="eyebrow">Cupo total (vacío = sin límite)</span>
             <input
               name="max_sales"
@@ -5669,6 +5685,15 @@ function PackageEditPopout({
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" name="recurring" defaultChecked={plan?.recurring} />
           Cargo mensual recurrente
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="card_renewable"
+            defaultChecked={(plan as { card_renewable?: boolean } | null)?.card_renewable ?? false}
+          />
+          Se puede cobrar automático con la tarjeta guardada de la clienta (ella lo activa en su
+          perfil)
         </label>
         <label className="block text-xs">
           <span className="eyebrow">Incluye (una línea por elemento)</span>

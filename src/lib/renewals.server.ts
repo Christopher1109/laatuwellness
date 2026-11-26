@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
 
-// Renovación automática con tarjeta guardada: solo el plan que la clienta
-// eligió (p. ej. Founders mensual). Se cobra off-session del lado del
-// servidor el último día del periodo. Si falla, queda UN cargo pendiente por
-// ciclo (índice único) que bloquea sus reservas; al pagarlo (en línea o en
+// Renovación automática con tarjeta guardada: las membresías que la clienta
+// eligió (auto_renewals: Founders mensual, The Everyday o Two a Day; puede
+// tener varias). Se cobra off-session del lado del servidor el último
+// día del periodo. Si falla, queda UN cargo pendiente por ciclo y membresía
+// (índice único) que bloquea sus reservas; al pagarlo (en línea o en
 // recepción) se activa el nuevo periodo.
 
 export type DueRenewal = {
@@ -38,9 +39,10 @@ export async function chargeRenewal(
   renewal: DueRenewal,
 ): Promise<{ charged: boolean; error?: string }> {
   const stripe = createStripeClient(renewalEnv(renewal));
-  // Referencia estable por ciclo: si se reintenta, fulfill_plan_purchase no
-  // crea un segundo periodo.
-  const externalRef = `renewal_${renewal.user_id}_${new Date(renewal.ends_at).getTime()}`;
+  // Referencia estable por ciclo y membresía: si se reintenta,
+  // fulfill_plan_purchase no crea un segundo periodo (y dos membresías que
+  // terminan el mismo día no se pisan).
+  const externalRef = `renewal_${renewal.user_id}_${renewal.renewal_plan_id}_${new Date(renewal.ends_at).getTime()}`;
   let paymentIntentId: string;
   try {
     const paymentIntent = await stripe.paymentIntents.create(
@@ -57,19 +59,21 @@ export async function chargeRenewal(
     );
     paymentIntentId = paymentIntent.id;
   } catch (error) {
-    // "Vencida – pago pendiente": un solo cargo pendiente por ciclo.
-    await admin.from("membership_fees").upsert(
-      {
-        user_id: renewal.user_id,
-        amount_cents: renewal.amount_cents,
-        reason: `Renovación automática fallida — ${renewal.plan_name}`,
-        status: "pending_charge",
-        kind: "renovacion",
-        renewal_plan_id: renewal.renewal_plan_id,
-        cycle_end: renewal.ends_at,
-      },
-      { onConflict: "user_id,cycle_end", ignoreDuplicates: true },
-    );
+    // "Vencida – pago pendiente": un solo cargo pendiente por ciclo y
+    // membresía. El índice único es parcial, así que se inserta y se ignora
+    // el duplicado (23505) en vez de usar upsert.
+    const { error: feeError } = await admin.from("membership_fees").insert({
+      user_id: renewal.user_id,
+      amount_cents: renewal.amount_cents,
+      reason: `Renovación automática fallida — ${renewal.plan_name}`,
+      status: "pending_charge",
+      kind: "renovacion",
+      renewal_plan_id: renewal.renewal_plan_id,
+      cycle_end: renewal.ends_at,
+    });
+    if (feeError && feeError.code !== "23505") {
+      console.error("No se pudo registrar el cargo pendiente", renewal.user_id, feeError);
+    }
     return { charged: false, error: getStripeErrorMessage(error) };
   }
 

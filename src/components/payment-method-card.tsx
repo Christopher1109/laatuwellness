@@ -56,34 +56,132 @@ export function CardSetupCheckout({ renewalPlanId }: { renewalPlanId?: string } 
 }
 
 const CONSENT_TEXT =
-  "Acepto que esta tarjeta se use para la renovación automática que yo elija (por el monto y periodo de ese plan) y para la política de cancelación: puedo cancelar sin costo hasta 12 h antes de la clase; a la 3ª falta se cobra una multa de $150 a esta tarjeta.";
+  "Acepto que esta tarjeta se use para el cobro automático de las membresías que yo elija (por el monto y periodo de cada una) y para la política de cancelación: puedo cancelar sin costo hasta 12 h antes de la clase; a la 3ª falta se cobra una multa de $150 a esta tarjeta.";
 
-/** Sección "Método de pago" del perfil: tarjeta guardada y renovación automática. */
-export function PaymentMethodCard({ userId }: { userId: string }) {
-  const { data: card } = useSavedCard(userId);
+export type AutoRenewalOption = {
+  family_id: string;
+  plan_name: string;
+  ends_at: string;
+  active: boolean;
+  stripe_subscription: boolean;
+  enabled: boolean;
+  renew_plan: { id: string; name: string; price_cents: number } | null;
+};
+
+/** Membresías de la clienta que se pueden cobrar solas con su tarjeta. */
+export function useMyAutoRenewals(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["my-auto-renewals", userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nueva
+      const { data, error } = await (supabase.rpc as any)("my_auto_renewals");
+      if (error) throw error;
+      return ((data ?? []) as AutoRenewalOption[]) ?? [];
+    },
+  });
+}
+
+/** Activa o desactiva el cobro automático de una membresía. */
+export function useSetAutoRenewal(userId: string | undefined) {
   const qc = useQueryClient();
-  const [consent, setConsent] = useState(false);
-  const [settingUp, setSettingUp] = useState(false);
-
-  const toggleAutoRenew = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const { error } = await supabase
-        .from("saved_cards")
-        .update({ auto_renew: enabled })
-        .eq("user_id", userId);
+  return useMutation({
+    mutationFn: async ({ planId, enabled }: { planId: string; enabled: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nueva
+      const { error } = await (supabase.rpc as any)("set_auto_renewal", {
+        _plan_id: planId,
+        _enabled: enabled,
+      });
       if (error) throw error;
     },
-    onSuccess: (_d, enabled) => {
+    onSuccess: (_d, { enabled }) => {
       toast.success(
         enabled
-          ? "Renovación automática activada."
-          : "Renovación automática desactivada. Tu membresía terminará en su fecha de vencimiento.",
+          ? "Cobro automático activado."
+          : "Cobro automático desactivado. Tu membresía terminará en su fecha de vencimiento.",
       );
+      void qc.invalidateQueries({ queryKey: ["my-auto-renewals", userId] });
       void qc.invalidateQueries({ queryKey: ["saved-card", userId] });
       void qc.invalidateQueries({ queryKey: ["renewal-status", userId] });
     },
-    onError: () => toast.error("No se pudo actualizar. Intenta de nuevo."),
+    onError: (e: { message?: string }) =>
+      toast.error(
+        e?.message?.includes("CARD_REQUIRED")
+          ? "Primero registra una tarjeta."
+          : "No se pudo actualizar. Intenta de nuevo.",
+      ),
   });
+}
+
+const money = (cents: number) =>
+  new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+
+const shortDate = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Monterrey",
+  }).format(new Date(iso));
+
+/** Lista de membresías con su interruptor de cobro automático. */
+function AutoRenewalList({ userId, hasCard }: { userId: string; hasCard: boolean }) {
+  const { data: options } = useMyAutoRenewals(userId);
+  const setAuto = useSetAutoRenewal(userId);
+  if (!options?.length) return null;
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <p className="text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
+        Cobro automático
+      </p>
+      {options.map((o) => (
+        <div key={o.family_id} className="text-sm">
+          {o.stripe_subscription ? (
+            <p>{o.plan_name}: se cobra sola cada mes con tu suscripción.</p>
+          ) : o.renew_plan ? (
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={o.enabled}
+                disabled={!hasCard || setAuto.isPending}
+                onChange={(e) =>
+                  setAuto.mutate({ planId: o.renew_plan!.id, enabled: e.target.checked })
+                }
+                className="mt-0.5 h-4 w-4 shrink-0 accent-foreground"
+              />
+              <span>
+                Cobrar {o.renew_plan.name} automáticamente — {money(o.renew_plan.price_cents)}
+                <span className="block text-xs text-muted-foreground">
+                  {o.active
+                    ? `Tu ${o.plan_name} termina el ${shortDate(o.ends_at)}; ${
+                        o.enabled
+                          ? "ese día se cobra la renovación."
+                          : "si lo activas, ese día se cobra la renovación."
+                      }`
+                    : `Tu ${o.plan_name} terminó el ${shortDate(o.ends_at)}.`}
+                </span>
+              </span>
+            </label>
+          ) : null}
+        </div>
+      ))}
+      {!hasCard ? (
+        <p className="text-xs text-muted-foreground">
+          Registra una tarjeta para activar el cobro automático.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Sección "Método de pago" del perfil: tarjeta guardada y cobro automático por membresía. */
+export function PaymentMethodCard({ userId }: { userId: string }) {
+  const { data: card } = useSavedCard(userId);
+  const [consent, setConsent] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
 
   if (!paymentsConfigured()) return null;
 
@@ -100,8 +198,8 @@ export function PaymentMethodCard({ userId }: { userId: string }) {
           </button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          No se hace ningún cobro al registrarla. Los datos de tu tarjeta los maneja Stripe de
-          forma segura; nosotros solo guardamos una referencia.
+          No se hace ningún cobro al registrarla. Los datos de tu tarjeta los maneja Stripe de forma
+          segura; nosotros solo guardamos una referencia.
         </p>
         <div className="mt-4">
           <CardSetupCheckout />
@@ -118,16 +216,7 @@ export function PaymentMethodCard({ userId }: { userId: string }) {
           <p className="text-lg capitalize">
             {card.brand || "Tarjeta"} ···· {card.last4}
           </p>
-          <label className="flex cursor-pointer items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={card.auto_renew}
-              onChange={(e) => toggleAutoRenew.mutate(e.target.checked)}
-              disabled={toggleAutoRenew.isPending}
-              className="h-4 w-4 accent-foreground"
-            />
-            Renovar mi membresía automáticamente con esta tarjeta
-          </label>
+          <AutoRenewalList userId={userId} hasCard />
           <button
             onClick={() => {
               setConsent(false);
@@ -141,8 +230,9 @@ export function PaymentMethodCard({ userId }: { userId: string }) {
       ) : (
         <div className="mt-3 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Registra una tarjeta para que tu membresía se renueve sola y conserves tu precio.
+            Registra una tarjeta para que tus membresías se cobren solas y conserves tu lugar.
           </p>
+          <AutoRenewalList userId={userId} hasCard={false} />
           <label className="flex cursor-pointer items-start gap-3 text-xs text-muted-foreground">
             <input
               type="checkbox"

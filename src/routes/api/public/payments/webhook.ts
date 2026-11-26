@@ -14,11 +14,7 @@ function getSupabase() {
   return _supabase;
 }
 
-async function fulfill(params: {
-  userId?: string;
-  planId?: string;
-  externalRef: string;
-}) {
+async function fulfill(params: { userId?: string; planId?: string; externalRef: string }) {
   if (!params.userId || !params.planId) {
     console.error("Webhook sin userId/planId en metadata", params);
     return;
@@ -85,8 +81,7 @@ async function saveCardFromSetup(session: any, env: StripeEnv) {
   }
   const setupIntentId =
     typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent?.id;
-  const customerId =
-    typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
   if (!setupIntentId || !customerId) {
     console.error("card_setup sin setup_intent o customer", session.id);
     return;
@@ -120,7 +115,21 @@ async function saveCardFromSetup(session: any, env: StripeEnv) {
     consent_accepted_at: session.metadata?.consent_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
-  if (error) console.error("saved_cards upsert failed", error);
+  if (error) {
+    console.error("saved_cards upsert failed", error);
+    return;
+  }
+  // Si la registró al elegir el cobro automático de una membresía, esa
+  // membresía queda activada (puede tener varias; se manejan en auto_renewals).
+  const renewalPlanId = session.metadata?.renewalPlanId;
+  if (renewalPlanId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nueva, cliente sin tipos
+    const { error: renewError } = await (getSupabase().rpc as any)("enable_auto_renewal_for", {
+      _user_id: userId,
+      _plan_id: renewalPlanId,
+    });
+    if (renewError) console.error("enable_auto_renewal_for failed", userId, renewError);
+  }
 }
 
 async function handleWebhook(req: Request, env: StripeEnv) {

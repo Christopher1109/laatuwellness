@@ -75,7 +75,11 @@ export const Route = createFileRoute("/api/public/reminders/run")({
         for (const row of rows) {
           const email = buildReminderEmail(row);
           if (dryRun) {
-            results.push({ user_id: row.user_id, sent: false, error: `dry-run: ${email.template}` });
+            results.push({
+              user_id: row.user_id,
+              sent: false,
+              error: `dry-run: ${email.template}`,
+            });
             continue;
           }
           const res = await fetch("https://api.resend.com/emails", {
@@ -100,6 +104,7 @@ export const Route = createFileRoute("/api/public/reminders/run")({
             user_id: row.user_id,
             cycle_end: row.ends_at,
             template: email.template,
+            family_id: row.family_id ?? null,
           });
           results.push({ user_id: row.user_id, sent: true });
         }
