@@ -7,7 +7,9 @@
 --   * pedidos en línea de Clip que no son paquetes
 -- Los cobros del mostrador se muestran igual que antes. Los pagos en línea no
 -- se reembolsan desde aquí (se hace en Clip o Stripe).
-CREATE OR REPLACE FUNCTION public.pos_recent_sales(_limit integer DEFAULT 40)
+-- _from/_to filtran por fecha local de Monterrey (inclusive).
+DROP FUNCTION IF EXISTS public.pos_recent_sales(integer);
+CREATE OR REPLACE FUNCTION public.pos_recent_sales(_limit integer DEFAULT 40, _from date DEFAULT NULL, _to date DEFAULT NULL)
  RETURNS jsonb
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -108,9 +110,14 @@ AS $function$
           FROM public.membership_fees f
           WHERE f.status = 'charged' AND f.kind = 'multa'
         ) u
+        WHERE (_from IS NULL OR (u.created_at AT TIME ZONE 'America/Monterrey')::date >= _from)
+          AND (_to IS NULL OR (u.created_at AT TIME ZONE 'America/Monterrey')::date <= _to)
         ORDER BY u.created_at DESC
-        LIMIT greatest(least(_limit, 200), 1)
+        LIMIT greatest(least(_limit, 1000), 1)
       ) q(r)
     ), '[]'::jsonb)
   END
 $function$;
+
+REVOKE ALL ON FUNCTION public.pos_recent_sales(integer, date, date) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.pos_recent_sales(integer, date, date) TO authenticated;

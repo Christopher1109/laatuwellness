@@ -561,6 +561,7 @@ export function POSPanel() {
   // Cobros de monto libre: el staff teclea el precio y elige la cuenta.
   const [customLines, setCustomLines] = useState<CustomLine[]>([]);
   const [customOpen, setCustomOpen] = useState(false);
+  const [salesOpen, setSalesOpen] = useState(false);
 
   const { data: suggestions } = useQuery({
     queryKey: ["pos-client-suggestions", clientEmail.trim().toLowerCase()],
@@ -929,6 +930,19 @@ export function POSPanel() {
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <div>
+        <button
+          type="button"
+          onClick={() => setSalesOpen(true)}
+          className="mb-4 flex w-full items-center justify-between gap-3 border border-border p-4 text-left transition-colors hover:border-foreground hover:bg-muted/50"
+        >
+          <span className="min-w-0">
+            <span className="block">Ventas y pagos</span>
+            <span className="block text-xs text-muted-foreground">
+              Lo cobrado aquí y lo pagado en línea · filtra por fecha · reembolsos
+            </span>
+          </span>
+          <span className="shrink-0 text-xs uppercase tracking-[0.12em]">Ver →</span>
+        </button>
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -1475,8 +1489,8 @@ export function POSPanel() {
         />
       ) : null}
 
+      <RecentSalesPanel open={salesOpen} onClose={() => setSalesOpen(false)} />
       <div className="lg:col-span-2">
-        <RecentSalesPanel />
         <TerminalsConfig />
       </div>
     </div>
@@ -1725,14 +1739,11 @@ type RecentSale = {
   client: string | null;
 };
 
-/** Totales de hoy (hora de Monterrey): lo cobrado en el mostrador y lo pagado en línea. */
-function TodayTotals({ sales }: { sales: RecentSale[] }) {
-  const day = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Monterrey" });
-  const today = day(new Date().toISOString());
-  const todays = sales.filter((s) => !s.refunded && day(s.created_at) === today);
-  const counter = todays.filter((s) => !s.online).reduce((a, s) => a + s.amount_cents, 0);
-  const online = todays.filter((s) => s.online).reduce((a, s) => a + s.amount_cents, 0);
+/** Totales del periodo elegido: lo cobrado en el mostrador y lo pagado en línea. */
+function PeriodTotals({ sales }: { sales: RecentSale[] }) {
+  const valid = sales.filter((s) => !s.refunded);
+  const counter = valid.filter((s) => !s.online).reduce((a, s) => a + s.amount_cents, 0);
+  const online = valid.filter((s) => s.online).reduce((a, s) => a + s.amount_cents, 0);
   const fmt = (c: number) =>
     new Intl.NumberFormat("es-MX", {
       style: "currency",
@@ -1740,12 +1751,15 @@ function TodayTotals({ sales }: { sales: RecentSale[] }) {
       maximumFractionDigits: 0,
     }).format(c / 100);
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1 px-4 pt-2 text-xs">
+    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
       <span>
-        Hoy en mostrador: <strong>{fmt(counter)}</strong>
+        Mostrador: <strong>{fmt(counter)}</strong>
       </span>
       <span>
-        Hoy en línea: <strong>{fmt(online)}</strong>
+        En línea: <strong>{fmt(online)}</strong>
+      </span>
+      <span>
+        Total: <strong>{fmt(counter + online)}</strong>
       </span>
     </div>
   );
@@ -1770,10 +1784,36 @@ type RefundPreview = {
 // Ventas del mostrador (terminal, efectivo, transferencia y paquetes) con el
 // botón de reembolso. Los reembolsos se hacen SIEMPRE desde aquí, nunca
 // directo en Clip, para que el dinero, los créditos y el inventario cuadren.
-function RecentSalesPanel() {
+type SalesRange = "hoy" | "ayer" | "7d" | "rango";
+type SalesChannel = "todos" | "mostrador" | "linea";
+
+/** Fecha local de Monterrey (YYYY-MM-DD), con días de desfase. */
+function mtyDayOffset(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 86_400_000);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Monterrey" });
+}
+
+function salesRangeDates(range: SalesRange, from: string, to: string) {
+  if (range === "hoy") return { from: mtyDayOffset(), to: mtyDayOffset() };
+  if (range === "ayer") return { from: mtyDayOffset(-1), to: mtyDayOffset(-1) };
+  if (range === "7d") return { from: mtyDayOffset(-6), to: mtyDayOffset() };
+  return { from: from || mtyDayOffset(), to: to || from || mtyDayOffset() };
+}
+
+/**
+ * Ventas y pagos (mostrador + en línea) en un panel lateral que se abre desde
+ * arriba del punto de venta. Siempre está montado para que la conciliación con
+ * Clip siga corriendo aunque el panel esté cerrado.
+ */
+function RecentSalesPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
-  const [open, setOpen] = useState(true);
+  const [range, setRange] = useState<SalesRange>("hoy");
+  const [customFrom, setCustomFrom] = useState(mtyDayOffset());
+  const [customTo, setCustomTo] = useState(mtyDayOffset());
+  const [channel, setChannel] = useState<SalesChannel>("todos");
+  const [query, setQuery] = useState("");
+  const dates = salesRangeDates(range, customFrom, customTo);
   const [target, setTarget] = useState<RecentSale | null>(null);
   const [preview, setPreview] = useState<RefundPreview | null>(null);
   const [reason, setReason] = useState("");
@@ -1805,11 +1845,15 @@ function RecentSalesPanel() {
   }, [qc]);
 
   const { data: sales, isLoading } = useQuery({
-    queryKey: ["pos-recent-sales"],
+    queryKey: ["pos-recent-sales", dates.from, dates.to],
     enabled: open,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- función nueva, aún no está en los tipos generados
-      const { data, error } = await (supabase.rpc as any)("pos_recent_sales", { _limit: 80 });
+      const { data, error } = await (supabase.rpc as any)("pos_recent_sales", {
+        _limit: 500,
+        _from: dates.from,
+        _to: dates.to,
+      });
       if (error) throw error;
       return (data ?? []) as RecentSale[];
     },
@@ -1880,116 +1924,242 @@ function RecentSalesPanel() {
     month: "short",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Monterrey",
   });
 
+  const q = query.trim().toLowerCase();
+  const shown = (sales ?? []).filter(
+    (s) =>
+      (channel === "todos" || (channel === "linea" ? s.online : !s.online)) &&
+      (!q ||
+        (s.client ?? "").toLowerCase().includes(q) ||
+        (s.description ?? "").toLowerCase().includes(q)),
+  );
+  const payLabel = (s: RecentSale) =>
+    s.method === "clip_online"
+      ? "Clip en línea"
+      : s.method === "stripe"
+        ? "Tarjeta en línea (Stripe)"
+        : s.method === "renovacion"
+          ? "Renovación automática"
+          : s.method === "tarjeta_guardada"
+            ? "Tarjeta guardada"
+            : s.method === "recepcion"
+              ? "Pagada en recepción"
+              : s.method === "tarjeta"
+                ? `Tarjeta${s.card_last4 ? ` ••${s.card_last4}` : ""}`
+                : s.method === "mixto"
+                  ? `Mixto: tarjeta ${money(s.card_cents ?? 0)} + ${
+                      s.other_method === "transferencia" ? "transf." : "efectivo"
+                    } ${money(s.other_cents ?? 0)}`
+                  : s.method === "convenio"
+                    ? "Convenio"
+                    : s.method === "transferencia"
+                      ? "Transferencia"
+                      : "Efectivo";
+  const canRefund = (s: RecentSale) =>
+    isAdmin && !s.refunded && s.method !== "convenio" && !s.online && s.kind !== "fee";
+  const chip = (active: boolean) =>
+    `border px-3 py-2 text-[0.62rem] uppercase tracking-[0.12em] ${
+      active
+        ? "border-foreground bg-foreground text-background"
+        : "border-input hover:border-foreground"
+    }`;
+
   return (
-    <div className="mt-2 border border-border">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-xs uppercase tracking-[0.12em]"
-      >
-        Ventas recientes, pagos en línea y reembolsos
-        <span className="text-muted-foreground">{open ? "−" : "+"}</span>
-      </button>
+    <>
       {open ? (
-        <div className="border-t border-border">
-          <p className="px-4 pt-3 text-[0.7rem] text-muted-foreground">
-            Reembolsa siempre desde aquí, no directo en Clip: así se devuelve el dinero, se quitan
-            los créditos y el producto regresa al inventario en un solo paso.
-            {isAdmin ? "" : " Solo un administrador puede hacer reembolsos."} Los pagos marcados "En
-            línea" los hizo la clienta desde la página o la app: no pasan por la caja y se
-            reembolsan desde Clip o Stripe.
-          </p>
-          <TodayTotals sales={sales ?? []} />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
-                  <th className="px-4 py-2">Fecha</th>
-                  <th className="px-4 py-2">Detalle</th>
-                  <th className="px-4 py-2">Cliente</th>
-                  <th className="px-4 py-2">Pago</th>
-                  <th className="px-4 py-2 text-right">Total</th>
-                  <th className="px-4 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(sales ?? []).map((s) => (
-                  <tr
-                    key={`${s.kind}-${s.id}`}
-                    className={s.refunded ? "text-muted-foreground" : ""}
-                  >
-                    <td className="whitespace-nowrap px-4 py-2 text-xs">
-                      {dateFmt.format(new Date(s.created_at))}
-                    </td>
-                    <td className="px-4 py-2">
+        <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={onClose}>
+          <div
+            className="flex h-full w-full max-w-4xl flex-col overflow-y-auto bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 space-y-3 border-b border-border bg-background px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="eyebrow">Ventas y pagos</p>
+                <button
+                  onClick={onClose}
+                  className="border border-input px-3 py-1.5 text-[0.62rem] uppercase tracking-[0.12em] hover:border-foreground"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["hoy", "Hoy"],
+                    ["ayer", "Ayer"],
+                    ["7d", "Últimos 7 días"],
+                    ["rango", "Fechas"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button key={k} onClick={() => setRange(k)} className={chip(range === k)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {range === "rango" ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <label className="flex items-center gap-2">
+                    Desde
+                    <input
+                      type="date"
+                      value={customFrom}
+                      max={customTo || undefined}
+                      onChange={(e) => setCustomFrom(e.target.value)}
+                      className="border border-input bg-background px-2 py-1.5"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    Hasta
+                    <input
+                      type="date"
+                      value={customTo}
+                      min={customFrom || undefined}
+                      onChange={(e) => setCustomTo(e.target.value)}
+                      className="border border-input bg-background px-2 py-1.5"
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ["todos", "Todos"],
+                    ["mostrador", "Mostrador"],
+                    ["linea", "En línea"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button key={k} onClick={() => setChannel(k)} className={chip(channel === k)}>
+                    {label}
+                  </button>
+                ))}
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar clienta o producto…"
+                  className="min-w-[12rem] flex-1 border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <PeriodTotals sales={sales ?? []} />
+            </div>
+            <p className="px-4 pt-3 text-[0.7rem] text-muted-foreground">
+              Reembolsa siempre desde aquí, no directo en Clip: así se devuelve el dinero, se quitan
+              los créditos y el producto regresa al inventario en un solo paso.
+              {isAdmin ? "" : " Solo un administrador puede hacer reembolsos."} Los pagos marcados
+              "En línea" los hizo la clienta desde la página o la app: no pasan por la caja y se
+              reembolsan desde Clip o Stripe.
+            </p>
+            {/* Celular: tarjetas */}
+            <ul className="divide-y divide-border sm:hidden">
+              {shown.map((s) => (
+                <li
+                  key={`m-${s.kind}-${s.id}`}
+                  className={`space-y-1 px-4 py-3 text-sm ${s.refunded ? "text-muted-foreground" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span>
                       {s.description || "—"}
                       {s.online ? (
                         <span className="ml-2 bg-sky-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-sky-800">
                           En línea
                         </span>
                       ) : null}
-                      {s.brand === "goodes" ? (
-                        <span className="ml-2 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
-                          Goddess
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-2 text-xs">{s.client ?? "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2 text-xs">
-                      {s.method === "clip_online"
-                        ? "Clip en línea"
-                        : s.method === "stripe"
-                          ? "Tarjeta en línea (Stripe)"
-                          : s.method === "renovacion"
-                            ? "Renovación automática"
-                            : s.method === "tarjeta_guardada"
-                              ? "Tarjeta guardada"
-                              : s.method === "recepcion"
-                                ? "Pagada en recepción"
-                                : s.method === "tarjeta"
-                                  ? `Tarjeta${s.card_last4 ? ` ••${s.card_last4}` : ""}`
-                                  : s.method === "mixto"
-                                    ? `Mixto: tarjeta ${money(s.card_cents ?? 0)} + ${
-                                        s.other_method === "transferencia" ? "transf." : "efectivo"
-                                      } ${money(s.other_cents ?? 0)}`
-                                    : s.method === "convenio"
-                                      ? "Convenio"
-                                      : s.method === "transferencia"
-                                        ? "Transferencia"
-                                        : "Efectivo"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right">
-                      {money(s.amount_cents)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right">
-                      {s.refunded ? (
-                        <span className="text-[0.65rem] uppercase tracking-[0.1em] text-destructive">
-                          Reembolsado
-                          {s.refund_amount_cents != null && s.refund_amount_cents !== s.amount_cents
-                            ? ` ${money(s.refund_amount_cents)}`
-                            : ""}
-                        </span>
-                      ) : isAdmin && s.method !== "convenio" && !s.online && s.kind !== "fee" ? (
-                        <button
-                          onClick={() => void openRefund(s)}
-                          className="border border-input px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.12em] hover:bg-muted"
-                        >
-                          Reembolsar
-                        </button>
-                      ) : null}
-                    </td>
+                    </span>
+                    <span className="whitespace-nowrap">{money(s.amount_cents)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {dateFmt.format(new Date(s.created_at))} · {s.client ?? "—"} · {payLabel(s)}
+                  </p>
+                  {s.refunded ? (
+                    <p className="text-[0.65rem] uppercase tracking-[0.1em] text-destructive">
+                      Reembolsado
+                    </p>
+                  ) : canRefund(s) ? (
+                    <button
+                      onClick={() => void openRefund(s)}
+                      className="border border-input px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.12em] hover:bg-muted"
+                    >
+                      Reembolsar
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    <th className="px-4 py-2">Fecha</th>
+                    <th className="px-4 py-2">Detalle</th>
+                    <th className="px-4 py-2">Cliente</th>
+                    <th className="px-4 py-2">Pago</th>
+                    <th className="px-4 py-2 text-right">Total</th>
+                    <th className="px-4 py-2"></th>
                   </tr>
-                ))}
-                {!isLoading && (sales ?? []).length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                      Todavía no hay ventas.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {shown.map((s) => (
+                    <tr
+                      key={`${s.kind}-${s.id}`}
+                      className={s.refunded ? "text-muted-foreground" : ""}
+                    >
+                      <td className="whitespace-nowrap px-4 py-2 text-xs">
+                        {dateFmt.format(new Date(s.created_at))}
+                      </td>
+                      <td className="px-4 py-2">
+                        {s.description || "—"}
+                        {s.online ? (
+                          <span className="ml-2 bg-sky-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-sky-800">
+                            En línea
+                          </span>
+                        ) : null}
+                        {s.brand === "goodes" ? (
+                          <span className="ml-2 bg-amber-500/15 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.1em] text-amber-800">
+                            Goddess
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-xs">{s.client ?? "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-xs">{payLabel(s)}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right">
+                        {money(s.amount_cents)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right">
+                        {s.refunded ? (
+                          <span className="text-[0.65rem] uppercase tracking-[0.1em] text-destructive">
+                            Reembolsado
+                            {s.refund_amount_cents != null &&
+                            s.refund_amount_cents !== s.amount_cents
+                              ? ` ${money(s.refund_amount_cents)}`
+                              : ""}
+                          </span>
+                        ) : canRefund(s) ? (
+                          <button
+                            onClick={() => void openRefund(s)}
+                            className="border border-input px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.12em] hover:bg-muted"
+                          >
+                            Reembolsar
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                  {!isLoading && shown.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                        No hay ventas en estas fechas.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            {!isLoading && shown.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground sm:hidden">
+                No hay ventas en estas fechas.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2111,7 +2281,7 @@ function RecentSalesPanel() {
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
 
